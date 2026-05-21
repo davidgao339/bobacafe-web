@@ -8,7 +8,7 @@ import streamlit as st
 from datetime import date
 
 from config import (
-    COL_MONTH, COL_NAME,
+    ALLOWED_EMAILS, COL_MONTH, COL_NAME,
     DEFAULT_STORE_WEIGHTS, STRINGS,
 )
 from data_access import read_responses, write_schedule
@@ -21,9 +21,22 @@ if "lang" not in st.session_state:
     st.session_state.lang = "ru"
 T = STRINGS[st.session_state.lang]
 
+# ── Auth gate ─────────────────────────────────────────────────────────────────
+if not getattr(st.user, 'is_logged_in', False):
+    st.title(T["app_title"])
+    st.markdown(T["sign_in_desc"])
+    st.button(T["sign_in_btn"], on_click=st.login, args=("google",), type="primary")
+    st.stop()
+
+if st.user.email not in ALLOWED_EMAILS:
+    st.error(T["access_denied"])
+    st.button(T["sign_out"], on_click=st.logout)
+    st.stop()
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("Боба Кролик")
+    st.caption(st.user.email)
 
     lang_choice = st.radio(
         "Language", ["RU", "EN"], horizontal=True,
@@ -36,6 +49,7 @@ with st.sidebar:
         st.session_state.lang = new_lang
         st.rerun()
 
+    st.button(T["sign_out"], on_click=st.logout, use_container_width=True)
     st.divider()
 
     month_filter = st.selectbox(
