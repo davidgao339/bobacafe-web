@@ -39,9 +39,10 @@ with st.sidebar:
     st.caption(st.user.email)
 
     lang_choice = st.radio(
-        "", ["RU", "EN"], horizontal=True,
+        "Language", ["RU", "EN"], horizontal=True,
         index=0 if st.session_state.lang == "ru" else 1,
         key="lang_toggle",
+        label_visibility="collapsed",
     )
     new_lang = "ru" if lang_choice == "RU" else "en"
     if new_lang != st.session_state.lang:
@@ -82,7 +83,7 @@ with st.sidebar:
                 st.session_state.schedule_result = None
                 st.toast(T["loaded_toast"], icon="✅")
             except Exception as e:
-                st.error(T["load_error"].format(err=e))
+                st.error(T["load_error"].format(err=f"{type(e).__name__}: {e}"))
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 st.title(T["page_title"])

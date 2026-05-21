@@ -4,7 +4,10 @@ from google.oauth2.service_account import Credentials
 from config import SPREADSHEET_ID
 
 _CREDS_PATH = os.path.join(os.path.dirname(__file__), 'credentials.json')
-_SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+_SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive.readonly',
+]
 
 
 def _client():
@@ -12,7 +15,7 @@ def _client():
         creds = Credentials.from_service_account_file(_CREDS_PATH, scopes=_SCOPES)
     else:
         import streamlit as st
-        info = dict(st.secrets['gcp_service_account'])
+        info = {k: v for k, v in st.secrets['gcp_service_account'].items()}
         creds = Credentials.from_service_account_info(info, scopes=_SCOPES)
     return gspread.authorize(creds)
 
