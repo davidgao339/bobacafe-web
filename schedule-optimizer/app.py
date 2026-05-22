@@ -269,7 +269,12 @@ with col_save:
                 st.error(T["save_error"].format(err=f"{type(e).__name__}: {e}"))
 
 with col_dl:
-    csv_bytes = schedule_df.to_csv(index=False).encode("utf-8-sig")
+    wide_csv = build_wide_table(schedule_df, year, month_num, DAYS)
+    wide_csv.columns = [f"{c[0]} - {c[1]}" for c in wide_csv.columns]
+    wide_csv = wide_csv.reset_index()
+    wide_csv["Дата"] = pd.to_datetime(wide_csv["Дата"]).dt.strftime("%Y-%m-%d")
+    wide_csv = wide_csv.fillna("—")
+    csv_bytes = wide_csv.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
         T["download_btn"],
         data=csv_bytes,
