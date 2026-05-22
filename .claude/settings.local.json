@@ -16,7 +16,35 @@
       "Bash(git commit -m 'fix: correct 3-step Databricks embedded token flow *)",
       "Bash(git commit -m 'fix: set dashboard container to full viewport height *)",
       "Bash(streamlit run *)",
-      "PowerShell(Get-Content \"C:\\\\Users\\\\david\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Github-bobacafe-web\\\\e2898f14-f75d-4b02-8f5c-e53fcdebb2ad\\\\tasks\\\\b51polpnz.output\" -Wait -Tail 20)"
+      "PowerShell(Get-Content \"C:\\\\Users\\\\david\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Github-bobacafe-web\\\\e2898f14-f75d-4b02-8f5c-e53fcdebb2ad\\\\tasks\\\\b51polpnz.output\" -Wait -Tail 20)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\bobacafe-web\\\\schedule-app\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(mkdir -p \"d:/Github/bobacafe-web/schedule-optimizer/.streamlit\")",
+      "Bash(python -c \"from optimizer import run_optimization; from data_access import read_responses; print\\('imports OK'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"from ortools.sat.python import cp_model; print\\('ortools OK'\\)\")",
+      "Bash(where streamlit *)",
+      "Bash(where python *)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(python -c \"import ortools; print\\('found at', ortools.__file__\\)\")",
+      "PowerShell(python -c \"import sys; print\\(sys.executable\\)\")",
+      "PowerShell(python -m streamlit run \"d:\\\\Github\\\\bobacafe-web\\\\schedule-optimizer\\\\app.py\" --server.headless true 2>&1)",
+      "PowerShell(netstat -ano)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" status)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" log --oneline -3)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add schedule-optimizer/)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" diff --staged --stat)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add schedule-optimizer/app.py schedule-optimizer/config.py)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" push)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add schedule-optimizer/app.py schedule-optimizer/data_access.py)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add internal/index.html schedule-optimizer/app.py)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add schedule-optimizer/app.py)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" show HEAD:schedule-optimizer/config.py)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" log --oneline -5)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" show c370fae:schedule-optimizer/config.py)"
+    ],
+    "additionalDirectories": [
+      "d:\\Github\\bobacafe-web\\schedule-optimizer"
     ]
   }
 }
