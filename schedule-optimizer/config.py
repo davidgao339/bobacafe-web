@@ -86,10 +86,10 @@ STRINGS: dict[str, dict] = {
         "download_btn": "Download CSV",
         "guide_expander": "How to use this tool",
         "guide_body": (
-            "**Step 1 — Load data**\n"
-            "Click «Load Data» in the sidebar. This pulls employee availability responses from Google Sheets.\n\n"
-            "**Step 2 — Select month**\n"
+            "**Step 1 — Select month**\n"
             "Choose the month you want to schedule from the sidebar dropdown.\n\n"
+            "**Step 2 — Load data**\n"
+            "Click «Load Data» in the sidebar. This pulls employee availability responses from Google Sheets.\n\n"
             "**Step 3 — Review cafe settings**\n"
             "A settings table appears for each cafe found in the data:\n"
             "- **Weight** (0–5) — priority score. Higher weight = optimizer fills this cafe first. "
@@ -162,10 +162,10 @@ STRINGS: dict[str, dict] = {
         "download_btn": "Скачать CSV",
         "guide_expander": "Как пользоваться инструментом",
         "guide_body": (
-            "**Шаг 1 — Загрузить данные**\n"
-            "Нажмите «Загрузить данные» в боковой панели. Данные о доступности сотрудников загружаются из Google Sheets.\n\n"
-            "**Шаг 2 — Выбрать месяц**\n"
+            "**Шаг 1 — Выбрать месяц**\n"
             "Выберите нужный месяц в выпадающем списке в боковой панели.\n\n"
+            "**Шаг 2 — Загрузить данные**\n"
+            "Нажмите «Загрузить данные» в боковой панели. Данные о доступности сотрудников загружаются из Google Sheets.\n\n"
             "**Шаг 3 — Проверить настройки кафе**\n"
             "После загрузки появится таблица настроек для каждого кафе из данных:\n"
             "- **Вес** (0–5) — приоритет кафе. Чем выше, тем охотнее оптимизатор назначает сюда сотрудников. "
