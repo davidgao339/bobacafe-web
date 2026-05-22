@@ -83,6 +83,9 @@ with st.sidebar:
 # ── Main ──────────────────────────────────────────────────────────────────────
 st.title(T["page_title"])
 
+with st.expander(T["guide_expander"], expanded="raw_df" not in st.session_state):
+    st.markdown(T["guide_body"])
+
 if "raw_df" not in st.session_state:
     st.info(T["no_data_info"])
     st.stop()
@@ -149,21 +152,50 @@ store_need = {
 # ── Run optimization ──────────────────────────────────────────────────────────
 st.divider()
 
-if st.button(T["run_btn"], type="primary", use_container_width=True):
-    with st.spinner(T["solving_spinner"].format(sec=time_limit)):
-        try:
-            result = run_optimization(
-                raw_df,
-                month_filter=month_filter,
-                store_weights=store_weights,
-                store_need=store_need,
-                default_need={"Утро": 1, "Вечер": 1},
-                max_shifts=int(max_shifts),
-                time_limit=int(time_limit),
-            )
-            st.session_state.schedule_result = result
-        except Exception as e:
-            st.error(T["opt_error"].format(err=e))
+if not st.session_state.get("awaiting_confirm"):
+    if st.button(T["run_btn"], type="primary", use_container_width=True):
+        st.session_state.awaiting_confirm = True
+        st.rerun()
+else:
+    with st.container(border=True):
+        st.subheader(T["confirm_title"])
+        st.caption(T["confirm_intro"])
+
+        st.markdown(T["confirm_weight_explain"])
+        st.markdown(T["confirm_morning_explain"])
+        st.markdown(T["confirm_evening_explain"])
+
+        st.dataframe(
+            edited.rename(columns={
+                "_store": T["col_store"],
+                "_weight": T["col_weight"],
+                "_morning": T["col_morning"],
+                "_evening": T["col_evening"],
+            }),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        col_ok, col_cancel = st.columns([2, 1])
+        if col_ok.button(T["confirm_run"], type="primary", use_container_width=True):
+            st.session_state.awaiting_confirm = False
+            with st.spinner(T["solving_spinner"].format(sec=time_limit)):
+                try:
+                    result = run_optimization(
+                        raw_df,
+                        month_filter=month_filter,
+                        store_weights=store_weights,
+                        store_need=store_need,
+                        default_need={"Утро": 1, "Вечер": 1},
+                        max_shifts=int(max_shifts),
+                        time_limit=int(time_limit),
+                    )
+                    st.session_state.schedule_result = result
+                except Exception as e:
+                    st.error(T["opt_error"].format(err=e))
+        if col_cancel.button(T["confirm_cancel"], use_container_width=True):
+            st.session_state.awaiting_confirm = False
+            st.rerun()
 
 # ── Results ───────────────────────────────────────────────────────────────────
 if not st.session_state.get("schedule_result"):
