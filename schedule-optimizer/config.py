@@ -4,6 +4,7 @@ SCHEDULE_SHEET_GID = 385579725
 ALLOWED_EMAILS = [
     'davidgao734@gmail.com',
     'stefa.miva@gmail.com',
+    '2008liza0909@gmail.com',
 ]
 
 # Exact column headers from the Google Form responses sheet
