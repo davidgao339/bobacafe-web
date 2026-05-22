@@ -276,7 +276,7 @@ def build_wide_table(schedule_df: pd.DataFrame, year: int, month: int, days: lis
         index="Дата",
         columns=["Кафе", "Смена2"],
         values="Сотрудник",
-        aggfunc=lambda s: ", ".join(sorted(set(s))),
+        aggfunc=lambda s: "/".join(sorted(set(s))),
         sort=False,
     )
 

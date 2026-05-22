@@ -26,14 +26,11 @@ def read_responses() -> list[dict]:
     return ws.get_all_records()
 
 
-def write_schedule(sheet_name: str, header_row: list, data_rows: list):
-    """Write schedule to a named sheet, creating it if it doesn't exist."""
+def write_schedule(gid: int, header_row: list, data_rows: list):
+    """Write schedule to the sheet identified by gid."""
     gc = _client()
     ss = gc.open_by_key(SPREADSHEET_ID)
-    try:
-        ws = ss.worksheet(sheet_name)
-    except gspread.WorksheetNotFound:
-        ws = ss.add_worksheet(title=sheet_name, rows="200", cols="100")
+    ws = ss.get_worksheet_by_id(gid)
     ws.clear()
     ws.update([header_row] + data_rows)
     ws.format('1:1', {'textFormat': {'bold': True}})

@@ -1,4 +1,5 @@
 SPREADSHEET_ID = '1MMKBimsoecrYKZD7JtrwRpVBrFfpxq0uJipmzL9DTWw'
+SCHEDULE_SHEET_GID = 385579725
 
 ALLOWED_EMAILS = [
     'davidgao734@gmail.com',
@@ -78,9 +79,9 @@ STRINGS: dict[str, dict] = {
         "emp_col": "Employee",
         "shifts_col": "Shifts assigned",
         "deviation_col": "Deviation from avg",
-        "save_btn": "Save to Google Sheets → «{sheet}»",
+        "save_btn": "Save to Google Sheets",
         "saving_spinner": "Saving...",
-        "save_success": "Saved to sheet «{sheet}»!",
+        "save_success": "Saved!",
         "save_error": "Save error: {err}",
         "download_btn": "Download CSV",
         "months": ["January", "February", "March", "April", "May", "June",
@@ -130,9 +131,9 @@ STRINGS: dict[str, dict] = {
         "emp_col": "Сотрудник",
         "shifts_col": "Смен назначено",
         "deviation_col": "Отклонение от среднего",
-        "save_btn": "Сохранить в Google Sheets → «{sheet}»",
+        "save_btn": "Сохранить в Google Sheets",
         "saving_spinner": "Записываем...",
-        "save_success": "Записано в лист «{sheet}»!",
+        "save_success": "Записано!",
         "save_error": "Ошибка записи: {err}",
         "download_btn": "Скачать CSV",
         "months": ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",

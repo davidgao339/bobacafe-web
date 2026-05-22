@@ -9,7 +9,7 @@ from datetime import date
 
 from config import (
     ALLOWED_EMAILS, COL_MONTH, COL_NAME,
-    DEFAULT_STORE_WEIGHTS, STRINGS,
+    DEFAULT_STORE_WEIGHTS, SCHEDULE_SHEET_GID, STRINGS,
 )
 from data_access import read_responses, write_schedule
 from optimizer import get_stores_from_df, run_optimization, build_wide_table
@@ -68,11 +68,6 @@ with st.sidebar:
         time_limit = st.number_input(
             T["time_limit_label"], min_value=5, max_value=300, value=30, step=5
         )
-
-    output_sheet = st.text_input(
-        T["output_sheet_label"],
-        value=f"Schedule_{T['months'][month_filter - 1]}",
-    )
 
     st.divider()
     if st.button(T["load_btn"], use_container_width=True, type="primary"):
@@ -260,8 +255,7 @@ st.divider()
 col_save, col_dl = st.columns([2, 1])
 
 with col_save:
-    if st.button(T["save_btn"].format(sheet=output_sheet),
-                 use_container_width=True, type="secondary"):
+    if st.button(T["save_btn"], use_container_width=True, type="secondary"):
         with st.spinner(T["saving_spinner"]):
             try:
                 wide = build_wide_table(schedule_df, year, month_num, DAYS)
@@ -269,10 +263,10 @@ with col_save:
                 data_out = wide.reset_index()
                 data_out["Дата"] = pd.to_datetime(data_out["Дата"]).dt.strftime("%Y-%m-%d")
                 data_rows = data_out.fillna("—").values.tolist()
-                write_schedule(output_sheet, header_row, data_rows)
-                st.success(T["save_success"].format(sheet=output_sheet))
+                write_schedule(SCHEDULE_SHEET_GID, header_row, data_rows)
+                st.success(T["save_success"])
             except Exception as e:
-                st.error(T["save_error"].format(err=e))
+                st.error(T["save_error"].format(err=f"{type(e).__name__}: {e}"))
 
 with col_dl:
     csv_bytes = schedule_df.to_csv(index=False).encode("utf-8-sig")
