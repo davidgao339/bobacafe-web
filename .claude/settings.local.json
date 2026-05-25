@@ -41,7 +41,10 @@
       "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add schedule-optimizer/app.py)",
       "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" show HEAD:schedule-optimizer/config.py)",
       "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" log --oneline -5)",
-      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" show c370fae:schedule-optimizer/config.py)"
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" show c370fae:schedule-optimizer/config.py)",
+      "PowerShell(git -C \"d:\\\\Github\\\\bobacafe-web\" add schedule-optimizer/config.py)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Github\\\\bobacafe-web\\\\schedule-app\" -Recurse -Include *.tsx, *.ts, *.jsx, *.js)",
+      "PowerShell(ls -R \"d:\\\\Github\\\\bobacafe-web\\\\schedule-app\")"
     ],
     "additionalDirectories": [
       "d:\\Github\\bobacafe-web\\schedule-optimizer"
