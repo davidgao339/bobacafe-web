@@ -74,12 +74,18 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
     return {}
   })
 
+  // Set of ingredient IDs that were in the original order (ordered > 0)
+  const originalIds = new Set(initialLines?.filter(l => l.ordered > 0).map(l => l.ingredientId) ?? [])
+
   const lines = ingredients.map(p => {
     const key = `${store}:${p.id}`
     const suggested = getOrderQty(store, p.id)
-    const qty = key in qtys ? qtys[key] : (initialLines ? 0 : suggested)
-    return { ...p, suggested, qty }
+    const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : suggested)
+    return { ...p, suggested, qty, isOriginal: originalIds.has(p.id) }
   })
+
+  const inOrder  = lines.filter(l => l.isOriginal || (!initialLines && true))
+  const notInOrder = initialLines ? lines.filter(l => !l.isOriginal) : []
 
   const handleStoreChange = (s) => { setStore(s); setQtys({}) }
   const setQty = (ingredientId, val) =>
@@ -91,6 +97,28 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
       lines: lines.map(l => ({ ingredientId: l.id, ordered: Math.max(0, Number(l.qty) || 0) })),
     })
   }
+
+  const colHead = (
+    <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
+      <th className="px-6 py-3 font-medium">Ingredient</th>
+      <th className="px-4 py-3 font-medium">Unit</th>
+      <th className="px-4 py-3 font-medium text-right">Suggested</th>
+      <th className="px-4 py-3 font-medium text-right">Order qty</th>
+    </tr>
+  )
+
+  const renderRow = (l) => (
+    <tr key={l.id} className="hover:bg-gray-50">
+      <td className="px-6 py-2.5 font-medium text-gray-900">{l.name}</td>
+      <td className="px-4 py-2.5 text-gray-500">{l.unit}</td>
+      <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{l.suggested}</td>
+      <td className="px-4 py-2.5 text-right">
+        <input type="number" min="0" value={l.qty}
+          onChange={e => setQty(l.id, e.target.value)}
+          className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </td>
+    </tr>
+  )
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
@@ -107,30 +135,27 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
         )}
         {lockStore && <span className="text-sm font-medium text-gray-700">{store}</span>}
       </div>
+
       <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-            <th className="px-6 py-3 font-medium">Ingredient</th>
-            <th className="px-4 py-3 font-medium">Unit</th>
-            <th className="px-4 py-3 font-medium text-right">Suggested</th>
-            <th className="px-4 py-3 font-medium text-right">Order qty</th>
-          </tr>
-        </thead>
+        <thead>{colHead}</thead>
         <tbody className="divide-y divide-gray-50">
-          {lines.map(l => (
-            <tr key={l.id} className="hover:bg-gray-50">
-              <td className="px-6 py-2.5 font-medium text-gray-900">{l.name}</td>
-              <td className="px-4 py-2.5 text-gray-500">{l.unit}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{l.suggested}</td>
-              <td className="px-4 py-2.5 text-right">
-                <input type="number" min="0" value={l.qty}
-                  onChange={e => setQty(l.id, e.target.value)}
-                  className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </td>
-            </tr>
-          ))}
+          {(initialLines ? inOrder : lines).map(renderRow)}
         </tbody>
       </table>
+
+      {notInOrder.length > 0 && (
+        <>
+          <div className="px-6 py-2 bg-gray-50 border-t border-b border-gray-100 flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Add more ingredients</span>
+            <span className="text-xs text-gray-400">— set qty &gt; 0 to include</span>
+          </div>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-gray-50">
+              {notInOrder.map(renderRow)}
+            </tbody>
+          </table>
+        </>
+      )}
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
         <p className="text-xs text-gray-400">Suggested = consumed ×1.05 − inventory adjustment</p>
         <div className="flex gap-3">
