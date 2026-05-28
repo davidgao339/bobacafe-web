@@ -8,7 +8,6 @@ import ReplenishmentReport from './pages/ReplenishmentReport'
 import Recipes from './pages/Recipes'
 import VarianceReport from './pages/VarianceReport'
 import PurchaseOrders from './pages/PurchaseOrders'
-import LogLoss from './pages/LogLoss'
 
 export default function App() {
   return (
@@ -34,7 +33,7 @@ function AppContent() {
         {page === 'recipes'      && <Recipes />}
         {page === 'variance'     && <VarianceReport />}
         {page === 'purchases'    && <PurchaseOrders />}
-        {page === 'logloss'      && <LogLoss />}
+
       </main>
     </div>
   )
