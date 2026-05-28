@@ -140,25 +140,10 @@ export function ConfigProvider({ children }) {
 
   // ─── Databricks refresh ──────────────────────────────────────────────────────
 
-  const refreshSales = useCallback(async (token, warehouseId) => {
+  const refreshSales = useCallback(async (token, warehouseId, fromDate, toDate) => {
     const currentRows = salesCache?.rows ?? []
 
-    // Max date already in data → fetch from the day after
-    const maxDate = currentRows.length > 0
-      ? currentRows.reduce((m, r) => (r.date > m ? r.date : m), currentRows[0].date)
-      : '2000-01-01'
-
-    const nextDay = (d) => {
-      const dt = new Date(d + 'T12:00:00Z')
-      dt.setUTCDate(dt.getUTCDate() + 1)
-      return dt.toISOString().slice(0, 10)
-    }
-
-    const fromDate = nextDay(maxDate)
-    const yd = new Date(); yd.setDate(yd.getDate() - 1)
-    const toDate = yd.toISOString().slice(0, 10)
-
-    if (fromDate > toDate) return { upToDate: true, throughDate: maxDate }
+    if (!fromDate || !toDate) return { upToDate: true, throughDate: null }
 
     const storesSql = STORES.map(s => `'${s}'`).join(', ')
     const statement = `

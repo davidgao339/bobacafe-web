@@ -7,8 +7,11 @@ import { STORES } from '../data/fakeData'
 function SalesTab() {
   const { sales, salesCache, reportFrom, reportTo, settings, saveSettings, refreshSales, clearSalesCache } = useConfig()
   const { getSaleIngredientImpact } = useCalcs()
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+  const todayStr     = new Date().toISOString().slice(0, 10)
+
   const [filterStore,    setFilterStore]    = useState('All')
-  const [filterFrom,     setFilterFrom]     = useState(reportFrom)
+  const [filterFrom,     setFilterFrom]     = useState(reportFrom !== todayStr ? reportFrom : sevenDaysAgo)
   const [filterTo,       setFilterTo]       = useState(reportTo)
   const [expanded,       setExpanded]       = useState(null)
   const [refreshing,     setRefreshing]     = useState(false)
@@ -17,7 +20,7 @@ function SalesTab() {
   const [localToken,     setLocalToken]     = useState(settings.token ?? '')
   const [localWarehouse, setLocalWarehouse] = useState(settings.warehouseId ?? '')
 
-  const lastSync = salesCache?.lastRefreshDate ?? reportTo
+  const lastSync = salesCache?.lastRefreshDate ?? null
 
   const handleRefresh = async () => {
     // Use live input if settings panel is open, otherwise fall back to saved settings
@@ -35,11 +38,11 @@ function SalesTab() {
     }
     setRefreshing(true); setRefreshMsg(null)
     try {
-      const result = await refreshSales(token, warehouseId)
+      const result = await refreshSales(token, warehouseId, filterFrom, filterTo)
       if (result.upToDate) {
         setRefreshMsg({ type: 'ok', text: `Already up to date through ${result.throughDate}.` })
       } else {
-        setRefreshMsg({ type: 'ok', text: `Synced ${result.newRows} rows (${result.fromDate} → ${result.toDate}).` })
+        setRefreshMsg({ type: 'ok', text: `Fetched ${result.newRows} rows (${result.fromDate} → ${result.toDate}).` })
       }
     } catch (err) {
       setRefreshMsg({ type: 'error', text: err.message })
@@ -91,9 +94,11 @@ function SalesTab() {
           <span className="text-sm text-gray-500 pb-2">{filtered.length} rows</span>
           <div className="flex-1" />
           <div className="flex items-center gap-2 pb-0.5">
-            <span className="text-xs text-gray-400">
-              Data through <span className="font-medium text-gray-600">{lastSync}</span>
-            </span>
+            {lastSync && (
+              <span className="text-xs text-gray-400">
+                Cached through <span className="font-medium text-gray-600">{lastSync}</span>
+              </span>
+            )}
             <button onClick={handleRefresh} disabled={refreshing}
               className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
               <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
