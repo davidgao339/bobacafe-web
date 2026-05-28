@@ -174,7 +174,7 @@ export function ConfigProvider({ children }) {
 
     const apiPath = import.meta.env.DEV
       ? '/databricks-proxy/api/2.0/sql/statements'
-      : `${WORKSPACE}/api/2.0/sql/statements`
+      : 'https://bobacafe-proxy.davidgao734.workers.dev'
     const resp = await fetch(apiPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
