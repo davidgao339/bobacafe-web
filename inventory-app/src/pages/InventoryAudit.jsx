@@ -37,8 +37,8 @@ export default function InventoryAudit() {
     setTimeout(() => setSaved(false), 3500)
   }
 
-  const getValue   = (productId) => counts[`${store}-${productId}`] ?? ''
-  const allFilled  = config.ingredients.length > 0 && config.ingredients.every(p => getValue(p.id) !== '')
+  const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
+  const anyFilled = config.ingredients.some(p => getValue(p.id) !== '')
 
   return (
     <div className="p-8 max-w-4xl">
@@ -114,17 +114,15 @@ export default function InventoryAudit() {
               Audit saved for {store}
             </span>
           )}
-          <button onClick={handleSave} disabled={!allFilled}
+          <button onClick={handleSave} disabled={!anyFilled}
             className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-              allFilled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              anyFilled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}>
             Save Audit
           </button>
         </div>
       </div>
-      {!allFilled && (
-        <p className="text-xs text-gray-400 text-right mt-2">Fill in all products to save</p>
-      )}
+      <p className="text-xs text-gray-400 text-right mt-2">Unfilled rows are saved as not counted</p>
     </div>
   )
 }

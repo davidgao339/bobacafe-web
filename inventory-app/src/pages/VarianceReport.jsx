@@ -15,15 +15,17 @@ function StoreSection({ store }) {
   const win = getVarianceWindow(store)
 
   const rows = config.ingredients
-    .map(p => ({
-      name:     p.name,
-      unit:     p.unit,
-      expected: getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id),
-      actual:   getActualConsumed(store, p.id),
-      lost:     getUnexplainedVariance(store, p.id),
-      pct:      getVariancePct(store, p.id),
-    }))
-    .filter(r => r.expected > 0)
+    .map(p => {
+      const expected = getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id)
+      const actual   = getActualConsumed(store, p.id)
+      const lost     = getUnexplainedVariance(store, p.id)
+      // pct relative to expected; if no expected but actual consumed, treat as 100% unexplained
+      const pct = expected > 0
+        ? getVariancePct(store, p.id)
+        : actual > 0 ? 100 : 0
+      return { name: p.name, unit: p.unit, expected, actual, lost, pct }
+    })
+    .filter(r => r.expected > 0 || r.actual !== 0)
 
   const hasIssues = rows.some(r => r.pct > 5)
 
@@ -69,15 +71,20 @@ function StoreSection({ store }) {
                 return (
                   <tr key={r.name} className={r.pct > 10 ? 'bg-red-50/40' : r.pct > 5 ? 'bg-amber-50/30' : ''}>
                     <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-500">{r.expected} {r.unit}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-500">
+                      {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">no sales data</span>}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-800 font-medium">{r.actual} {r.unit}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">
                       {r.lost > 0 ? `+${r.lost} ${r.unit}` : r.lost < 0 ? `${r.lost} ${r.unit}` : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${b.style}`}>
-                        {r.pct > 0 ? `+${r.pct}% ${b.label}` : r.pct < 0 ? `${r.pct}%` : b.label}
-                      </span>
+                      {r.expected === 0 && r.actual > 0
+                        ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">No recipe/sales</span>
+                        : <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${b.style}`}>
+                            {r.pct > 0 ? `+${r.pct}% ${b.label}` : r.pct < 0 ? `${r.pct}%` : b.label}
+                          </span>
+                      }
                     </td>
                   </tr>
                 )
