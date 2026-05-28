@@ -211,9 +211,11 @@ function SalesTab() {
 
 function WasteTab() {
   const { posWaste, salesCache, reportFrom, reportTo } = useConfig()
+  const today = new Date().toISOString().slice(0, 10)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
   const [filterStore, setFilterStore] = useState('All')
-  const [filterFrom,  setFilterFrom]  = useState(reportFrom)
-  const [filterTo,    setFilterTo]    = useState(reportTo)
+  const [filterFrom,  setFilterFrom]  = useState(posWaste.length > 0 ? reportFrom : thirtyDaysAgo)
+  const [filterTo,    setFilterTo]    = useState(posWaste.length > 0 ? reportTo   : today)
 
   const filtered = useMemo(() =>
     posWaste.filter(r => {

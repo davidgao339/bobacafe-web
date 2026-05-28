@@ -1,14 +1,15 @@
 const STAFF_NAV = [
   { id: 'dashboard', label: 'Home',        icon: DashIcon },
   { id: 'audit',     label: 'Count Stock', icon: AuditIcon },
+  { id: 'logloss',   label: 'Log a Loss',  icon: LogLossIcon },
 ]
 
 const MANAGER_NAV = [
-  { id: 'transactions', label: 'Transactions',     icon: TxIcon },
-  { id: 'recipes',      label: 'Recipes',          icon: RecipeIcon },
+  { id: 'transactions', label: 'Transactions',      icon: TxIcon },
+  { id: 'recipes',      label: 'Recipes',           icon: RecipeIcon },
   { id: 'variance',     label: 'Unexplained Losses', icon: VarianceIcon },
-  { id: 'purchases',    label: 'Purchase Orders',  icon: POIcon },
-  { id: 'report',       label: 'Replenishment',    icon: ReportIcon },
+  { id: 'purchases',    label: 'Purchase Orders',   icon: POIcon },
+  { id: 'report',       label: 'Replenishment',     icon: ReportIcon },
 ]
 
 function NavButton({ id, label, icon: Icon, currentPage, onNavigate }) {
@@ -49,7 +50,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
       </nav>
 
       <div className="px-6 py-4 border-t border-slate-700">
-        <p className="text-slate-500 text-xs">MVP · Fake Data</p>
+        <p className="text-slate-500 text-xs">Boba Кролик · Inventory</p>
       </div>
     </aside>
   )

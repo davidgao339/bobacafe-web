@@ -38,7 +38,7 @@ export default function InventoryAudit() {
   }
 
   const getValue   = (productId) => counts[`${store}-${productId}`] ?? ''
-  const allFilled  = config.ingredients.every(p => getValue(p.id) !== '')
+  const allFilled  = config.ingredients.length > 0 && config.ingredients.every(p => getValue(p.id) !== '')
 
   return (
     <div className="p-8 max-w-4xl">

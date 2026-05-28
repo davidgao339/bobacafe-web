@@ -52,7 +52,9 @@ export default function Dashboard({ onNavigate }) {
   if (auditDays >= 7) tasks.push({
     urgency: 'critical', icon: '📋',
     title: 'Stock count overdue',
-    desc: `Last counted ${auditDays} days ago — weekly counts keep forecasts accurate`,
+    desc: lastAuditDate
+      ? `Last counted ${auditDays} days ago — weekly counts keep forecasts accurate`
+      : 'No stock count on record — do your first audit to enable forecasting',
     action: 'Count Stock Now', nav: 'audit',
   })
 
