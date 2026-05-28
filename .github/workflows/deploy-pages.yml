@@ -41,13 +41,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Export POS Sales Data from Databricks
-        env:
-          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-          DATABRICKS_SQL_WAREHOUSE_ID: ${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}
-        run: python scripts/export_pos_sales.py
-
       - name: Build Inventory App
         run: |
           cd inventory-app
