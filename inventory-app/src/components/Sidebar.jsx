@@ -1,0 +1,65 @@
+const STAFF_NAV = [
+  { id: 'dashboard', label: 'Home',        icon: DashIcon },
+  { id: 'audit',     label: 'Count Stock', icon: AuditIcon },
+]
+
+const MANAGER_NAV = [
+  { id: 'transactions', label: 'Transactions',     icon: TxIcon },
+  { id: 'recipes',      label: 'Recipes',          icon: RecipeIcon },
+  { id: 'variance',     label: 'Unexplained Losses', icon: VarianceIcon },
+  { id: 'purchases',    label: 'Purchase Orders',  icon: POIcon },
+  { id: 'report',       label: 'Replenishment',    icon: ReportIcon },
+]
+
+function NavButton({ id, label, icon: Icon, currentPage, onNavigate }) {
+  return (
+    <button
+      onClick={() => onNavigate(id)}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+        currentPage === id
+          ? 'bg-slate-600 text-white'
+          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+      }`}
+    >
+      <Icon />
+      {label}
+    </button>
+  )
+}
+
+export default function Sidebar({ currentPage, onNavigate }) {
+  return (
+    <aside className="w-56 bg-slate-800 flex flex-col h-full flex-shrink-0">
+      <div className="px-6 py-5 border-b border-slate-700">
+        <p className="text-white font-semibold text-sm tracking-wide">BOBA</p>
+        <p className="text-slate-400 text-xs mt-0.5">Inventory Manager</p>
+      </div>
+
+      <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
+        {STAFF_NAV.map(item => (
+          <NavButton key={item.id} {...item} currentPage={currentPage} onNavigate={onNavigate} />
+        ))}
+
+        <div className="my-3 border-t border-slate-700" />
+        <p className="px-3 text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">Manager</p>
+
+        {MANAGER_NAV.map(item => (
+          <NavButton key={item.id} {...item} currentPage={currentPage} onNavigate={onNavigate} />
+        ))}
+      </nav>
+
+      <div className="px-6 py-4 border-t border-slate-700">
+        <p className="text-slate-500 text-xs">MVP · Fake Data</p>
+      </div>
+    </aside>
+  )
+}
+
+function DashIcon()     { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> }
+function LogLossIcon()  { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> }
+function AuditIcon()    { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg> }
+function TxIcon()       { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg> }
+function RecipeIcon()   { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg> }
+function VarianceIcon() { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg> }
+function POIcon()       { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h.01M12 16h.01M8 12h.01M8 16h.01"/></svg> }
+function ReportIcon()   { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> }

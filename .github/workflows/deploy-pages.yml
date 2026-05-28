@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"   # 03:00 UTC nightly — refreshes POS sales data
 
 permissions:
   contents: read
@@ -28,9 +30,27 @@ jobs:
           cache: "npm"
           cache-dependency-path: schedule-app/package-lock.json
 
-      - name: Install and Build React App
+      - name: Install and Build Schedule App
         run: |
           cd schedule-app
+          npm ci
+          npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Export POS Sales Data from Databricks
+        env:
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          DATABRICKS_SQL_WAREHOUSE_ID: ${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}
+        run: python scripts/export_pos_sales.py
+
+      - name: Build Inventory App
+        run: |
+          cd inventory-app
           npm ci
           npm run build
 
@@ -98,7 +118,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ steps.databricks_token.outputs.token }}
         run: |
           # 1. Create output directories
-          mkdir -p deploy/internal/schedule deploy/internal/reports
+          mkdir -p deploy/internal/schedule deploy/internal/inventory deploy/internal/reports
 
           # 2. Public site root
           cp index.html deploy/index.html
@@ -109,8 +129,9 @@ jobs:
           cp internal/dashboard.html   deploy/internal/dashboard.html
           sed -i "s|YOUR_DATABRICKS_TOKEN_HERE|${DATABRICKS_TOKEN}|g" deploy/internal/dashboard.html
 
-          # 4. Fresh React build → internal/schedule
-          cp -r schedule-app/build/* deploy/internal/schedule/
+          # 4. Fresh React builds
+          cp -r schedule-app/build/*   deploy/internal/schedule/
+          cp -r inventory-app/dist/*   deploy/internal/inventory/
 
           # 5. Reports
           cp -r internal/reports/. deploy/internal/reports/
