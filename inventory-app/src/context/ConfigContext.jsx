@@ -6,9 +6,7 @@ const DATA_KEY        = 'bobacafe_inventory_data'
 const SALES_CACHE_KEY = 'bobacafe_sales_cache'
 const SETTINGS_KEY    = 'bobacafe_settings'
 
-const WORKSPACE   = import.meta.env.DEV
-  ? ''  // use Vite proxy: /databricks-proxy/...
-  : 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com'
+const WORKSPACE = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com'
 const SALES_TABLE = 'workspace.default.transactions'
 
 // ─── Config defaults ──────────────────────────────────────────────────────────
@@ -173,7 +171,9 @@ export function ConfigProvider({ children }) {
       ORDER BY date DESC
     `
 
-    const apiPath = import.meta.env.DEV ? '/databricks-proxy/api/2.0/sql/statements' : `${WORKSPACE}/api/2.0/sql/statements`
+    const apiPath = import.meta.env.DEV
+      ? '/databricks-proxy/api/2.0/sql/statements'
+      : `${WORKSPACE}/api/2.0/sql/statements`
     const resp = await fetch(apiPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
