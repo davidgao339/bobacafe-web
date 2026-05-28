@@ -20,14 +20,23 @@ export default function InventoryLevels() {
   }
 
   const stockLevel = (store, ing) => {
-    const qty     = estimateCurrentStock(store, ing.id)
-    const daily   = getDailyAvg(store, ing.id)
-    const daysLeft = daily > 0 ? qty / daily : null
-    const status  = qty <= 0 ? 'depleted' : daily > 0 && daysLeft < 1 ? 'critical' : daily > 0 && daysLeft < 3 ? 'low' : 'ok'
-    return { qty: Math.max(0, qty), daily, daysLeft, status }
+    const hasAudit   = !!getLastAudit(store)
+    const hasPO      = data.purchaseOrders.some(po => po.store === store && po.status === 'received' &&
+                         po.lines.some(l => l.ingredientId === ing.id && l.ordered > 0))
+    const hasData    = hasAudit || hasPO
+    const qty        = estimateCurrentStock(store, ing.id)
+    const daily      = getDailyAvg(store, ing.id)
+    const daysLeft   = daily > 0 ? qty / daily : null
+    const status     = !hasData ? 'unknown'
+                     : qty <= 0 ? 'depleted'
+                     : daily > 0 && daysLeft < 1 ? 'critical'
+                     : daily > 0 && daysLeft < 3 ? 'low'
+                     : 'ok'
+    return { qty: Math.max(0, qty), daily, daysLeft, status, hasData }
   }
 
   const STATUS_CELL = {
+    unknown:  'text-gray-300',
     depleted: 'bg-red-50 text-red-700 font-semibold',
     critical: 'bg-red-50 text-red-600',
     low:      'bg-amber-50 text-amber-700',
@@ -82,12 +91,13 @@ export default function InventoryLevels() {
                       {daily > 0 ? daily : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-xs font-medium">
-                      {daysLeft === null ? <span className="text-gray-300">—</span>
+                      {status === 'unknown' || daysLeft === null ? <span className="text-gray-300">—</span>
                         : daysLeft < 1 ? <span className="text-red-600">&lt;1d</span>
                         : <span className={daysLeft < 3 ? 'text-amber-600' : 'text-gray-500'}>{Math.round(daysLeft)}d</span>
                       }
                     </td>
                     <td className="px-4 py-2.5">
+                      {status === 'unknown'  && <span className="text-xs text-gray-300">—</span>}
                       {status === 'depleted' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">Depleted</span>}
                       {status === 'critical' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs">Critical</span>}
                       {status === 'low'      && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">Low</span>}
@@ -136,11 +146,10 @@ export default function InventoryLevels() {
                   <span className="text-xs text-gray-400 ml-1">{ing.unit}</span>
                 </td>
                 {stores.map(store => {
-                  const { qty, daysLeft, status } = stockLevel(store, ing)
-                  const hasAudit = !!getLastAudit(store)
+                  const { qty, daysLeft, status, hasData } = stockLevel(store, ing)
                   return (
-                    <td key={store} className={`px-3 py-2.5 text-center tabular-nums ${!hasAudit ? 'text-gray-200' : STATUS_CELL[status]}`}>
-                      {!hasAudit ? '—' : (
+                    <td key={store} className={`px-3 py-2.5 text-center tabular-nums ${STATUS_CELL[status]}`}>
+                      {!hasData ? '—' : (
                         <div>
                           <div className="font-medium">{qty}</div>
                           {daysLeft !== null && (

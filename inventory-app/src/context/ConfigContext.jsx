@@ -285,16 +285,20 @@ export function useCalcs() {
 
     const estimateCurrentStock = (store, ingredientId) => {
       const lastAudit = getLastAudit(store)
-      if (!lastAudit) return 0
-      const base = lastAudit.counts[ingredientId] ?? 0
-      const cut  = lastAudit.date
-      const salesSince = r1(sales.filter(s => s.store === store && s.date > cut)
-        .reduce((sum, s) => sum + s.quantity * (recipes[s.product]?.[ingredientId] ?? 0), 0))
-      const txSince = data.transactions
-        .filter(t => t.store === store && t.ingredientId === ingredientId && t.date > cut)
-        .reduce((sum, t) => t.type === 'adjustment' ? sum + t.quantity : sum - t.quantity, 0)
+      const cut  = lastAudit?.date ?? '0000-00-00'
+      const base = lastAudit?.counts[ingredientId] ?? 0
+      const salesSince = lastAudit
+        ? r1(sales.filter(s => s.store === store && s.date > cut)
+            .reduce((sum, s) => sum + s.quantity * (recipes[s.product]?.[ingredientId] ?? 0), 0))
+        : 0
+      const txSince = lastAudit
+        ? data.transactions
+            .filter(t => t.store === store && t.ingredientId === ingredientId && t.date > cut)
+            .reduce((sum, t) => t.type === 'adjustment' ? sum + t.quantity : sum - t.quantity, 0)
+        : 0
+      // Use >= so a PO received on the same day as the audit is still counted
       const poSince = data.purchaseOrders
-        .filter(po => po.store === store && po.status === 'received' && (po.receivedDate ?? '') > cut)
+        .filter(po => po.store === store && po.status === 'received' && (po.receivedDate ?? '') >= cut)
         .reduce((sum, po) => sum + (po.lines.find(l => l.ingredientId === ingredientId)?.ordered ?? 0), 0)
       return r1(base - salesSince + txSince + poSince)
     }
