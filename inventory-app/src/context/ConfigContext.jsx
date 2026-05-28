@@ -181,7 +181,7 @@ export function ConfigProvider({ children }) {
     )
 
     // Merge — deduplicate by date+store+product
-    const keyOf = r => `${r.date}|${r.store}|${r.product}`
+    const keyOf = r => `${r.date}|${r.store}|${r.product}|${r.transaction_type}`
     const map = new Map(currentRows.map(r => [keyOf(r), r]))
     newRows.forEach(r => map.set(keyOf(r), r))
     const merged = [...map.values()].sort((a, b) => (b.date > a.date ? 1 : -1))
