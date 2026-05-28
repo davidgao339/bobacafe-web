@@ -11,6 +11,23 @@ const STATUS_STYLE = {
 }
 const STATUS_LABEL = { draft: 'Draft', sent: 'Sent', received: 'Received' }
 
+// ─── Inline confirm ───────────────────────────────────────────────────────────
+
+function ConfirmInline({ message, onConfirm, onCancel, danger }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-gray-600">{message}</span>
+      <button onClick={onConfirm}
+        className={`px-2.5 py-1 text-xs rounded-md text-white font-medium ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+        Confirm
+      </button>
+      <button onClick={onCancel} className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md">
+        Cancel
+      </button>
+    </div>
+  )
+}
+
 // ─── Status stepper ───────────────────────────────────────────────────────────
 
 function StatusStepper({ po }) {
@@ -44,17 +61,25 @@ function StatusStepper({ po }) {
   )
 }
 
-// ─── Create form ──────────────────────────────────────────────────────────────
+// ─── Create / Edit form ───────────────────────────────────────────────────────
 
-function CreateForm({ nextId, onSave, onCancel, ingredients, getOrderQty }) {
-  const [store, setStore] = useState(STORES[0])
-  const [qtys,  setQtys]  = useState({})
+function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore, lockStore, onSave, onCancel }) {
+  const [store, setStore] = useState(initialStore ?? STORES[0])
+  const [qtys,  setQtys]  = useState(() => {
+    if (initialLines) {
+      const map = {}
+      initialLines.forEach(l => { map[`${initialStore}:${l.ingredientId}`] = l.ordered })
+      return map
+    }
+    return {}
+  })
 
-  const lines = ingredients.map(p => ({
-    ...p,
-    suggested: getOrderQty(store, p.id),
-    qty:       qtys[`${store}:${p.id}`] ?? getOrderQty(store, p.id),
-  }))
+  const lines = ingredients.map(p => {
+    const key = `${store}:${p.id}`
+    const suggested = getOrderQty(store, p.id)
+    const qty = key in qtys ? qtys[key] : (initialLines ? 0 : suggested)
+    return { ...p, suggested, qty }
+  })
 
   const handleStoreChange = (s) => { setStore(s); setQtys({}) }
   const setQty = (ingredientId, val) =>
@@ -62,8 +87,7 @@ function CreateForm({ nextId, onSave, onCancel, ingredients, getOrderQty }) {
 
   const handleSave = () => {
     onSave({
-      id: nextId, store, status: 'draft',
-      createdDate: TODAY, sentDate: null, receivedDate: null,
+      store,
       lines: lines.map(l => ({ ingredientId: l.id, ordered: Math.max(0, Number(l.qty) || 0) })),
     })
   }
@@ -71,14 +95,17 @@ function CreateForm({ nextId, onSave, onCancel, ingredients, getOrderQty }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
       <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900">New Purchase Order — {nextId}</h2>
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-gray-600">Store</label>
-          <select value={store} onChange={e => handleStoreChange(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            {STORES.map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
+        <h2 className="font-semibold text-gray-900">{title}</h2>
+        {!lockStore && (
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-medium text-gray-600">Store</label>
+            <select value={store} onChange={e => handleStoreChange(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              {STORES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+        {lockStore && <span className="text-sm font-medium text-gray-700">{store}</span>}
       </div>
       <table className="w-full text-sm">
         <thead>
@@ -105,11 +132,11 @@ function CreateForm({ nextId, onSave, onCancel, ingredients, getOrderQty }) {
         </tbody>
       </table>
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-        <p className="text-xs text-gray-400">Quantities pre-filled from replenishment formula: consumed ×1.05 − inventory adjustment</p>
+        <p className="text-xs text-gray-400">Suggested = consumed ×1.05 − inventory adjustment</p>
         <div className="flex gap-3">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
           <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
-            Create Draft
+            Save Draft
           </button>
         </div>
       </div>
@@ -126,34 +153,60 @@ export default function PurchaseOrders() {
   const ingredientName = (id) => config.ingredients.find(p => p.id === id)?.name ?? '—'
   const ingredientUnit = (id) => config.ingredients.find(p => p.id === id)?.unit ?? ''
 
-  const [expanded, setExpanded] = useState(null)
-  const [creating, setCreating] = useState(false)
-  const [filter,   setFilter]   = useState('all')
+  const [expanded,  setExpanded]  = useState(null)
+  const [creating,  setCreating]  = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [confirm,   setConfirm]   = useState(null) // { poId, action }
+  const [filter,    setFilter]    = useState('all')
 
-  const pos     = data.purchaseOrders
-  const nextId  = `PO-${String(data._nextPoId).padStart(3, '0')}`
+  const pos    = data.purchaseOrders
+  const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
 
   const filtered = pos.filter(po => filter === 'all' || po.status === filter)
   const count    = (s) => s === 'all' ? pos.length : pos.filter(p => p.status === s).length
 
-  const toggle = (id) => setExpanded(prev => prev === id ? null : id)
-
-  const advance = (id) => {
-    const po = pos.find(p => p.id === id)
-    if (!po) return
-    if (po.status === 'draft') updatePurchaseOrder(id, { status: 'sent',     sentDate: TODAY })
-    if (po.status === 'sent')  updatePurchaseOrder(id, { status: 'received', receivedDate: TODAY })
+  const toggle = (id) => {
+    setExpanded(prev => prev === id ? null : id)
+    setConfirm(null)
+    if (editingId === id) setEditingId(null)
   }
 
-  const handleDelete = (id) => {
-    deletePurchaseOrder(id)
-    if (expanded === id) setExpanded(null)
+  const requestConfirm = (poId, action, e) => {
+    e.stopPropagation()
+    setConfirm(prev => (prev?.poId === poId && prev?.action === action) ? null : { poId, action })
+  }
+
+  const doConfirm = () => {
+    if (!confirm) return
+    const { poId, action } = confirm
+    if (action === 'send')     updatePurchaseOrder(poId, { status: 'sent',     sentDate: TODAY })
+    if (action === 'receive')  updatePurchaseOrder(poId, { status: 'received', receivedDate: TODAY })
+    if (action === 'revertToSent')  updatePurchaseOrder(poId, { status: 'sent',  receivedDate: null })
+    if (action === 'revertToDraft') updatePurchaseOrder(poId, { status: 'draft', sentDate: null })
+    if (action === 'delete') {
+      deletePurchaseOrder(poId)
+      if (expanded === poId) setExpanded(null)
+    }
+    setConfirm(null)
   }
 
   const handleCreate = (newPO) => {
-    addPurchaseOrder(newPO)
+    addPurchaseOrder({ ...newPO, id: nextId, status: 'draft', createdDate: TODAY, sentDate: null, receivedDate: null })
     setCreating(false)
-    setExpanded(newPO.id)
+    setExpanded(nextId)
+  }
+
+  const handleEditSave = (poId, { lines }) => {
+    updatePurchaseOrder(poId, { lines })
+    setEditingId(null)
+  }
+
+  const CONFIRM_LABELS = {
+    send:          { msg: 'Mark as sent?',     danger: false },
+    receive:       { msg: 'Confirm delivery?', danger: false },
+    revertToSent:  { msg: 'Revert to Sent?',   danger: true  },
+    revertToDraft: { msg: 'Revert to Draft?',  danger: true  },
+    delete:        { msg: 'Delete this PO?',   danger: true  },
   }
 
   return (
@@ -172,16 +225,16 @@ export default function PurchaseOrders() {
       </div>
 
       {creating && (
-        <CreateForm
-          nextId={nextId}
-          onSave={handleCreate}
-          onCancel={() => setCreating(false)}
+        <DraftForm
+          title={`New Purchase Order — ${nextId}`}
           ingredients={config.ingredients}
           getOrderQty={getOrderQty}
+          onSave={handleCreate}
+          onCancel={() => setCreating(false)}
         />
       )}
 
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-5">
+      <div className="flex gap-1 bg-gray-100 rounded-lg p1 w-fit mb-5">
         {[['all','All'], ['draft','Draft'], ['sent','Sent'], ['received','Received']].map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -209,63 +262,99 @@ export default function PurchaseOrders() {
           <tbody>
             {filtered.length === 0
               ? <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400 text-sm">No purchase orders</td></tr>
-              : filtered.map(po => (
-                <Fragment key={po.id}>
-                  <tr onClick={() => toggle(po.id)}
-                    className={`border-b border-gray-50 cursor-pointer ${expanded === po.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                    <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-700">{po.id}</td>
-                    <td className="px-4 py-3 text-gray-800">{po.store}</td>
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.createdDate}</td>
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.sentDate ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.receivedDate ?? '—'}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{po.lines.filter(l => l.ordered > 0).length}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
-                        {STATUS_LABEL[po.status]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-2">
-                        {po.status === 'draft' && <>
-                          <button onClick={() => advance(po.id)}
-                            className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700">Send</button>
-                          <button onClick={() => handleDelete(po.id)}
-                            className="px-2.5 py-1 text-red-400 text-xs hover:text-red-600">Delete</button>
-                        </>}
-                        {po.status === 'sent' && (
-                          <button onClick={() => advance(po.id)}
-                            className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700">Mark Received</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {expanded === po.id && (
-                    <tr className="bg-blue-50 border-b border-blue-100">
-                      <td colSpan={8} className="px-8 py-5">
-                        <StatusStepper po={po} />
-                        <table className="w-full max-w-md text-sm bg-white rounded-lg border border-blue-100 overflow-hidden">
-                          <thead>
-                            <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-                              <th className="px-4 py-2 font-medium">Ingredient</th>
-                              <th className="px-4 py-2 font-medium text-right">Ordered</th>
-                              <th className="px-4 py-2 font-medium">Unit</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {po.lines.filter(l => l.ordered > 0).map(l => (
-                              <tr key={l.ingredientId}>
-                                <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
-                                <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-900">{l.ordered}</td>
-                                <td className="px-4 py-2 text-gray-400">{ingredientUnit(l.ingredientId)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))
+              : filtered.map(po => {
+                  const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
+                  const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null
+                  return (
+                    <Fragment key={po.id}>
+                      <tr onClick={() => toggle(po.id)}
+                        className={`border-b border-gray-50 cursor-pointer ${expanded === po.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                        <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-700">{po.id}</td>
+                        <td className="px-4 py-3 text-gray-800">{po.store}</td>
+                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.createdDate}</td>
+                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.sentDate ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.receivedDate ?? '—'}</td>
+                        <td className="px-4 py-3 text-right text-gray-600">{po.lines.filter(l => l.ordered > 0).length}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
+                            {STATUS_LABEL[po.status]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 min-w-64" onClick={e => e.stopPropagation()}>
+                          {pendingConfirm ? (
+                            <ConfirmInline
+                              message={cl.msg}
+                              danger={cl.danger}
+                              onConfirm={doConfirm}
+                              onCancel={() => setConfirm(null)}
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {po.status === 'draft' && <>
+                                <button onClick={e => requestConfirm(po.id, 'send', e)}
+                                  className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700">Send</button>
+                                <button onClick={e => { e.stopPropagation(); setEditingId(po.id); setExpanded(po.id) }}
+                                  className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50">Edit</button>
+                                <button onClick={e => requestConfirm(po.id, 'delete', e)}
+                                  className="px-2.5 py-1 text-red-400 text-xs hover:text-red-600">Delete</button>
+                              </>}
+                              {po.status === 'sent' && <>
+                                <button onClick={e => requestConfirm(po.id, 'receive', e)}
+                                  className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700">Mark Received</button>
+                                <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
+                                  className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">↩ Draft</button>
+                              </>}
+                              {po.status === 'received' && (
+                                <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
+                                  className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">↩ Sent</button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+
+                      {expanded === po.id && (
+                        <tr className="bg-blue-50 border-b border-blue-100">
+                          <td colSpan={8} className="px-8 py-5">
+                            <StatusStepper po={po} />
+
+                            {editingId === po.id && po.status === 'draft' ? (
+                              <DraftForm
+                                title={`Edit ${po.id}`}
+                                initialLines={po.lines}
+                                initialStore={po.store}
+                                lockStore
+                                ingredients={config.ingredients}
+                                getOrderQty={getOrderQty}
+                                onSave={({ lines }) => handleEditSave(po.id, { lines })}
+                                onCancel={() => setEditingId(null)}
+                              />
+                            ) : (
+                              <table className="w-full max-w-md text-sm bg-white rounded-lg border border-blue-100 overflow-hidden">
+                                <thead>
+                                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
+                                    <th className="px-4 py-2 font-medium">Ingredient</th>
+                                    <th className="px-4 py-2 font-medium text-right">Ordered</th>
+                                    <th className="px-4 py-2 font-medium">Unit</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                  {po.lines.filter(l => l.ordered > 0).map(l => (
+                                    <tr key={l.ingredientId}>
+                                      <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
+                                      <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-900">{l.ordered}</td>
+                                      <td className="px-4 py-2 text-gray-400">{ingredientUnit(l.ingredientId)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })
             }
           </tbody>
         </table>
