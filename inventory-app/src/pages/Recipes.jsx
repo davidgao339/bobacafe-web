@@ -135,12 +135,14 @@ function IngredientsTab() {
 
 function RecipesTab() {
   const { config, sales, setConfig } = useConfig()
-  const [search,   setSearch]   = useState('')
-  const [filter,   setFilter]   = useState('all')
-  const [selected, setSelected] = useState(null)
-  const [adding,   setAdding]   = useState(false)
-  const [newIng,   setNewIng]   = useState({ ingredientId: '', qty: '' })
-  const [creating, setCreating] = useState(false)
+  const [search,    setSearch]    = useState('')
+  const [filter,    setFilter]    = useState('all')
+  const [selected,  setSelected]  = useState(null)
+  const [editing,   setEditing]   = useState(false)
+  const [draftQtys, setDraftQtys] = useState({})
+  const [adding,    setAdding]    = useState(false)
+  const [newIng,    setNewIng]    = useState({ ingredientId: '', qty: '' })
+  const [creating,  setCreating]  = useState(false)
   const [newIngDef, setNewIngDef] = useState({ name: '', unit: '' })
 
   const allProducts = [...new Set(sales.map(s => s.product))].sort()
@@ -159,34 +161,46 @@ function RecipesTab() {
   const recipeIngredients = config.ingredients.filter(i => (selectedRecipe[i.id] ?? 0) > 0)
   const unusedIngredients = config.ingredients.filter(i => !((selectedRecipe[i.id] ?? 0) > 0))
 
-  const updateQty = (ingredientId, val) => {
-    const num = parseFloat(val)
-    setConfig(prev => {
-      const recipe = { ...(prev.recipes[selected] ?? {}) }
-      if (!val || isNaN(num) || num <= 0) delete recipe[ingredientId]
-      else recipe[ingredientId] = num
-      return { ...prev, recipes: { ...prev.recipes, [selected]: recipe } }
-    })
+  const startEditing = () => {
+    const draft = {}
+    recipeIngredients.forEach(i => { draft[i.id] = String(selectedRecipe[i.id] ?? '') })
+    setDraftQtys(draft)
+    setEditing(true)
   }
 
-  const removeIngredient = (ingredientId) => {
+  const cancelEditing = () => {
+    setEditing(false)
+    setDraftQtys({})
+    setAdding(false)
+    setCreating(false)
+    setNewIng({ ingredientId: '', qty: '' })
+    setNewIngDef({ name: '', unit: '' })
+  }
+
+  const saveDraft = () => {
     setConfig(prev => {
-      const recipe = { ...(prev.recipes[selected] ?? {}) }
-      delete recipe[ingredientId]
+      const recipe = {}
+      Object.entries(draftQtys).forEach(([id, val]) => {
+        const num = parseFloat(val)
+        if (!isNaN(num) && num > 0) recipe[Number(id)] = num
+      })
       return { ...prev, recipes: { ...prev.recipes, [selected]: recipe } }
     })
+    setEditing(false)
+    setDraftQtys({})
+    setAdding(false)
+    setCreating(false)
+    setNewIng({ ingredientId: '', qty: '' })
+    setNewIngDef({ name: '', unit: '' })
+  }
+
+  const removeFromDraft = (ingredientId) => {
+    setDraftQtys(prev => { const next = { ...prev }; delete next[ingredientId]; return next })
   }
 
   const addIngredient = () => {
     if (!newIng.ingredientId) return
-    const num = parseFloat(newIng.qty) || 0
-    setConfig(prev => ({
-      ...prev,
-      recipes: {
-        ...prev.recipes,
-        [selected]: { ...(prev.recipes[selected] ?? {}), [Number(newIng.ingredientId)]: num },
-      },
-    }))
+    setDraftQtys(prev => ({ ...prev, [Number(newIng.ingredientId)]: newIng.qty }))
     setNewIng({ ingredientId: '', qty: '' })
     setAdding(false)
   }
@@ -195,19 +209,32 @@ function RecipesTab() {
     if (!newIngDef.name.trim()) return
     const maxId = config.ingredients.reduce((m, i) => Math.max(m, i.id), 0)
     const newId = maxId + 1
-    const num = parseFloat(newIng.qty) || 0
     setConfig(prev => ({
       ...prev,
       ingredients: [...prev.ingredients, { id: newId, name: newIngDef.name.trim(), unit: newIngDef.unit.trim() }],
-      recipes: { ...prev.recipes, [selected]: { ...(prev.recipes[selected] ?? {}), [newId]: num } },
     }))
+    setDraftQtys(prev => ({ ...prev, [newId]: newIng.qty }))
     setNewIng({ ingredientId: '', qty: '' })
     setNewIngDef({ name: '', unit: '' })
     setCreating(false)
     setAdding(false)
   }
 
-  const handleSelectProduct = (p) => { setSelected(p); setAdding(false); setCreating(false); setNewIng({ ingredientId: '', qty: '' }); setNewIngDef({ name: '', unit: '' }) }
+  const handleSelectProduct = (p) => {
+    setSelected(p)
+    setEditing(false)
+    setDraftQtys({})
+    setAdding(false)
+    setCreating(false)
+    setNewIng({ ingredientId: '', qty: '' })
+    setNewIngDef({ name: '', unit: '' })
+  }
+
+  // In editing mode, show ingredients currently in draft (may differ from saved)
+  const draftIngredients = editing
+    ? config.ingredients.filter(i => i.id in draftQtys)
+    : recipeIngredients
+  const draftUnused = config.ingredients.filter(i => !(i.id in draftQtys))
 
   return (
     <div className="flex gap-4" style={{ height: 580 }}>
@@ -256,25 +283,42 @@ function RecipesTab() {
         </div>
       </div>
 
-      {/* Right: recipe editor */}
+      {/* Right: recipe viewer / editor */}
       {selected ? (
         <div className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
-          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div className={`px-5 py-4 border-b border-gray-100 flex items-center justify-between ${editing ? 'bg-blue-50' : 'bg-gray-50'}`}>
             <div>
               <h3 className="font-semibold text-gray-900">{selected}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Qty consumed per 1 unit sold</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {editing ? 'Editing — qty consumed per 1 unit sold' : 'Qty consumed per 1 unit sold'}
+              </p>
             </div>
-            {recipeIngredients.length > 0 && (
-              <button onClick={() => setConfig(prev => { const { [selected]: _, ...rest } = prev.recipes; return { ...prev, recipes: rest } })}
-                className="text-xs text-red-400 hover:text-red-600">Clear all</button>
-            )}
+            <div className="flex items-center gap-2">
+              {editing ? (
+                <>
+                  <button onClick={cancelEditing}
+                    className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={saveDraft}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    Save changes
+                  </button>
+                </>
+              ) : (
+                <button onClick={startEditing}
+                  className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
+                  Modify
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {recipeIngredients.length === 0 && !adding ? (
+            {draftIngredients.length === 0 && !adding ? (
               <div className="px-5 py-10 text-center">
                 <p className="text-sm text-gray-400 mb-3">No ingredients in this recipe yet</p>
-                <button onClick={() => setAdding(true)}
+                <button onClick={() => { setEditing(true); setAdding(true) }}
                   className="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add first ingredient</button>
               </div>
             ) : (
@@ -284,35 +328,41 @@ function RecipesTab() {
                     <th className="px-5 py-2 font-medium">Ingredient</th>
                     <th className="px-4 py-2 font-medium">Unit</th>
                     <th className="px-4 py-2 font-medium text-right">Qty / unit sold</th>
-                    <th className="px-4 py-2 w-8"></th>
+                    {editing && <th className="px-4 py-2 w-8"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {recipeIngredients.map(ing => (
-                    <tr key={ing.id} className="hover:bg-gray-50">
+                  {draftIngredients.map(ing => (
+                    <tr key={ing.id} className={editing ? 'bg-white hover:bg-blue-50/30' : 'hover:bg-gray-50'}>
                       <td className="px-5 py-2.5 font-medium text-gray-800">{ing.name}</td>
                       <td className="px-4 py-2.5 text-gray-500">{ing.unit}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <input type="number" min="0" step="0.001"
-                          value={selectedRecipe[ing.id] ?? ''}
-                          onChange={e => updateQty(ing.id, e.target.value)}
-                          className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums" />
+                        {editing ? (
+                          <input type="number" min="0" step="0.001" autoFocus={false}
+                            value={draftQtys[ing.id] ?? ''}
+                            onChange={e => setDraftQtys(prev => ({ ...prev, [ing.id]: e.target.value }))}
+                            className="w-28 border border-blue-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums" />
+                        ) : (
+                          <span className="tabular-nums font-medium text-gray-800">{selectedRecipe[ing.id]}</span>
+                        )}
                       </td>
-                      <td className="px-4 py-2.5">
-                        <button onClick={() => removeIngredient(ing.id)}
-                          className="text-gray-300 hover:text-red-400 text-sm">✕</button>
-                      </td>
+                      {editing && (
+                        <td className="px-4 py-2.5">
+                          <button onClick={() => removeFromDraft(ing.id)}
+                            className="text-gray-300 hover:text-red-400 text-sm">✕</button>
+                        </td>
+                      )}
                     </tr>
                   ))}
 
-                  {adding && !creating && (
+                  {editing && adding && !creating && (
                     <tr className="bg-blue-50">
                       <td className="px-5 py-2.5" colSpan={2}>
                         <select autoFocus value={newIng.ingredientId}
                           onChange={e => setNewIng(v => ({ ...v, ingredientId: e.target.value }))}
                           className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400">
                           <option value="">Select ingredient…</option>
-                          {unusedIngredients.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+                          {draftUnused.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
                         </select>
                         <button onClick={() => setCreating(true)}
                           className="text-xs text-blue-600 hover:text-blue-800 mt-1 block">+ Create new ingredient</button>
@@ -334,7 +384,8 @@ function RecipesTab() {
                       </td>
                     </tr>
                   )}
-                  {adding && creating && (
+
+                  {editing && adding && creating && (
                     <tr className="bg-green-50">
                       <td className="px-5 py-2.5">
                         <input autoFocus placeholder="Ingredient name"
@@ -360,7 +411,7 @@ function RecipesTab() {
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1">
                           <button onClick={createAndAdd}
-                            className="text-xs px-2 py-0.5 bg-green-600 text-white rounded hover:bg-green-700">Create</button>
+                            className="text-xs px-2 py-0.5 bg-green-600 text-white rounded hover:bg-green-700">Create & add</button>
                           <button onClick={() => setCreating(false)}
                             className="text-xs text-gray-400 hover:text-gray-600">✕</button>
                         </div>
@@ -372,17 +423,19 @@ function RecipesTab() {
             )}
           </div>
 
-          {!adding && unusedIngredients.length > 0 && recipeIngredients.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100">
+          {editing && !adding && (
+            <div className="px-5 py-3 border-t border-gray-100 bg-blue-50/50 flex items-center justify-between">
               <button onClick={() => setAdding(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
                 + Add ingredient
               </button>
+              <button onClick={() => setDraftQtys({})}
+                className="text-xs text-red-400 hover:text-red-600">Clear all</button>
             </div>
           )}
         </div>
       ) : (
         <div className="flex-1 border border-gray-200 rounded-xl bg-gray-50/50 flex items-center justify-center">
-          <p className="text-sm text-gray-400">← Select a product to edit its recipe</p>
+          <p className="text-sm text-gray-400">← Select a product to view its recipe</p>
         </div>
       )}
     </div>
