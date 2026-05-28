@@ -4,11 +4,12 @@ const STAFF_NAV = [
 ]
 
 const MANAGER_NAV = [
-  { id: 'transactions', label: 'Transactions',      icon: TxIcon },
-  { id: 'recipes',      label: 'Recipes',           icon: RecipeIcon },
+  { id: 'inventory',    label: 'Inventory',          icon: InventoryIcon },
+  { id: 'transactions', label: 'Transactions',       icon: TxIcon },
+  { id: 'recipes',      label: 'Recipes',            icon: RecipeIcon },
   { id: 'variance',     label: 'Unexplained Losses', icon: VarianceIcon },
-  { id: 'purchases',    label: 'Purchase Orders',   icon: POIcon },
-  { id: 'report',       label: 'Replenishment',     icon: ReportIcon },
+  { id: 'purchases',    label: 'Purchase Orders',    icon: POIcon },
+  { id: 'report',       label: 'Replenishment',      icon: ReportIcon },
 ]
 
 function NavButton({ id, label, icon: Icon, currentPage, onNavigate }) {
@@ -55,6 +56,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
   )
 }
 
+function InventoryIcon() { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7m0 10l-8-4V7"/></svg> }
 function DashIcon()     { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> }
 function AuditIcon()    { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg> }
 function TxIcon()       { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg> }

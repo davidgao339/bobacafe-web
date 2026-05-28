@@ -8,6 +8,7 @@ import ReplenishmentReport from './pages/ReplenishmentReport'
 import Recipes from './pages/Recipes'
 import VarianceReport from './pages/VarianceReport'
 import PurchaseOrders from './pages/PurchaseOrders'
+import InventoryLevels from './pages/InventoryLevels'
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ function AppContent() {
         {page === 'recipes'      && <Recipes />}
         {page === 'variance'     && <VarianceReport />}
         {page === 'purchases'    && <PurchaseOrders />}
+        {page === 'inventory'    && <InventoryLevels />}
 
       </main>
     </div>
