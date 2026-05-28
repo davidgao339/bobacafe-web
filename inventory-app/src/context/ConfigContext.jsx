@@ -134,8 +134,9 @@ export function ConfigProvider({ children }) {
     return { sales: rowsToSales(fiscalRows), posWaste: rowsToSales(nonFiscalRows), usingLiveData: true }
   }, [salesCache])
 
-  const reportFrom = sales.length > 0 ? sales[sales.length - 1].date : DEMO_DATES[0]
-  const reportTo   = sales.length > 0 ? sales[0].date               : DEMO_DATES[DEMO_DATES.length - 1]
+  const today      = new Date().toISOString().slice(0, 10)
+  const reportFrom = sales.length > 0 ? sales[sales.length - 1].date : today
+  const reportTo   = sales.length > 0 ? sales[0].date               : today
 
   // ─── Databricks refresh ──────────────────────────────────────────────────────
 
