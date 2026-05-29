@@ -10,6 +10,7 @@ function CountTab({ store, setStore, date, setDate }) {
 
   const [counts, setCounts] = useState({})
   const [saved,  setSaved]  = useState(false)
+  const [search, setSearch] = useState('')
 
   const lastAudit     = getLastAudit(store)
   const lastAuditDate = lastAudit?.date ?? null
@@ -54,7 +55,7 @@ function CountTab({ store, setStore, date, setDate }) {
 
   return (
     <>
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Store</label>
           <select value={store} onChange={e => { setStore(e.target.value); setSaved(false) }}
@@ -66,6 +67,19 @@ function CountTab({ store, setStore, date, setDate }) {
           <label className="block text-xs font-medium text-gray-600 mb-1">Audit Date</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div className="flex-1 min-w-48">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder="Filter ingredients…" value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -87,7 +101,15 @@ function CountTab({ store, setStore, date, setDate }) {
           </span>
           <span>New Count</span>
         </div>
-        {config.ingredients.map((product, i) => {
+        {config.ingredients
+          .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+          .length === 0 && (
+            <div className="px-6 py-8 text-center text-sm text-gray-400">No ingredients match "{search}"</div>
+          )
+        }
+        {config.ingredients
+          .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+          .map((product, i) => {
           const prev  = lastCount(product.id)
           const val   = getValue(product.id)
           const delta = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null
