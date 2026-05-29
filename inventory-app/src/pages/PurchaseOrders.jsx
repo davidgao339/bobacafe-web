@@ -214,11 +214,19 @@ export default function PurchaseOrders() {
   const [editingId, setEditingId] = useState(null)
   const [confirm,   setConfirm]   = useState(null) // { poId, action }
   const [filter,    setFilter]    = useState('all')
+  const [search,    setSearch]    = useState('')
 
   const pos    = data.purchaseOrders
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
 
-  const filtered = pos.filter(po => filter === 'all' || po.status === filter)
+  const filtered = pos.filter(po => {
+    if (filter !== 'all' && po.status !== filter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return po.id.toLowerCase().includes(q) || po.store.toLowerCase().includes(q)
+    }
+    return true
+  })
   const count    = (s) => s === 'all' ? pos.length : pos.filter(p => p.status === s).length
 
   const toggle = (id) => {
@@ -290,7 +298,8 @@ export default function PurchaseOrders() {
         />
       )}
 
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-5">
+      <div className="flex items-center gap-4 mb-5 flex-wrap">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
         {[['all', t('po.all')], ['draft', t('po.draft')], ['sent', t('po.sent')], ['received', t('po.received')]].map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -299,6 +308,17 @@ export default function PurchaseOrders() {
             {label} <span className="ml-1 text-gray-400">{count(id)}</span>
           </button>
         ))}
+        </div>
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" placeholder={t('common.search') + '…'} value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="border border-gray-300 rounded-lg pl-8 pr-8 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-52" />
+          {search && (
+            <button onClick={() => setSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
