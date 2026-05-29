@@ -93,7 +93,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   const lines = ingredients.map(p => {
     const key = `${store}:${p.id}`
     const suggested = getOrderQty(store, p.id)
-    const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : suggested)
+    const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : 0)
     return { ...p, suggested, qty, isOriginal: originalIds.has(p.id) }
   })
 
@@ -180,15 +180,13 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <p className="text-xs text-gray-400">{t('po.suggestedNote')}</p>
-          {initialLines && (
-            <button onClick={() => {
-              const filled = {}
-              lines.forEach(l => { filled[`${store}:${l.id}`] = l.suggested })
-              setQtys(filled)
-            }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-              {t('po.applySuggested')}
-            </button>
-          )}
+          <button onClick={() => {
+            const filled = {}
+            lines.forEach(l => { filled[`${store}:${l.id}`] = l.suggested })
+            setQtys(filled)
+          }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            {t('po.applySuggested')}
+          </button>
         </div>
         <div className="flex gap-3">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">{t('common.cancel')}</button>
