@@ -149,10 +149,12 @@ function RecipesTab() {
   const [selected,  setSelected]  = useState(null)
   const [editing,   setEditing]   = useState(false)
   const [draftQtys, setDraftQtys] = useState({})
-  const [adding,    setAdding]    = useState(false)
-  const [newIng,    setNewIng]    = useState({ ingredientId: '', qty: '' })
-  const [creating,  setCreating]  = useState(false)
-  const [newIngDef, setNewIngDef] = useState({ name: '', unit: '' })
+  const [adding,     setAdding]     = useState(false)
+  const [newIng,     setNewIng]     = useState({ ingredientId: '', qty: '' })
+  const [ingSearch,  setIngSearch]  = useState('')
+  const [ingOpen,    setIngOpen]    = useState(false)
+  const [creating,   setCreating]   = useState(false)
+  const [newIngDef,  setNewIngDef]  = useState({ name: '', unit: '' })
 
   const salesProducts = new Set(sales.map(s => s.product))
   const wasteProducts = new Set(posWaste.map(s => s.product))
@@ -180,6 +182,8 @@ function RecipesTab() {
     setEditing(true)
   }
 
+  const resetIngPicker = () => { setIngSearch(''); setIngOpen(false) }
+
   const cancelEditing = () => {
     setEditing(false)
     setDraftQtys({})
@@ -187,6 +191,7 @@ function RecipesTab() {
     setCreating(false)
     setNewIng({ ingredientId: '', qty: '' })
     setNewIngDef({ name: '', unit: '' })
+    resetIngPicker()
   }
 
   const saveDraft = () => {
@@ -204,6 +209,7 @@ function RecipesTab() {
     setCreating(false)
     setNewIng({ ingredientId: '', qty: '' })
     setNewIngDef({ name: '', unit: '' })
+    resetIngPicker()
   }
 
   const removeFromDraft = (ingredientId) => {
@@ -215,6 +221,7 @@ function RecipesTab() {
     setDraftQtys(prev => ({ ...prev, [Number(newIng.ingredientId)]: newIng.qty }))
     setNewIng({ ingredientId: '', qty: '' })
     setAdding(false)
+    resetIngPicker()
   }
 
   const createAndAdd = () => {
@@ -240,6 +247,7 @@ function RecipesTab() {
     setCreating(false)
     setNewIng({ ingredientId: '', qty: '' })
     setNewIngDef({ name: '', unit: '' })
+    resetIngPicker()
   }
 
   // In editing mode, show ingredients currently in draft (may differ from saved)
@@ -375,12 +383,47 @@ function RecipesTab() {
                   {editing && adding && !creating && (
                     <tr className="bg-blue-50">
                       <td className="px-5 py-2.5" colSpan={2}>
-                        <select autoFocus value={newIng.ingredientId}
-                          onChange={e => setNewIng(v => ({ ...v, ingredientId: e.target.value }))}
-                          className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400">
-                          <option value="">Select ingredient…</option>
-                          {draftUnused.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
-                        </select>
+                        <div className="relative">
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="Search ingredient…"
+                            value={ingSearch}
+                            onChange={e => {
+                              setIngSearch(e.target.value)
+                              setIngOpen(true)
+                              setNewIng(v => ({ ...v, ingredientId: '' }))
+                            }}
+                            onFocus={() => setIngOpen(true)}
+                            onBlur={() => setTimeout(() => setIngOpen(false), 120)}
+                            className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          />
+                          {newIng.ingredientId && (
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 text-xs">✓</span>
+                          )}
+                          {ingOpen && (
+                            <div className="absolute top-full left-0 right-0 z-20 bg-white border border-blue-200 rounded shadow-lg max-h-44 overflow-y-auto mt-0.5">
+                              {draftUnused
+                                .filter(i => i.name.toLowerCase().includes(ingSearch.toLowerCase()))
+                                .map(i => (
+                                  <button key={i.id} type="button"
+                                    onMouseDown={() => {
+                                      setNewIng(v => ({ ...v, ingredientId: i.id }))
+                                      setIngSearch(i.name)
+                                      setIngOpen(false)
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 flex items-center justify-between">
+                                    <span>{i.name}</span>
+                                    <span className="text-gray-400 text-xs ml-2">{i.unit}</span>
+                                  </button>
+                                ))
+                              }
+                              {draftUnused.filter(i => i.name.toLowerCase().includes(ingSearch.toLowerCase())).length === 0 && (
+                                <p className="px-3 py-2 text-xs text-gray-400">No match</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <button onClick={() => setCreating(true)}
                           className="text-xs text-blue-600 hover:text-blue-800 mt-1 block">+ Create new ingredient</button>
                       </td>
@@ -395,7 +438,7 @@ function RecipesTab() {
                         <div className="flex gap-1">
                           <button onClick={addIngredient}
                             className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">Add</button>
-                          <button onClick={() => { setAdding(false); setNewIng({ ingredientId: '', qty: '' }) }}
+                          <button onClick={() => { setAdding(false); setNewIng({ ingredientId: '', qty: '' }); resetIngPicker() }}
                             className="text-xs text-gray-400 hover:text-gray-600">✕</button>
                         </div>
                       </td>
