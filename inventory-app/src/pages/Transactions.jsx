@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { STORES } from '../data/fakeData'
 
@@ -163,8 +163,8 @@ function SalesTab() {
                   const impact = getSaleIngredientImpact(s.product, s.quantity)
                   const isOpen = expanded === s.id
                   return (
-                    <>
-                      <tr key={s.id} onClick={() => toggle(s.id)}
+                    <Fragment key={s.id}>
+                      <tr onClick={() => toggle(s.id)}
                         className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer">
                         <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{s.date}</td>
                         <td className="px-4 py-2.5 text-gray-800">{s.store}</td>
@@ -183,7 +183,7 @@ function SalesTab() {
                         </td>
                       </tr>
                       {isOpen && (
-                        <tr key={`${s.id}-exp`} className="bg-blue-50 border-b border-blue-100">
+                        <tr className="bg-blue-50 border-b border-blue-100">
                           <td colSpan={5} className="px-6 py-3">
                             <p className="text-xs font-semibold text-blue-700 mb-2">
                               Recipe breakdown — {s.quantity} × {s.product}
@@ -200,7 +200,7 @@ function SalesTab() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })
             }
@@ -216,20 +216,27 @@ function SalesTab() {
 
 function WasteTab() {
   const { posWaste, salesCache, reportFrom, reportTo } = useConfig()
+  const { getSaleIngredientImpact } = useCalcs()
   const today = new Date().toISOString().slice(0, 10)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
   const [filterStore, setFilterStore] = useState('All')
   const [filterFrom,  setFilterFrom]  = useState(posWaste.length > 0 ? reportFrom : thirtyDaysAgo)
   const [filterTo,    setFilterTo]    = useState(posWaste.length > 0 ? reportTo   : today)
+  const [expanded,    setExpanded]    = useState(null)
+  const [sortAsc,     setSortAsc]     = useState(false)
 
-  const filtered = useMemo(() =>
-    posWaste.filter(r => {
+  const filtered = useMemo(() => {
+    const rows = posWaste.filter(r => {
       if (filterStore !== 'All' && r.store !== filterStore) return false
       if (r.date < filterFrom || r.date > filterTo)         return false
       return true
-    }),
-    [posWaste, filterStore, filterFrom, filterTo]
-  )
+    })
+    return sortAsc
+      ? [...rows].sort((a, b) => a.date.localeCompare(b.date))
+      : rows
+  }, [posWaste, filterStore, filterFrom, filterTo, sortAsc])
+
+  const toggle = (id) => setExpanded(prev => prev === id ? null : id)
 
   return (
     <>
@@ -266,29 +273,74 @@ function WasteTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-3 font-medium">Date</th>
+              <th className="px-6 py-3 font-medium">
+                <button onClick={() => setSortAsc(v => !v)}
+                  className="flex items-center gap-1 hover:text-gray-800 transition-colors">
+                  Date
+                  <span className="text-gray-300">{sortAsc ? '↑' : '↓'}</span>
+                </button>
+              </th>
               <th className="px-4 py-3 font-medium">Store</th>
               <th className="px-4 py-3 font-medium">Item written off</th>
               <th className="px-4 py-3 font-medium text-right">Qty</th>
+              <th className="px-4 py-3 font-medium text-gray-400 font-normal">Ingredient Impact</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody>
             {filtered.length === 0
-              ? <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400 text-sm">
+              ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">
                   {posWaste.length === 0 ? 'No Non-Fiscal data — refresh to load from Databricks' : 'No records match'}
                 </td></tr>
-              : filtered.map(r => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{r.date}</td>
-                    <td className="px-4 py-2.5 text-gray-800">{r.store}</td>
-                    <td className="px-4 py-2.5 text-gray-800 text-xs">{r.product}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">{r.quantity}</td>
-                  </tr>
-                ))
+              : filtered.map(r => {
+                  const impact = getSaleIngredientImpact(r.product, r.quantity)
+                  const isOpen = expanded === r.id
+                  return (
+                    <Fragment key={r.id}>
+                      <tr onClick={() => toggle(r.id)}
+                        className="border-b border-gray-50 hover:bg-orange-50 cursor-pointer">
+                        <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{r.date}</td>
+                        <td className="px-4 py-2.5 text-gray-800">{r.store}</td>
+                        <td className="px-4 py-2.5 text-gray-800 text-xs">{r.product}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
+                          {r.quantity} <span className="text-gray-400 font-normal text-xs">cups</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap gap-1.5">
+                            {impact.map(i => (
+                              <span key={i.id} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded text-xs tabular-nums">
+                                {i.consumed} {i.unit} {i.name}
+                              </span>
+                            ))}
+                            {impact.length === 0 && <span className="text-xs text-gray-300">no recipe</span>}
+                          </div>
+                        </td>
+                      </tr>
+                      {isOpen && impact.length > 0 && (
+                        <tr className="bg-orange-50 border-b border-orange-100">
+                          <td colSpan={5} className="px-6 py-3">
+                            <p className="text-xs font-semibold text-orange-700 mb-2">
+                              Ingredient loss — {r.quantity} × {r.product}
+                            </p>
+                            <div className="flex flex-wrap gap-3">
+                              {impact.map(i => (
+                                <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs">
+                                  <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                                  <p className="text-gray-500">{i.name}</p>
+                                  <p className="text-orange-400 mt-0.5">({(i.consumed / r.quantity).toFixed(3)} per cup)</p>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })
             }
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-gray-400 mt-3 text-center">Click any row to see ingredient breakdown</p>
     </>
   )
 }

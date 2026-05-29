@@ -52,7 +52,13 @@ function saveToStorage(key, value) {
 
 function migrateConfig(raw) {
   if (!raw) return null
-  return { ingredients: raw.ingredients ?? DEFAULT_INGREDIENTS, recipes: raw.recipes ?? DEFAULT_RECIPES }
+  const ingredients = raw.ingredients ?? DEFAULT_INGREDIENTS
+  const maxId = ingredients.reduce((m, i) => Math.max(m, i.id), 0)
+  return {
+    ingredients,
+    recipes: raw.recipes ?? DEFAULT_RECIPES,
+    _nextIngId: raw._nextIngId ?? maxId + 1,
+  }
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -61,7 +67,7 @@ const ConfigContext = createContext(null)
 
 export function ConfigProvider({ children }) {
   const [config, setConfigState] = useState(() =>
-    migrateConfig(loadFromStorage(STORAGE_KEY)) ?? { ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES }
+    migrateConfig(loadFromStorage(STORAGE_KEY)) ?? { ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, _nextIngId: 1 }
   )
   const [data,       setDataState]       = useState(() => loadFromStorage(DATA_KEY)        ?? DEFAULT_DATA)
   const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
@@ -97,6 +103,15 @@ export function ConfigProvider({ children }) {
 
   const addAudit = useCallback((store, date, counts) => {
     setData(prev => {
+      const existing = prev.audits.find(a => a.store === store && a.date === date)
+      if (existing) {
+        return {
+          ...prev,
+          audits: prev.audits.map(a =>
+            a.id === existing.id ? { ...a, counts: { ...a.counts, ...counts } } : a
+          ),
+        }
+      }
       const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
       return { ...prev, audits: [...prev.audits, { id, store, date, counts }], _nextAuditId: prev._nextAuditId + 1 }
     })
@@ -209,7 +224,7 @@ export function ConfigProvider({ children }) {
       reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target.result)
-          if (parsed.ingredients && parsed.recipes) { setConfig({ ingredients: parsed.ingredients, recipes: parsed.recipes }); resolve() }
+          if (parsed.ingredients && parsed.recipes) { setConfig(migrateConfig(parsed)); resolve() }
           else reject(new Error('Invalid config file'))
         } catch (err) { reject(err) }
       }

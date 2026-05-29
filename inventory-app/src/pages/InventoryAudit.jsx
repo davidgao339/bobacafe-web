@@ -13,6 +13,7 @@ export default function InventoryAudit() {
 
   const lastAudit = getLastAudit(store)
   const lastAuditDate = lastAudit?.date ?? null
+  const existingAudit = data.audits.find(a => a.store === store && a.date === date)
 
   const lastCount = (productId) => {
     if (!lastAudit) return '—'
@@ -25,15 +26,26 @@ export default function InventoryAudit() {
     setCounts(prev => ({ ...prev, [`${store}-${productId}`]: val }))
   }
 
+  const handleFillFromLast = () => {
+    if (!lastAudit) return
+    const filled = {}
+    for (const p of config.ingredients) {
+      const v = lastAudit.counts[p.id]
+      if (v != null) filled[`${store}-${p.id}`] = String(v)
+    }
+    setCounts(prev => ({ ...prev, ...filled }))
+    setSaved(false)
+  }
+
   const handleSave = () => {
     const auditCounts = {}
     for (const product of config.ingredients) {
       const val = getValue(product.id)
-      if (val !== '') auditCounts[product.id] = parseFloat(val)
+      if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
     }
     addAudit(store, date, auditCounts)
     setSaved(true)
-    setCounts({})
+    setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
     setTimeout(() => setSaved(false), 3500)
   }
 
@@ -61,6 +73,13 @@ export default function InventoryAudit() {
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
+
+      {existingAudit && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          An audit for <strong className="font-semibold">{store}</strong> on <strong className="font-semibold">{date}</strong> already exists — saving will merge your new counts into it.
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -104,9 +123,18 @@ export default function InventoryAudit() {
       </div>
 
       <div className="flex items-center justify-between">
-        <button onClick={() => setCounts({})} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-          Clear all
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))}
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            Clear all
+          </button>
+          {lastAudit && (
+            <button onClick={handleFillFromLast}
+              className="text-sm text-blue-600 hover:text-blue-700 transition-colors">
+              Fill from last audit
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-4">
           {saved && (
             <span className="text-sm text-green-600 font-medium flex items-center gap-1.5">

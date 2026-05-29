@@ -6,6 +6,7 @@ export default function ReplenishmentReport() {
   const { config, reportFrom, reportTo } = useConfig()
   const { getConsumed7d, getAdjDelta, getOrderQty } = useCalcs()
   const [selectedStore, setSelectedStore] = useState('All')
+  const [hideZero,      setHideZero]      = useState(true)
 
   const stores = selectedStore === 'All' ? STORES : [selectedStore]
 
@@ -22,10 +23,15 @@ export default function ReplenishmentReport() {
     [selectedStore, config.ingredients, getConsumed7d, getAdjDelta, getOrderQty]
   )
 
+  const csvField = (v) => {
+    const s = String(v)
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+
   const handleExportCSV = () => {
     const lines = ['Store,Product,Unit,Consumed 7d,Adj Delta,Order Qty']
     reportRows.forEach(({ store, rows }) =>
-      rows.forEach(r => lines.push(`${store},${r.name},${r.unit},${r.consumed},${r.adjDelta},${r.orderQty}`))
+      rows.forEach(r => lines.push([store, r.name, r.unit, r.consumed, r.adjDelta, r.orderQty].map(csvField).join(',')))
     )
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
@@ -46,6 +52,11 @@ export default function ReplenishmentReport() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            Hide zero rows
+          </label>
           <select value={selectedStore} onChange={e => setSelectedStore(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option>All</option>
@@ -66,18 +77,27 @@ export default function ReplenishmentReport() {
 
       <div className="hidden print:block mb-6">
         <h1 className="text-xl font-bold">Weekly Replenishment Report</h1>
-        <p className="text-sm text-gray-600">Period: {reportFrom} – {reportTo}</p>
+        <p className="text-sm text-gray-600">
+          Period: {reportFrom} – {reportTo}
+          {selectedStore !== 'All' && ` · Store: ${selectedStore}`}
+        </p>
       </div>
 
       <div className="space-y-8">
         {reportRows.map(({ store, rows }) => {
-          const totalOrder = rows.reduce((s, r) => s + r.orderQty, 0)
+          const visibleRows  = hideZero ? rows.filter(r => r.orderQty > 0) : rows
+          const itemsToOrder = rows.filter(r => r.orderQty > 0).length
           return (
             <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{store}</h2>
-                <span className="text-sm text-gray-500">{rows.length} products</span>
+                <span className="text-sm text-gray-500">
+                  {itemsToOrder} of {rows.length} ingredients to order
+                </span>
               </div>
+              {visibleRows.length === 0 ? (
+                <p className="px-6 py-8 text-sm text-gray-400 text-center">Nothing to order for this store</p>
+              ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
@@ -90,7 +110,7 @@ export default function ReplenishmentReport() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {rows.map(r => (
+                  {visibleRows.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
                       <td className="px-4 py-3 text-gray-500">{r.unit}</td>
@@ -113,14 +133,17 @@ export default function ReplenishmentReport() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">Total order items</td>
+                    <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">
+                      Items to order
+                    </td>
                     <td className="px-4 py-3 text-right bg-blue-100">
-                      <span className="font-bold text-blue-800 tabular-nums text-base">{totalOrder}</span>
-                      <span className="text-blue-500 text-xs ml-1">units</span>
+                      <span className="font-bold text-blue-800 tabular-nums text-base">{itemsToOrder}</span>
+                      <span className="text-blue-500 text-xs ml-1">ingredients</span>
                     </td>
                   </tr>
                 </tfoot>
               </table>
+              )}
               <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
                 Order Qty = ⌈Consumed × 1.05⌉ − Adj Delta
               </div>

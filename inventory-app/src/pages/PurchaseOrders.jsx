@@ -157,7 +157,18 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
         </>
       )}
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-        <p className="text-xs text-gray-400">Suggested = consumed ×1.05 − inventory adjustment</p>
+        <div className="flex items-center gap-4">
+          <p className="text-xs text-gray-400">Suggested = consumed ×1.05 − inventory adjustment</p>
+          {initialLines && (
+            <button onClick={() => {
+              const filled = {}
+              lines.forEach(l => { filled[`${store}:${l.id}`] = l.suggested })
+              setQtys(filled)
+            }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+              Apply suggested
+            </button>
+          )}
+        </div>
         <div className="flex gap-3">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
           <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
@@ -259,7 +270,7 @@ export default function PurchaseOrders() {
         />
       )}
 
-      <div className="flex gap-1 bg-gray-100 rounded-lg p1 w-fit mb-5">
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-5">
         {[['all','All'], ['draft','Draft'], ['sent','Sent'], ['received','Received']].map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -286,7 +297,9 @@ export default function PurchaseOrders() {
           </thead>
           <tbody>
             {filtered.length === 0
-              ? <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400 text-sm">No purchase orders</td></tr>
+              ? <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400 text-sm">
+                  {filter === 'all' ? 'No purchase orders yet' : `No ${STATUS_LABEL[filter].toLowerCase()} purchase orders`}
+                </td></tr>
               : filtered.map(po => {
                   const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
                   const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null

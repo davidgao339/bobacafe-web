@@ -5,10 +5,11 @@ import { useConfig } from '../context/ConfigContext'
 
 function IngredientsTab() {
   const { config, setConfig } = useConfig()
-  const [editingId, setEditingId] = useState(null)
-  const [editVals,  setEditVals]  = useState({})
-  const [adding,    setAdding]    = useState(false)
-  const [newIng,    setNewIng]    = useState({ name: '', unit: '' })
+  const [editingId,      setEditingId]      = useState(null)
+  const [editVals,       setEditVals]       = useState({})
+  const [adding,         setAdding]         = useState(false)
+  const [newIng,         setNewIng]         = useState({ name: '', unit: '' })
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
   const startEdit = (ing) => { setEditingId(ing.id); setEditVals({ name: ing.name, unit: ing.unit }) }
 
@@ -39,10 +40,10 @@ function IngredientsTab() {
 
   const addIngredient = () => {
     if (!newIng.name.trim()) return
-    const maxId = config.ingredients.reduce((m, i) => Math.max(m, i.id), 0)
     setConfig(prev => ({
       ...prev,
-      ingredients: [...prev.ingredients, { id: maxId + 1, name: newIng.name.trim(), unit: newIng.unit.trim() }],
+      ingredients: [...prev.ingredients, { id: prev._nextIngId, name: newIng.name.trim(), unit: newIng.unit.trim() }],
+      _nextIngId: prev._nextIngId + 1,
     }))
     setNewIng({ name: '', unit: '' })
     setAdding(false)
@@ -85,10 +86,18 @@ function IngredientsTab() {
                       <button onClick={saveEdit} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
                       <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
                     </div>
-                  : <div className="flex gap-3 justify-end">
-                      <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
-                      <button onClick={() => deleteIngredient(ing.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
-                    </div>
+                  : pendingDeleteId === ing.id
+                    ? <div className="flex gap-2 justify-end items-center">
+                        <span className="text-xs text-red-600">Remove from all recipes?</span>
+                        <button onClick={() => { deleteIngredient(ing.id); setPendingDeleteId(null) }}
+                          className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">Yes</button>
+                        <button onClick={() => setPendingDeleteId(null)}
+                          className="text-xs text-gray-500 hover:text-gray-700">No</button>
+                      </div>
+                    : <div className="flex gap-3 justify-end">
+                        <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
+                        <button onClick={() => setPendingDeleteId(ing.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                      </div>
                 }
               </td>
             </tr>
@@ -209,12 +218,12 @@ function RecipesTab() {
   }
 
   const createAndAdd = () => {
-    if (!newIngDef.name.trim()) return
-    const maxId = config.ingredients.reduce((m, i) => Math.max(m, i.id), 0)
-    const newId = maxId + 1
+    if (!newIngDef.name.trim() || !newIng.qty || parseFloat(newIng.qty) <= 0) return
+    const newId = config._nextIngId
     setConfig(prev => ({
       ...prev,
       ingredients: [...prev.ingredients, { id: newId, name: newIngDef.name.trim(), unit: newIngDef.unit.trim() }],
+      _nextIngId: newId + 1,
     }))
     setDraftQtys(prev => ({ ...prev, [newId]: newIng.qty }))
     setNewIng({ ingredientId: '', qty: '' })
