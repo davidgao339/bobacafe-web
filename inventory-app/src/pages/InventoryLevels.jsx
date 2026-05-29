@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
 import { STORES } from '../data/fakeData'
 
 const STATUS_RANK = { depleted: 0, critical: 1, low: 2, ok: 3, unknown: 4 }
@@ -7,6 +8,7 @@ const STATUS_RANK = { depleted: 0, critical: 1, low: 2, ok: 3, unknown: 4 }
 export default function InventoryLevels() {
   const { config, data } = useConfig()
   const { estimateCurrentStock, getDailyAvg, getLastAudit } = useCalcs()
+  const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
   const [issuesOnly, setIssuesOnly] = useState(false)
 
@@ -16,8 +18,8 @@ export default function InventoryLevels() {
   if (ingredients.length === 0) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-2">Inventory Levels</h1>
-        <p className="text-sm text-gray-400">No ingredients configured — add them in Recipes.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-2">{t('levels.title')}</h1>
+        <p className="text-sm text-gray-400">{t('levels.noIngredients')}</p>
       </div>
     )
   }
@@ -50,7 +52,7 @@ export default function InventoryLevels() {
   if (stores.length === 1) {
     const store      = stores[0]
     const lastAudit  = getLastAudit(store)
-    const auditLabel = lastAudit ? `Last audit: ${lastAudit.date}` : 'No audit on record'
+    const auditLabel = lastAudit ? t('levels.lastAudit', { date: lastAudit.date }) : t('levels.noAudit')
 
     const rows = ingredients
       .map(ing => ({ ing, ...stockLevel(store, ing) }))
@@ -62,12 +64,12 @@ export default function InventoryLevels() {
       <div className="p-8 max-w-3xl">
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Inventory Levels</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Estimated stock based on last audit + sales + received orders</p>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('levels.title')}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{t('levels.subtitle')}</p>
           </div>
           <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false) }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="All">All stores</option>
+            <option value="All">{t('common.allStores')}</option>
             {STORES.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
@@ -78,7 +80,7 @@ export default function InventoryLevels() {
               <span className="font-semibold text-gray-800 text-sm">{store}</span>
               {issueCount > 0 && (
                 <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-                  {issueCount} issue{issueCount !== 1 ? 's' : ''}
+                  {t('levels.issues', { count: issueCount })}
                 </span>
               )}
             </div>
@@ -86,7 +88,7 @@ export default function InventoryLevels() {
               {issueCount > 0 && (
                 <button onClick={() => setIssuesOnly(v => !v)}
                   className={`text-xs font-medium transition-colors ${issuesOnly ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                  {issuesOnly ? 'Show all' : 'Issues only'}
+                  {issuesOnly ? t('levels.showAll') : t('levels.issuesOnly')}
                 </button>
               )}
               <span className="text-xs text-gray-400">{auditLabel}</span>
@@ -95,12 +97,12 @@ export default function InventoryLevels() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-2.5 font-medium">Ingredient</th>
-                <th className="px-4 py-2.5 font-medium text-right">Est. stock</th>
-                <th className="px-4 py-2.5 font-medium">Unit</th>
-                <th className="px-4 py-2.5 font-medium text-right">Daily avg</th>
-                <th className="px-4 py-2.5 font-medium text-right">Days left</th>
-                <th className="px-4 py-2.5 font-medium">Status</th>
+                <th className="px-5 py-2.5 font-medium">{t('common.ingredient')}</th>
+                <th className="px-4 py-2.5 font-medium text-right">{t('levels.estStock')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('common.unit')}</th>
+                <th className="px-4 py-2.5 font-medium text-right">{t('levels.dailyAvg')}</th>
+                <th className="px-4 py-2.5 font-medium text-right">{t('levels.daysLeft')}</th>
+                <th className="px-4 py-2.5 font-medium">{t('common.status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -120,16 +122,16 @@ export default function InventoryLevels() {
                   </td>
                   <td className="px-4 py-2.5">
                     {status === 'unknown'  && <span className="text-xs text-gray-300">—</span>}
-                    {status === 'depleted' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">Depleted</span>}
-                    {status === 'critical' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs">Critical</span>}
-                    {status === 'low'      && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">Low</span>}
-                    {status === 'ok'       && <span className="text-xs text-gray-300">OK</span>}
+                    {status === 'depleted' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">{t('levels.depleted')}</span>}
+                    {status === 'critical' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs">{t('levels.critical')}</span>}
+                    {status === 'low'      && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">{t('levels.low')}</span>}
+                    {status === 'ok'       && <span className="text-xs text-gray-300">{t('levels.ok')}</span>}
                   </td>
                 </tr>
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-6 text-center text-sm text-gray-400">No issues found</td>
+                  <td colSpan={6} className="px-5 py-6 text-center text-sm text-gray-400">{t('levels.noIssues')}</td>
                 </tr>
               )}
             </tbody>
@@ -152,12 +154,12 @@ export default function InventoryLevels() {
     <div className="p-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Inventory Levels</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Estimated stock based on last audit + sales + received orders</p>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('levels.title')}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t('levels.subtitle')}</p>
         </div>
         <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false) }}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="All">All stores</option>
+          <option value="All">{t('common.allStores')}</option>
           {STORES.map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
@@ -166,7 +168,7 @@ export default function InventoryLevels() {
         <table className="text-sm" style={{ minWidth: `${220 + stores.length * 110}px` }}>
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
-              <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 min-w-48">Ingredient</th>
+              <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 min-w-48">{t('common.ingredient')}</th>
               {stores.map(s => (
                 <th key={s} className="px-3 py-3 font-medium text-center whitespace-nowrap">
                   <button onClick={() => setSelectedStore(s)}
@@ -203,7 +205,7 @@ export default function InventoryLevels() {
           </tbody>
           <tfoot>
             <tr className="border-t border-gray-200 bg-gray-50 text-xs text-gray-400">
-              <td className="px-5 py-2 sticky left-0 bg-gray-50">Last audit</td>
+              <td className="px-5 py-2 sticky left-0 bg-gray-50">{t('levels.lastAuditRow')}</td>
               {stores.map(store => {
                 const a = getLastAudit(store)
                 return <td key={store} className="px-3 py-2 text-center">{a ? a.date : '—'}</td>
@@ -214,10 +216,10 @@ export default function InventoryLevels() {
       </div>
 
       <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>Depleted / Critical (&lt;1d)</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>Low (&lt;3d)</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block"/>OK</span>
-        <span>· Numbers in stock qty · small text = days remaining</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>{t('levels.legendDepleted')}</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>{t('levels.legendLow')}</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block"/>{t('levels.ok')}</span>
+        <span>{t('levels.legendNote')}</span>
       </div>
     </div>
   )

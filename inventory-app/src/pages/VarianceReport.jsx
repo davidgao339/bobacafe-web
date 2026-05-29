@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
 import { STORES } from '../data/fakeData'
 
-function badge(pct) {
-  if (pct > 10) return { style: 'bg-red-100 text-red-700',    label: 'High' }
-  if (pct > 5)  return { style: 'bg-amber-100 text-amber-700', label: 'Medium' }
-  if (pct < 0)  return { style: 'bg-blue-100 text-blue-700',   label: 'Surplus?' }
-  return              { style: 'bg-green-100 text-green-700',  label: 'OK' }
+function badge(pct, t) {
+  if (pct > 10) return { style: 'bg-red-100 text-red-700',    label: t('variance.high') }
+  if (pct > 5)  return { style: 'bg-amber-100 text-amber-700', label: t('variance.medium') }
+  if (pct < 0)  return { style: 'bg-blue-100 text-blue-700',   label: t('variance.surplus') }
+  return              { style: 'bg-green-100 text-green-700',  label: t('variance.ok') }
 }
 
 function StoreSection({ store, issuesOnly }) {
   const { config } = useConfig()
   const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance, getVariancePct, getVarianceWindow } = useCalcs()
+  const { t } = useLanguage()
 
   const win = getVarianceWindow(store)
 
@@ -37,9 +39,9 @@ function StoreSection({ store, issuesOnly }) {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-5">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">{store}</h2>
-          <span className="text-xs bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full font-medium">Need 2+ audits</span>
+          <span className="text-xs bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full font-medium">{t('variance.need2Audits')}</span>
         </div>
-        <p className="px-6 py-6 text-sm text-gray-400">Save at least two inventory audits for this store to see variance.</p>
+        <p className="px-6 py-6 text-sm text-gray-400">{t('variance.need2AuditsDesc')}</p>
       </div>
     )
   }
@@ -52,32 +54,32 @@ function StoreSection({ store, issuesOnly }) {
           <p className="text-xs text-gray-400 mt-0.5">{win.opening.date} → {win.closing.date}</p>
         </div>
         {hasIssues
-          ? <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">Losses to review</span>
-          : <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">All good</span>
+          ? <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">{t('variance.lossesToReview')}</span>
+          : <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">{t('variance.allGood')}</span>
         }
       </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-            <th className="px-6 py-3 font-medium">Ingredient</th>
-            <th className="px-4 py-3 font-medium text-right">Should have used</th>
-            <th className="px-4 py-3 font-medium text-right">Actually used</th>
-            <th className="px-4 py-3 font-medium text-right">Unexplained loss</th>
+            <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
+            <th className="px-4 py-3 font-medium text-right">{t('variance.shouldHaveUsed')}</th>
+            <th className="px-4 py-3 font-medium text-right">{t('variance.actuallyUsed')}</th>
+            <th className="px-4 py-3 font-medium text-right">{t('variance.unexplainedLoss')}</th>
             <th className="px-4 py-3 font-medium"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
           {visibleRows.length === 0
             ? <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-400 text-sm">
-                {rows.length === 0 ? 'No data for this store' : 'No issues found'}
+                {rows.length === 0 ? t('variance.noData') : t('variance.noIssues')}
               </td></tr>
             : visibleRows.map(r => {
-                const b = badge(r.pct)
+                const b = badge(r.pct, t)
                 return (
                   <tr key={r.id} className={r.pct > 10 ? 'bg-red-50/40' : r.pct > 5 ? 'bg-amber-50/30' : ''}>
                     <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-500">
-                      {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">no sales data</span>}
+                      {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">{t('variance.noRecipeSales')}</span>}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-800 font-medium">{r.actual} {r.unit}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">
@@ -85,7 +87,7 @@ function StoreSection({ store, issuesOnly }) {
                     </td>
                     <td className="px-4 py-3 text-right">
                       {r.expected === 0 && r.actual > 0
-                        ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">No recipe/sales</span>
+                        ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{t('variance.noRecipeSales')}</span>
                         : <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${b.style}`}>
                             {r.pct !== 0 ? `${r.pct > 0 ? '+' : ''}${r.pct}% ${b.label}` : b.label}
                           </span>
@@ -104,39 +106,43 @@ function StoreSection({ store, issuesOnly }) {
 export default function VarianceReport() {
   const [store,      setStore]      = useState('All')
   const [issuesOnly, setIssuesOnly] = useState(false)
+  const { t } = useLanguage()
   const visibleStores = store === 'All' ? STORES : [store]
 
   return (
     <div className="p-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Unexplained Losses</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('variance.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            How much of each ingredient disappeared beyond what sales and logged waste can account for
+            {t('variance.subtitle')}
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none mt-1">
           <input type="checkbox" checked={issuesOnly} onChange={e => setIssuesOnly(e.target.checked)}
             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-          Issues only (&gt;5%)
+          {t('variance.issuesOnly')}
         </label>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6 flex-wrap">
-        {['All', ...STORES].map(s => (
-          <button key={s} onClick={() => setStore(s)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              store === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}>
-            {s}
-          </button>
-        ))}
+        {[t('common.all'), ...STORES].map((s, i) => {
+          const storeKey = i === 0 ? 'All' : s
+          return (
+            <button key={storeKey} onClick={() => setStore(storeKey)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                store === storeKey ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {s}
+            </button>
+          )
+        })}
       </div>
 
       {visibleStores.map(s => <StoreSection key={s} store={s} issuesOnly={issuesOnly} />)}
 
       <p className="text-xs text-gray-400 mt-2">
-        "Should have used" = sales × recipe + waste logged between the two most recent audits per store. Any gap is unexplained — possible causes: over-pouring, unrecorded spills, or measurement error during stock count.
+        {t('variance.footer')}
       </p>
     </div>
   )

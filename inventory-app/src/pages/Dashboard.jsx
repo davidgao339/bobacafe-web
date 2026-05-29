@@ -1,4 +1,5 @@
 import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
 
 const daysSince = (dateStr) => Math.floor((Date.now() - new Date(dateStr)) / 86400000)
 
@@ -35,6 +36,7 @@ function TaskCard({ urgency, icon, title, desc, action, onClick }) {
 export default function Dashboard({ onNavigate }) {
   const { config, sales, data } = useConfig()
   const { getLowStockAlerts } = useCalcs()
+  const { t } = useLanguage()
 
   const alerts  = getLowStockAlerts()
   const sentPOs = data.purchaseOrders.filter(po => po.status === 'sent')
@@ -51,32 +53,32 @@ export default function Dashboard({ onNavigate }) {
 
   if (auditDays >= 7) tasks.push({
     urgency: 'critical', icon: '📋',
-    title: 'Stock count overdue',
+    title: t('dash.overdue'),
     desc: lastAuditDate
-      ? `Last counted ${auditDays} days ago — weekly counts keep forecasts accurate`
-      : 'No stock count on record — do your first audit to enable forecasting',
-    action: 'Count Stock Now', nav: 'audit',
+      ? t('dash.overdueDesc', { days: auditDays })
+      : t('dash.noAuditDesc'),
+    action: t('dash.countNow'), nav: 'audit',
   })
 
   if (depleted.length) tasks.push({
     urgency: 'critical', icon: '🚫',
-    title: `${depleted.length} ingredient${depleted.length > 1 ? 's' : ''} depleted`,
-    desc: depleted.map(a => `${a.product} at ${a.store}`).join(' · '),
-    action: 'Order Now', nav: 'purchases',
+    title: t('dash.depleted', { count: depleted.length, s: depleted.length > 1 ? 's' : '' }),
+    desc: depleted.map(a => `${a.product} · ${a.store}`).join(' / '),
+    action: t('dash.orderNow'), nav: 'purchases',
   })
 
   if (low.length) tasks.push({
     urgency: 'warning', icon: '⚠️',
-    title: `${low.length} item${low.length > 1 ? 's' : ''} running low`,
-    desc: low.map(a => `${a.product} at ${a.store} (~${a.daysLeft}d left)`).join(' · '),
-    action: 'Order More', nav: 'purchases',
+    title: t('dash.runningLow', { count: low.length, s: low.length > 1 ? 's' : '' }),
+    desc: low.map(a => `${a.product} · ${a.store} (${t('dash.daysLeft', { days: a.daysLeft })})`).join(' / '),
+    action: t('dash.orderMore'), nav: 'purchases',
   })
 
   if (sentPOs.length) tasks.push({
     urgency: 'info', icon: '📦',
-    title: `Delivery pending — ${sentPOs.map(p => p.id).join(', ')}`,
+    title: t('dash.deliveryPending', { ids: sentPOs.map(p => p.id).join(', ') }),
     desc: sentPOs.map(p => p.store).join(' · '),
-    action: 'Confirm Receipt', nav: 'purchases',
+    action: t('dash.confirmReceipt'), nav: 'purchases',
   })
 
   const recentSales = sales.slice(0, 5)
@@ -84,32 +86,32 @@ export default function Dashboard({ onNavigate }) {
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Good morning</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Here's what needs your attention today</p>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('dash.greeting')}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{t('dash.subtitle')}</p>
       </div>
 
       <div className="space-y-3 mb-10">
-        {tasks.map((t, i) => (
-          <TaskCard key={i} {...t} onClick={() => onNavigate(t.nav)} />
+        {tasks.map((task, i) => (
+          <TaskCard key={i} {...task} onClick={() => onNavigate(task.nav)} />
         ))}
       </div>
 
       <div className="border-t border-gray-100 pt-8">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-4">Overview</p>
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-4">{t('common.overview')}</p>
         <div className="grid grid-cols-3 gap-3 mb-8">
-          <MiniStat label="Ingredients tracked" value={config.ingredients.length} />
-          <MiniStat label="Days since audit"    value={auditDays}   highlight={auditDays >= 7} />
-          <MiniStat label="Low stock alerts"    value={alerts.length} highlight={alerts.length > 0} />
+          <MiniStat label={t('dash.ingredientsTracked')} value={config.ingredients.length} />
+          <MiniStat label={t('dash.daysSinceAudit')}    value={auditDays}   highlight={auditDays >= 7} />
+          <MiniStat label={t('dash.lowAlerts')}         value={alerts.length} highlight={alerts.length > 0} />
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Recent Sales</p>
-            <button onClick={() => onNavigate('transactions')} className="text-blue-600 text-xs hover:underline">View all</button>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{t('dash.recentSales')}</p>
+            <button onClick={() => onNavigate('transactions')} className="text-blue-600 text-xs hover:underline">{t('dash.viewAll')}</button>
           </div>
           <div className="divide-y divide-gray-50">
             {recentSales.length === 0
-              ? <p className="px-5 py-4 text-sm text-gray-400">No sales data — configure product mapping in Recipes.</p>
+              ? <p className="px-5 py-4 text-sm text-gray-400">{t('dash.noSales')}</p>
               : recentSales.map(s => (
                 <div key={s.id} className="px-5 py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -117,7 +119,7 @@ export default function Dashboard({ onNavigate }) {
                     <span className="text-xs text-gray-500">{s.store}</span>
                     <span className="text-sm font-medium text-gray-800">{s.product}</span>
                   </div>
-                  <span className="text-sm tabular-nums text-gray-700">{s.quantity} <span className="text-gray-400 text-xs">cups</span></span>
+                  <span className="text-sm tabular-nums text-gray-700">{s.quantity} <span className="text-gray-400 text-xs">{t('dash.cups')}</span></span>
                 </div>
               ))
             }

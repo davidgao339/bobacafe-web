@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ConfigProvider } from './context/ConfigContext'
+import { LanguageProvider } from './context/LanguageContext'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import InventoryAudit from './pages/InventoryAudit'
@@ -12,9 +13,11 @@ import InventoryLevels from './pages/InventoryLevels'
 
 export default function App() {
   return (
-    <ConfigProvider>
-      <AppContent />
-    </ConfigProvider>
+    <LanguageProvider>
+      <ConfigProvider>
+        <AppContent />
+      </ConfigProvider>
+    </LanguageProvider>
   )
 }
 

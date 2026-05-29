@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react'
 import { useConfig } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
 
 // ─── Ingredients Tab ──────────────────────────────────────────────────────────
 
 function IngredientsTab() {
   const { config, setConfig } = useConfig()
+  const { t } = useLanguage()
   const [editingId,      setEditingId]      = useState(null)
   const [editVals,       setEditVals]       = useState({})
   const [adding,         setAdding]         = useState(false)
@@ -54,8 +56,8 @@ function IngredientsTab() {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-            <th className="px-6 py-3 font-medium">Name</th>
-            <th className="px-4 py-3 font-medium w-32">Unit</th>
+            <th className="px-6 py-3 font-medium">{t('common.name')}</th>
+            <th className="px-4 py-3 font-medium w-32">{t('common.unit')}</th>
             <th className="px-4 py-3 w-28"></th>
           </tr>
         </thead>
@@ -83,20 +85,20 @@ function IngredientsTab() {
               <td className="px-4 py-2.5 text-right">
                 {editingId === ing.id
                   ? <div className="flex gap-2 justify-end">
-                      <button onClick={saveEdit} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
-                      <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                      <button onClick={saveEdit} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('common.save')}</button>
+                      <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                     </div>
                   : pendingDeleteId === ing.id
                     ? <div className="flex gap-2 justify-end items-center">
-                        <span className="text-xs text-red-600">Remove from all recipes?</span>
+                        <span className="text-xs text-red-600">{t('recipes.removeFromRecipes')}</span>
                         <button onClick={() => { deleteIngredient(ing.id); setPendingDeleteId(null) }}
-                          className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">Yes</button>
+                          className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
                         <button onClick={() => setPendingDeleteId(null)}
-                          className="text-xs text-gray-500 hover:text-gray-700">No</button>
+                          className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
                       </div>
                     : <div className="flex gap-3 justify-end">
-                        <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
-                        <button onClick={() => setPendingDeleteId(ing.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                        <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800">{t('common.edit')}</button>
+                        <button onClick={() => setPendingDeleteId(ing.id)} className="text-xs text-red-400 hover:text-red-600">{t('common.delete')}</button>
                       </div>
                 }
               </td>
@@ -105,14 +107,14 @@ function IngredientsTab() {
           {adding && (
             <tr className="bg-blue-50">
               <td className="px-6 py-2.5">
-                <input autoFocus placeholder="Ingredient name"
+                <input autoFocus placeholder={t('recipes.ingredientName')}
                   value={newIng.name}
                   onChange={e => setNewIng(v => ({ ...v, name: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addIngredient()}
                   className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </td>
               <td className="px-4 py-2.5">
-                <input placeholder="kg / L / pcs…"
+                <input placeholder={t('recipes.unitPlaceholder')}
                   value={newIng.unit}
                   onChange={e => setNewIng(v => ({ ...v, unit: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addIngredient()}
@@ -120,9 +122,9 @@ function IngredientsTab() {
               </td>
               <td className="px-4 py-2.5 text-right">
                 <div className="flex gap-2 justify-end">
-                  <button onClick={addIngredient} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Add</button>
+                  <button onClick={addIngredient} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('recipes.add')}</button>
                   <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '' }) }}
-                    className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                    className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                 </div>
               </td>
             </tr>
@@ -132,7 +134,7 @@ function IngredientsTab() {
       {!adding && (
         <div className="px-6 py-3 border-t border-gray-100">
           <button onClick={() => setAdding(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-            + Add ingredient
+            {t('recipes.addIngredient')}
           </button>
         </div>
       )}
@@ -144,6 +146,7 @@ function IngredientsTab() {
 
 function RecipesTab() {
   const { config, sales, posWaste, setConfig } = useConfig()
+  const { t } = useLanguage()
   const [search,    setSearch]    = useState('')
   const [filter,    setFilter]    = useState('all')
   const [selected,  setSelected]  = useState(null)
@@ -261,11 +264,11 @@ function RecipesTab() {
       {/* Left: product list */}
       <div className="w-72 flex-shrink-0 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
         <div className="p-3 border-b border-gray-100 space-y-2">
-          <input type="text" placeholder="Search…" value={search}
+          <input type="text" placeholder={t('recipes.searchPlaceholder')} value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <div className="flex gap-1">
-            {[['all','All'], ['has_recipe','Has recipe'], ['no_recipe','No recipe']].map(([id, label]) => (
+            {[['all', t('common.all')], ['has_recipe', t('recipes.hasRecipe')], ['no_recipe', t('recipes.noRecipeFilter')]].map(([id, label]) => (
               <button key={id} onClick={() => setFilter(id)}
                 className={`flex-1 py-1 text-xs rounded font-medium transition-colors ${
                   filter === id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -278,7 +281,7 @@ function RecipesTab() {
 
         <div className="overflow-y-auto flex-1">
           {displayed.length === 0
-            ? <p className="px-4 py-8 text-sm text-gray-400 text-center">No products match</p>
+            ? <p className="px-4 py-8 text-sm text-gray-400 text-center">{t('recipes.noMatch')}</p>
             : displayed.map(p => {
                 const count = Object.values(config.recipes[p] ?? {}).filter(q => q > 0).length
                 return (
@@ -291,8 +294,8 @@ function RecipesTab() {
                       {isWasteOnly(p) && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Waste</span>}
                     </div>
                     {count > 0
-                      ? <p className="text-xs text-green-600 mt-0.5">{count} ingredient{count !== 1 ? 's' : ''}</p>
-                      : <p className="text-xs text-amber-500 mt-0.5">No recipe yet</p>
+                      ? <p className="text-xs text-green-600 mt-0.5">{count !== 1 ? t('recipes.ingredientsCount', { count }) : t('recipes.ingredientCount', { count })}</p>
+                      : <p className="text-xs text-amber-500 mt-0.5">{t('recipes.noRecipeYet')}</p>
                     }
                   </button>
                 )
@@ -302,7 +305,7 @@ function RecipesTab() {
 
         <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
           <p className="text-xs text-gray-400">{displayed.length} / {allProducts.length}</p>
-          {noRecipeCount > 0 && <p className="text-xs text-amber-500">{noRecipeCount} missing</p>}
+          {noRecipeCount > 0 && <p className="text-xs text-amber-500">{t('recipes.missing', { count: noRecipeCount })}</p>}
         </div>
       </div>
 
@@ -314,8 +317,8 @@ function RecipesTab() {
               <h3 className="font-semibold text-gray-900">{selected}</h3>
               <p className="text-xs text-gray-400 mt-0.5">
                 {editing
-                  ? `Editing — qty consumed per 1 unit ${isWasteOnly(selected) ? 'wasted' : 'sold'}`
-                  : `Qty consumed per 1 unit ${isWasteOnly(selected) ? 'wasted' : 'sold'}`}
+                  ? t('recipes.editingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })
+                  : t('recipes.viewingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -323,17 +326,17 @@ function RecipesTab() {
                 <>
                   <button onClick={cancelEditing}
                     className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button onClick={saveDraft}
                     className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                    Save changes
+                    {t('recipes.saveChanges')}
                   </button>
                 </>
               ) : (
                 <button onClick={startEditing}
                   className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
-                  Modify
+                  {t('recipes.modify')}
                 </button>
               )}
             </div>
@@ -342,17 +345,17 @@ function RecipesTab() {
           <div className="flex-1 overflow-y-auto">
             {draftIngredients.length === 0 && !adding ? (
               <div className="px-5 py-10 text-center">
-                <p className="text-sm text-gray-400 mb-3">No ingredients in this recipe yet</p>
+                <p className="text-sm text-gray-400 mb-3">{t('recipes.noIngredientsYet')}</p>
                 <button onClick={() => { setEditing(true); setAdding(true) }}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add first ingredient</button>
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium">{t('recipes.addFirst')}</button>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/50">
-                    <th className="px-5 py-2 font-medium">Ingredient</th>
-                    <th className="px-4 py-2 font-medium">Unit</th>
-                    <th className="px-4 py-2 font-medium text-right">Qty / unit sold</th>
+                    <th className="px-5 py-2 font-medium">{t('common.ingredient')}</th>
+                    <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
+                    <th className="px-4 py-2 font-medium text-right">{t('recipes.qtyPerUnit')}</th>
                     {editing && <th className="px-4 py-2 w-8"></th>}
                   </tr>
                 </thead>
@@ -387,7 +390,7 @@ function RecipesTab() {
                           <input
                             autoFocus
                             type="text"
-                            placeholder="Search ingredient…"
+                            placeholder={t('recipes.selectIngredient')}
                             value={ingSearch}
                             onChange={e => {
                               setIngSearch(e.target.value)
@@ -425,10 +428,10 @@ function RecipesTab() {
                           )}
                         </div>
                         <button onClick={() => setCreating(true)}
-                          className="text-xs text-blue-600 hover:text-blue-800 mt-1 block">+ Create new ingredient</button>
+                          className="text-xs text-blue-600 hover:text-blue-800 mt-1 block">{t('recipes.createNew')}</button>
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <input type="number" min="0" step="0.001" placeholder="qty"
+                        <input type="number" min="0" step="0.001" placeholder={t('recipes.qtyPlaceholder')}
                           value={newIng.qty}
                           onChange={e => setNewIng(v => ({ ...v, qty: e.target.value }))}
                           onKeyDown={e => e.key === 'Enter' && addIngredient()}
@@ -437,7 +440,7 @@ function RecipesTab() {
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1">
                           <button onClick={addIngredient}
-                            className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">Add</button>
+                            className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700">{t('recipes.add')}</button>
                           <button onClick={() => { setAdding(false); setNewIng({ ingredientId: '', qty: '' }); resetIngPicker() }}
                             className="text-xs text-gray-400 hover:text-gray-600">✕</button>
                         </div>
@@ -448,21 +451,21 @@ function RecipesTab() {
                   {editing && adding && creating && (
                     <tr className="bg-green-50">
                       <td className="px-5 py-2.5">
-                        <input autoFocus placeholder="Ingredient name"
+                        <input autoFocus placeholder={t('recipes.ingredientName')}
                           value={newIngDef.name}
                           onChange={e => setNewIngDef(v => ({ ...v, name: e.target.value }))}
                           onKeyDown={e => e.key === 'Enter' && createAndAdd()}
                           className="border border-green-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </td>
                       <td className="px-4 py-2.5">
-                        <input placeholder="unit (kg, L…)"
+                        <input placeholder={t('recipes.unitPlaceholder')}
                           value={newIngDef.unit}
                           onChange={e => setNewIngDef(v => ({ ...v, unit: e.target.value }))}
                           onKeyDown={e => e.key === 'Enter' && createAndAdd()}
                           className="border border-green-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-green-400" />
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <input type="number" min="0" step="0.001" placeholder="qty"
+                        <input type="number" min="0" step="0.001" placeholder={t('recipes.qtyPlaceholder')}
                           value={newIng.qty}
                           onChange={e => setNewIng(v => ({ ...v, qty: e.target.value }))}
                           onKeyDown={e => e.key === 'Enter' && createAndAdd()}
@@ -471,7 +474,7 @@ function RecipesTab() {
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1">
                           <button onClick={createAndAdd}
-                            className="text-xs px-2 py-0.5 bg-green-600 text-white rounded hover:bg-green-700">Create & add</button>
+                            className="text-xs px-2 py-0.5 bg-green-600 text-white rounded hover:bg-green-700">{t('recipes.createAndAdd')}</button>
                           <button onClick={() => setCreating(false)}
                             className="text-xs text-gray-400 hover:text-gray-600">✕</button>
                         </div>
@@ -486,16 +489,16 @@ function RecipesTab() {
           {editing && !adding && (
             <div className="px-5 py-3 border-t border-gray-100 bg-blue-50/50 flex items-center justify-between">
               <button onClick={() => setAdding(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                + Add ingredient
+                {t('recipes.addIngredient')}
               </button>
               <button onClick={() => setDraftQtys({})}
-                className="text-xs text-red-400 hover:text-red-600">Clear all</button>
+                className="text-xs text-red-400 hover:text-red-600">{t('recipes.clearAll')}</button>
             </div>
           )}
         </div>
       ) : (
         <div className="flex-1 border border-gray-200 rounded-xl bg-gray-50/50 flex items-center justify-center">
-          <p className="text-sm text-gray-400">← Select a product to view its recipe</p>
+          <p className="text-sm text-gray-400">{t('recipes.selectProduct')}</p>
         </div>
       )}
     </div>
@@ -507,6 +510,7 @@ function RecipesTab() {
 export default function Recipes() {
   const [tab, setTab] = useState('ingredients')
   const { exportConfig, importConfig } = useConfig()
+  const { t } = useLanguage()
   const importRef = useRef()
   const [importError, setImportError] = useState(null)
 
@@ -517,7 +521,7 @@ export default function Recipes() {
       await importConfig(file)
       setImportError(null)
     } catch {
-      setImportError('Invalid config file')
+      setImportError(t('recipes.invalidConfig'))
     }
     e.target.value = ''
   }
@@ -526,9 +530,9 @@ export default function Recipes() {
     <div className="p-8 flex flex-col">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Recipes & Config</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('recipes.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Manage ingredients and set recipes for each product sold
+            {t('recipes.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -536,17 +540,17 @@ export default function Recipes() {
           <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
           <button onClick={() => importRef.current.click()}
             className="px-3 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
-            Import config
+            {t('recipes.importConfig')}
           </button>
           <button onClick={exportConfig}
             className="px-3 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
-            Export config
+            {t('recipes.exportConfig')}
           </button>
         </div>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-5">
-        {[['ingredients', 'Ingredients'], ['recipes', 'Recipes']].map(([id, label]) => (
+        {[['ingredients', t('recipes.tabIngredients')], ['recipes', t('recipes.tabRecipes')]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'

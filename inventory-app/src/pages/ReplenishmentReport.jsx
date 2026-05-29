@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
 import { STORES } from '../data/fakeData'
 
 export default function ReplenishmentReport() {
   const { config, reportFrom, reportTo } = useConfig()
   const { getConsumed7d, getAdjDelta, getOrderQty } = useCalcs()
+  const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
   const [hideZero,      setHideZero]      = useState(true)
 
@@ -46,40 +48,40 @@ export default function ReplenishmentReport() {
     <div className="p-8">
       <div className="flex items-start justify-between mb-8 no-print">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Replenishment Report</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('report.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Period: {reportFrom} – {reportTo} &nbsp;·&nbsp; Formula: consumed × 1.05 − adj delta
+            {t('report.subtitle', { from: reportFrom, to: reportTo })}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
             <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-            Hide zero rows
+            {t('report.hideZero')}
           </label>
           <select value={selectedStore} onChange={e => setSelectedStore(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option>All</option>
+            <option>{t('common.all')}</option>
             {STORES.map(s => <option key={s}>{s}</option>)}
           </select>
           <button onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Export CSV
+            {t('report.exportCSV')}
           </button>
           <button onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Print
+            {t('report.print')}
           </button>
         </div>
       </div>
 
       <div className="hidden print:block mb-6">
-        <h1 className="text-xl font-bold">Weekly Replenishment Report</h1>
+        <h1 className="text-xl font-bold">{t('report.printTitle')}</h1>
         <p className="text-sm text-gray-600">
-          Period: {reportFrom} – {reportTo}
-          {selectedStore !== 'All' && ` · Store: ${selectedStore}`}
+          {t('report.printPeriod', { from: reportFrom, to: reportTo })}
+          {selectedStore !== 'All' && t('report.printStore', { store: selectedStore })}
         </p>
       </div>
 
@@ -92,21 +94,21 @@ export default function ReplenishmentReport() {
               <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{store}</h2>
                 <span className="text-sm text-gray-500">
-                  {itemsToOrder} of {rows.length} ingredients to order
+                  {t('report.storeHeader', { count: itemsToOrder, total: rows.length })}
                 </span>
               </div>
               {visibleRows.length === 0 ? (
-                <p className="px-6 py-8 text-sm text-gray-400 text-center">Nothing to order for this store</p>
+                <p className="px-6 py-8 text-sm text-gray-400 text-center">{t('report.nothingToOrder')}</p>
               ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                    <th className="px-6 py-3 font-medium">Product</th>
-                    <th className="px-4 py-3 font-medium">Unit</th>
-                    <th className="px-4 py-3 font-medium text-right">Consumed 7d</th>
+                    <th className="px-6 py-3 font-medium">{t('report.product')}</th>
+                    <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
+                    <th className="px-4 py-3 font-medium text-right">{t('report.consumed7d')}</th>
                     <th className="px-4 py-3 font-medium text-right">× 1.05</th>
-                    <th className="px-4 py-3 font-medium text-right">Adj Delta</th>
-                    <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700">Order Qty</th>
+                    <th className="px-4 py-3 font-medium text-right">{t('report.adjDelta')}</th>
+                    <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700">{t('report.orderQty')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -134,18 +136,18 @@ export default function ReplenishmentReport() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-200 bg-gray-50">
                     <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">
-                      Items to order
+                      {t('report.itemsToOrder')}
                     </td>
                     <td className="px-4 py-3 text-right bg-blue-100">
                       <span className="font-bold text-blue-800 tabular-nums text-base">{itemsToOrder}</span>
-                      <span className="text-blue-500 text-xs ml-1">ingredients</span>
+                      <span className="text-blue-500 text-xs ml-1">{t('report.ingredientsLabel')}</span>
                     </td>
                   </tr>
                 </tfoot>
               </table>
               )}
               <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
-                Order Qty = ⌈Consumed × 1.05⌉ − Adj Delta
+                {t('report.formula')}
               </div>
             </div>
           )

@@ -1,5 +1,6 @@
 import { useState, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
 import { STORES } from '../data/fakeData'
 
 // ─── Count tab ────────────────────────────────────────────────────────────────
@@ -7,6 +8,7 @@ import { STORES } from '../data/fakeData'
 function CountTab({ store, setStore, date, setDate }) {
   const { config, data, addAudit } = useConfig()
   const { getLastAudit } = useCalcs()
+  const { t } = useLanguage()
 
   const [counts, setCounts] = useState({})
   const [saved,  setSaved]  = useState(false)
@@ -57,22 +59,22 @@ function CountTab({ store, setStore, date, setDate }) {
     <>
       <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Store</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
           <select value={store} onChange={e => { setStore(e.target.value); setSaved(false) }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             {STORES.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Audit Date</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('audit.auditDate')}</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div className="flex-1 min-w-48">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.search')}</label>
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            <input type="text" placeholder="Filter ingredients…" value={search}
+            <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             {search && (
@@ -86,25 +88,25 @@ function CountTab({ store, setStore, date, setDate }) {
       {existingAudit && (
         <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          An audit for <strong className="font-semibold">{store}</strong> on <strong className="font-semibold">{date}</strong> already exists — saving will merge your new counts into it.
+          {t('audit.existingWarning', { store, date })}
         </div>
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
-          <span className="col-span-2">Ingredient</span>
+          <span className="col-span-2">{t('common.ingredient')}</span>
           <span>
-            Previous Count{' '}
+            {t('audit.prevCount')}{' '}
             <span className="font-normal normal-case text-gray-400">
               {lastAuditDate ? `(${lastAuditDate})` : '(none)'}
             </span>
           </span>
-          <span>New Count</span>
+          <span>{t('audit.newCount')}</span>
         </div>
         {config.ingredients
           .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
           .length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-gray-400">No ingredients match "{search}"</div>
+            <div className="px-6 py-8 text-center text-sm text-gray-400">{t('audit.noMatch', { query: search })}</div>
           )
         }
         {config.ingredients
@@ -143,12 +145,12 @@ function CountTab({ store, setStore, date, setDate }) {
         <div className="flex items-center gap-4">
           <button onClick={() => setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))}
             className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-            Clear all
+            {t('audit.clearAll')}
           </button>
           {lastAudit && (
             <button onClick={handleFillFromLast}
               className="text-sm text-blue-600 hover:text-blue-700 transition-colors">
-              Fill from last audit
+              {t('audit.fillFromLast')}
             </button>
           )}
         </div>
@@ -156,18 +158,18 @@ function CountTab({ store, setStore, date, setDate }) {
           {saved && (
             <span className="text-sm text-green-600 font-medium flex items-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-              Audit saved for {store}
+              {t('audit.savedFor', { store })}
             </span>
           )}
           <button onClick={handleSave} disabled={!anyFilled}
             className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
               anyFilled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}>
-            Save Audit
+            {t('audit.saveAudit')}
           </button>
         </div>
       </div>
-      <p className="text-xs text-gray-400 text-right mt-2">Unfilled rows are saved as not counted</p>
+      <p className="text-xs text-gray-400 text-right mt-2">{t('audit.unfilledNote')}</p>
     </>
   )
 }
@@ -176,6 +178,7 @@ function CountTab({ store, setStore, date, setDate }) {
 
 function HistoryTab() {
   const { config, data, deleteAudit } = useConfig()
+  const { t } = useLanguage()
   const [historyStore,  setHistoryStore]  = useState('All')
   const [expanded,      setExpanded]      = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
@@ -188,32 +191,32 @@ function HistoryTab() {
     <>
       <div className="flex items-center gap-4 mb-6">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Store</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
           <select value={historyStore}
             onChange={e => { setHistoryStore(e.target.value); setExpanded(null); setPendingDelete(null) }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="All">All stores</option>
+            <option value="All">{t('common.allStores')}</option>
             {STORES.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
         <p className="text-sm text-gray-500 mt-5">
-          {audits.length} audit{audits.length !== 1 ? 's' : ''}
+          {t('audit.auditsCount', { count: audits.length })}
         </p>
       </div>
 
       {audits.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
-          No audits recorded yet{historyStore !== 'All' ? ` for ${historyStore}` : ''}
+          {t('audit.noAuditsYet')}{historyStore !== 'All' ? ` for ${historyStore}` : ''}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-3 font-medium">ID</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Store</th>
-                <th className="px-4 py-3 font-medium text-right">Counted</th>
+                <th className="px-6 py-3 font-medium">{t('audit.colId')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.date')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium text-right">{t('audit.colCounted')}</th>
                 <th className="px-4 py-3 font-medium w-48"></th>
               </tr>
             </thead>
@@ -238,7 +241,7 @@ function HistoryTab() {
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                         {isPending ? (
                           <div className="flex items-center justify-end gap-2">
-                            <span className="text-xs text-red-600">Delete this audit?</span>
+                            <span className="text-xs text-red-600">{t('audit.deleteThisAudit')}</span>
                             <button
                               onClick={() => {
                                 deleteAudit(audit.id)
@@ -246,17 +249,17 @@ function HistoryTab() {
                                 if (expanded === audit.id) setExpanded(null)
                               }}
                               className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">
-                              Yes
+                              {t('common.yes')}
                             </button>
                             <button onClick={() => setPendingDelete(null)}
                               className="text-xs text-gray-500 hover:text-gray-700">
-                              No
+                              {t('common.no')}
                             </button>
                           </div>
                         ) : (
                           <button onClick={() => setPendingDelete(audit.id)}
                             className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                            Delete
+                            {t('common.delete')}
                           </button>
                         )}
                       </td>
@@ -266,7 +269,7 @@ function HistoryTab() {
                       <tr className="bg-blue-50 border-b border-blue-100">
                         <td colSpan={5} className="px-6 py-4">
                           {counted === 0 ? (
-                            <p className="text-sm text-gray-400">No counts recorded in this audit.</p>
+                            <p className="text-sm text-gray-400">{t('audit.noCountsRecorded')}</p>
                           ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                               {config.ingredients
@@ -303,16 +306,17 @@ export default function InventoryAudit() {
   const [tab,   setTab]   = useState('count')
   const [store, setStore] = useState(STORES[0])
   const [date,  setDate]  = useState(new Date().toISOString().slice(0, 10))
+  const { t } = useLanguage()
 
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Inventory Audit</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Enter physical counts after a store audit</p>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('audit.title')}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{t('audit.subtitle')}</p>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
-        {[['count', 'Count Stock'], ['history', 'History']].map(([id, label]) => (
+        {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
