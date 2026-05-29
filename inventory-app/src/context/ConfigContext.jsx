@@ -338,7 +338,11 @@ export function useCalcs() {
       Math.max(0, Math.ceil(getConsumed7d(store, ingredientId) * 1.05) - getAdjDelta(store, ingredientId))
 
     const estimateCurrentStock = (store, ingredientId) => {
-      const lastAudit = getLastAudit(store)
+      // Use the most recent audit that actually counted this ingredient.
+      // A later partial audit that left this ingredient blank should not reset it to 0.
+      const lastAudit = [...data.audits]
+        .filter(a => a.store === store && a.counts[ingredientId] != null)
+        .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
       const cut  = lastAudit?.date ?? '0000-00-00'
       const base = lastAudit?.counts[ingredientId] ?? 0
       const salesSince = lastAudit
