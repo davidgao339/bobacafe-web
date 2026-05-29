@@ -212,45 +212,39 @@ export function ConfigProvider({ children }) {
     return { upToDate: false, newRows: newRows.length, fromDate, toDate }
   }, [salesCache])
 
-  // ─── Full backup export/import ──────────────────────────────────────────────
+  // ─── Cloud backup ────────────────────────────────────────────────────────────
 
-  const exportAll = useCallback(() => {
-    const payload = {
-      version:    1,
-      exportedAt: new Date().toISOString(),
-      config,
-      data,
-      salesCache: salesCache ?? null,
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `bobacafe-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+  const BACKUP_BASE = 'https://bobacafe-proxy.davidgao734.workers.dev'
+
+  const listCloudBackups = useCallback(async () => {
+    const resp = await fetch(`${BACKUP_BASE}/backups`)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json() // [{ id, savedAt, ingredientCount, auditCount, poCount }]
+  }, [])
+
+  const saveCloudBackup = useCallback(async () => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
+    const resp = await fetch(`${BACKUP_BASE}/backups`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json() // { id, savedAt }
   }, [config, data, salesCache])
 
-  const importAll = useCallback((file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          const parsed = JSON.parse(e.target.result)
-          if (!parsed.config || !parsed.data) throw new Error('Invalid backup file')
-          const migratedConfig = migrateConfig(parsed.config)
-          setConfig(migratedConfig)
-          setData({ ...DEFAULT_DATA, ...parsed.data })
-          if (parsed.salesCache) {
-            setSalesCacheState(parsed.salesCache)
-            saveToStorage(SALES_CACHE_KEY, parsed.salesCache)
-          }
-          resolve()
-        } catch (err) { reject(err) }
-      }
-      reader.readAsText(file)
-    })
-  , [setConfig, setData])
+  const restoreCloudBackup = useCallback(async (id) => {
+    const resp = await fetch(`${BACKUP_BASE}/backups/${id}`)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const parsed = await resp.json()
+    if (!parsed.config || !parsed.data) throw new Error('Invalid backup')
+    setConfig(migrateConfig(parsed.config))
+    setData({ ...DEFAULT_DATA, ...parsed.data })
+    if (parsed.salesCache) {
+      setSalesCacheState(parsed.salesCache)
+      saveToStorage(SALES_CACHE_KEY, parsed.salesCache)
+    }
+  }, [setConfig, setData])
 
   // ─── Config export/import ───────────────────────────────────────────────────
 
@@ -286,7 +280,7 @@ export function ConfigProvider({ children }) {
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,
-      exportAll, importAll,
+      listCloudBackups, saveCloudBackup, restoreCloudBackup,
     }}>
       {children}
     </ConfigContext.Provider>

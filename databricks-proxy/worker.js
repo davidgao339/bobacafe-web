@@ -1,42 +1,137 @@
-const TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
-const ORIGIN = 'https://bobacafe.net'
+const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
+const ORIGIN      = 'https://bobacafe.net'
+const MAX_BACKUPS = 5
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    const url  = new URL(request.url)
+    const path = url.pathname
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: cors() })
     }
-    if (request.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 })
+
+    // ── Databricks proxy (root) ──────────────────────────────────────────────
+    if (path === '/' || path === '') {
+      return handleDatabricks(request)
     }
-    const auth = request.headers.get('Authorization') ?? ''
-    if (!auth.startsWith('Bearer dapi')) {
-      return new Response('Unauthorized', { status: 401 })
+
+    // ── Backup: list ─────────────────────────────────────────────────────────
+    if (path === '/backups' && request.method === 'GET') {
+      return handleListBackups(env)
     }
-    try {
-      const resp = await fetch(TARGET, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': auth },
-        body: request.body,
-      })
-      const text = await resp.text()
-      return new Response(text, {
-        status: resp.status,
-        headers: { 'Content-Type': 'application/json', ...cors() },
-      })
-    } catch (e) {
-      return new Response(JSON.stringify({ error: e.message }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json', ...cors() },
-      })
+
+    // ── Backup: save ─────────────────────────────────────────────────────────
+    if (path === '/backups' && request.method === 'POST') {
+      return handleSaveBackup(request, env)
     }
+
+    // ── Backup: get one ───────────────────────────────────────────────────────
+    const m = path.match(/^\/backups\/([^/]+)$/)
+    if (m && request.method === 'GET') {
+      return handleGetBackup(m[1], env)
+    }
+
+    return new Response('Not found', { status: 404, headers: cors() })
   },
+}
+
+// ── Databricks proxy ──────────────────────────────────────────────────────────
+
+async function handleDatabricks(request) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: cors() })
+  }
+  const auth = request.headers.get('Authorization') ?? ''
+  if (!auth.startsWith('Bearer dapi')) {
+    return new Response('Unauthorized', { status: 401, headers: cors() })
+  }
+  try {
+    const resp = await fetch(DATABRICKS_TARGET, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': auth },
+      body:    request.body,
+    })
+    const text = await resp.text()
+    return new Response(text, {
+      status:  resp.status,
+      headers: { 'Content-Type': 'application/json', ...cors() },
+    })
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status:  502,
+      headers: { 'Content-Type': 'application/json', ...cors() },
+    })
+  }
+}
+
+// ── Backup handlers ───────────────────────────────────────────────────────────
+
+async function handleListBackups(env) {
+  const index = await getIndex(env)
+  return json(index)
+}
+
+async function handleSaveBackup(request, env) {
+  let body
+  try { body = await request.json() } catch {
+    return new Response('Bad request', { status: 400, headers: cors() })
+  }
+
+  const id      = new Date().toISOString().replace(/[:.]/g, '-')
+  const savedAt = new Date().toISOString()
+
+  // Metadata stored in the index (small, fast to list)
+  const meta = {
+    id,
+    savedAt,
+    ingredientCount: body.config?.ingredients?.length ?? 0,
+    auditCount:      body.data?.audits?.length          ?? 0,
+    poCount:         body.data?.purchaseOrders?.length  ?? 0,
+  }
+
+  // Write full payload
+  await env.BACKUP_STORE.put(`backup:${id}`, JSON.stringify(body))
+
+  // Update index, cap at MAX_BACKUPS, delete evicted entries
+  const index   = await getIndex(env)
+  const updated = [meta, ...index].slice(0, MAX_BACKUPS)
+  const evicted = [meta, ...index].slice(MAX_BACKUPS)
+
+  for (const old of evicted) {
+    await env.BACKUP_STORE.delete(`backup:${old.id}`)
+  }
+
+  await env.BACKUP_STORE.put('index', JSON.stringify(updated))
+  return json({ id, savedAt })
+}
+
+async function handleGetBackup(id, env) {
+  const value = await env.BACKUP_STORE.get(`backup:${id}`)
+  if (!value) return new Response('Not found', { status: 404, headers: cors() })
+  return new Response(value, {
+    status:  200,
+    headers: { 'Content-Type': 'application/json', ...cors() },
+  })
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function getIndex(env) {
+  const raw = await env.BACKUP_STORE.get('index')
+  return raw ? JSON.parse(raw) : []
+}
+
+function json(data) {
+  return new Response(JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json', ...cors() },
+  })
 }
 
 function cors() {
   return {
-    'Access-Control-Allow-Origin': ORIGIN,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Origin':  ORIGIN,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   }
 }

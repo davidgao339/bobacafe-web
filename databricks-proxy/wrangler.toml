@@ -1,0 +1,9 @@
+name = "bobacafe-proxy"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[[kv_namespaces]]
+binding = "BACKUP_STORE"
+# Replace with your KV namespace ID from the Cloudflare dashboard:
+#   Workers & Pages → KV → Create namespace "bobacafe-backup" → copy ID
+id = "REPLACE_WITH_KV_NAMESPACE_ID"

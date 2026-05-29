@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useConfig } from '../context/ConfigContext'
 
 const STAFF_NAV = [
@@ -32,21 +32,69 @@ function NavButton({ id, label, icon: Icon, currentPage, onNavigate }) {
 }
 
 export default function Sidebar({ currentPage, onNavigate }) {
-  const { exportAll, importAll } = useConfig()
-  const importRef = useRef()
-  const [msg, setMsg] = useState(null) // { type: 'ok'|'err', text }
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup } = useConfig()
 
-  const handleImport = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+  const [saving,        setSaving]        = useState(false)
+  const [restoreOpen,   setRestoreOpen]   = useState(false)
+  const [backups,       setBackups]       = useState(null)  // null = not loaded yet
+  const [loading,       setLoading]       = useState(false)
+  const [confirmId,     setConfirmId]     = useState(null)
+  const [restoring,     setRestoring]     = useState(false)
+  const [msg,           setMsg]           = useState(null)  // { type: 'ok'|'err', text }
+
+  const flash = (type, text) => {
+    setMsg({ type, text })
+    setTimeout(() => setMsg(null), 3500)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
     try {
-      await importAll(file)
-      setMsg({ type: 'ok', text: 'Restored!' })
-    } catch {
-      setMsg({ type: 'err', text: 'Invalid backup' })
+      const { savedAt } = await saveCloudBackup()
+      flash('ok', `Saved — ${new Date(savedAt).toLocaleTimeString()}`)
+      // Invalidate cached list so next open re-fetches
+      setBackups(null)
+    } catch (e) {
+      flash('err', `Save failed: ${e.message}`)
+    } finally {
+      setSaving(false)
     }
-    e.target.value = ''
-    setTimeout(() => setMsg(null), 3000)
+  }
+
+  const handleOpenRestore = async () => {
+    if (restoreOpen) { setRestoreOpen(false); setConfirmId(null); return }
+    setRestoreOpen(true)
+    if (backups !== null) return   // already loaded
+    setLoading(true)
+    try {
+      const list = await listCloudBackups()
+      setBackups(list)
+    } catch (e) {
+      flash('err', `Could not load backups: ${e.message}`)
+      setRestoreOpen(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRestore = async (id) => {
+    setRestoring(true)
+    try {
+      await restoreCloudBackup(id)
+      flash('ok', 'Restored!')
+      setRestoreOpen(false)
+      setConfirmId(null)
+    } catch (e) {
+      flash('err', `Restore failed: ${e.message}`)
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  const fmt = (iso) => {
+    const d = new Date(iso)
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+      + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   }
 
   return (
@@ -69,20 +117,66 @@ export default function Sidebar({ currentPage, onNavigate }) {
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-slate-700 space-y-1">
-        <button onClick={exportAll}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+      {/* ── Cloud backup footer ─────────────────────────────────────────────── */}
+      <div className="px-3 py-3 border-t border-slate-700 space-y-1">
+
+        {/* Restore panel */}
+        {restoreOpen && (
+          <div className="mb-2 bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+            {loading ? (
+              <p className="px-3 py-3 text-xs text-slate-400">Loading…</p>
+            ) : backups?.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-400">No cloud backups yet</p>
+            ) : backups?.map(b => (
+              <div key={b.id} className="border-b border-slate-700 last:border-0">
+                {confirmId === b.id ? (
+                  <div className="px-3 py-2 flex items-center gap-2">
+                    <span className="text-xs text-slate-300 flex-1">Restore this?</span>
+                    <button
+                      onClick={() => handleRestore(b.id)}
+                      disabled={restoring}
+                      className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                      {restoring ? '…' : 'Yes'}
+                    </button>
+                    <button onClick={() => setConfirmId(null)}
+                      className="text-xs text-slate-400 hover:text-slate-200">No</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(b.id)}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-700 transition-colors">
+                    <p className="text-xs text-slate-200 font-medium">{fmt(b.savedAt)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {b.ingredientCount} ingredients · {b.auditCount} audits · {b.poCount} POs
+                    </p>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Buttons */}
+        <button onClick={handleSave} disabled={saving}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50">
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Save backup
+          {saving ? 'Saving…' : 'Save to cloud'}
         </button>
-        <label className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer">
+
+        <button onClick={handleOpenRestore}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs transition-colors ${
+            restoreOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+          }`}>
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
           Restore backup
-          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-        </label>
+        </button>
+
         {msg && (
-          <p className={`px-3 text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>
+          <p className={`px-3 text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+            {msg.text}
+          </p>
         )}
+
         <p className="px-3 pt-1 text-slate-600 text-xs">Boba Кролик · Inventory</p>
       </div>
     </aside>
