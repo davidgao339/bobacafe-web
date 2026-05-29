@@ -1,3 +1,6 @@
+import { useState, useRef } from 'react'
+import { useConfig } from '../context/ConfigContext'
+
 const STAFF_NAV = [
   { id: 'dashboard', label: 'Home',        icon: DashIcon },
   { id: 'audit',     label: 'Count Stock', icon: AuditIcon },
@@ -29,6 +32,23 @@ function NavButton({ id, label, icon: Icon, currentPage, onNavigate }) {
 }
 
 export default function Sidebar({ currentPage, onNavigate }) {
+  const { exportAll, importAll } = useConfig()
+  const importRef = useRef()
+  const [msg, setMsg] = useState(null) // { type: 'ok'|'err', text }
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      await importAll(file)
+      setMsg({ type: 'ok', text: 'Restored!' })
+    } catch {
+      setMsg({ type: 'err', text: 'Invalid backup' })
+    }
+    e.target.value = ''
+    setTimeout(() => setMsg(null), 3000)
+  }
+
   return (
     <aside className="w-56 bg-slate-800 flex flex-col h-full flex-shrink-0">
       <div className="px-6 py-5 border-b border-slate-700">
@@ -49,8 +69,21 @@ export default function Sidebar({ currentPage, onNavigate }) {
         ))}
       </nav>
 
-      <div className="px-6 py-4 border-t border-slate-700">
-        <p className="text-slate-500 text-xs">Boba Кролик · Inventory</p>
+      <div className="px-3 py-4 border-t border-slate-700 space-y-1">
+        <button onClick={exportAll}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Save backup
+        </button>
+        <label className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+          Restore backup
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+        </label>
+        {msg && (
+          <p className={`px-3 text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>
+        )}
+        <p className="px-3 pt-1 text-slate-600 text-xs">Boba Кролик · Inventory</p>
       </div>
     </aside>
   )
