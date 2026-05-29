@@ -25,7 +25,7 @@ function StoreSection({ store }) {
         : actual > 0 ? 100 : 0
       return { name: p.name, unit: p.unit, expected, actual, lost, pct }
     })
-    .filter(r => r.expected > 0 || r.actual !== 0)
+    .filter(r => r.expected > 0 || r.actual > 0)
 
   const hasIssues = rows.some(r => r.pct > 5)
 

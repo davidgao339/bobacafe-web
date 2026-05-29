@@ -134,7 +134,7 @@ function IngredientsTab() {
 // ─── Recipes Tab ──────────────────────────────────────────────────────────────
 
 function RecipesTab() {
-  const { config, sales, setConfig } = useConfig()
+  const { config, sales, posWaste, setConfig } = useConfig()
   const [search,    setSearch]    = useState('')
   const [filter,    setFilter]    = useState('all')
   const [selected,  setSelected]  = useState(null)
@@ -145,8 +145,11 @@ function RecipesTab() {
   const [creating,  setCreating]  = useState(false)
   const [newIngDef, setNewIngDef] = useState({ name: '', unit: '' })
 
-  const allProducts = [...new Set(sales.map(s => s.product))].sort()
-  const hasRecipe   = (p) => Object.values(config.recipes[p] ?? {}).some(q => q > 0)
+  const salesProducts = new Set(sales.map(s => s.product))
+  const wasteProducts = new Set(posWaste.map(s => s.product))
+  const allProducts   = [...new Set([...salesProducts, ...wasteProducts])].sort()
+  const isWasteOnly   = (p) => wasteProducts.has(p) && !salesProducts.has(p)
+  const hasRecipe     = (p) => Object.values(config.recipes[p] ?? {}).some(q => q > 0)
 
   const displayed = allProducts.filter(p => {
     if (search && !p.toLowerCase().includes(search.toLowerCase())) return false
@@ -266,7 +269,10 @@ function RecipesTab() {
                     className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${
                       selected === p ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-gray-50'
                     }`}>
-                    <p className="text-sm font-medium text-gray-800 truncate leading-snug">{p}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-800 truncate leading-snug">{p}</p>
+                      {isWasteOnly(p) && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Waste</span>}
+                    </div>
                     {count > 0
                       ? <p className="text-xs text-green-600 mt-0.5">{count} ingredient{count !== 1 ? 's' : ''}</p>
                       : <p className="text-xs text-amber-500 mt-0.5">No recipe yet</p>
@@ -290,7 +296,9 @@ function RecipesTab() {
             <div>
               <h3 className="font-semibold text-gray-900">{selected}</h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                {editing ? 'Editing — qty consumed per 1 unit sold' : 'Qty consumed per 1 unit sold'}
+                {editing
+                  ? `Editing — qty consumed per 1 unit ${isWasteOnly(selected) ? 'wasted' : 'sold'}`
+                  : `Qty consumed per 1 unit ${isWasteOnly(selected) ? 'wasted' : 'sold'}`}
               </p>
             </div>
             <div className="flex items-center gap-2">
