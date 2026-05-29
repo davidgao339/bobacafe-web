@@ -117,6 +117,10 @@ export function ConfigProvider({ children }) {
     })
   }, [setData])
 
+  const deleteAudit = useCallback((id) => {
+    setData(prev => ({ ...prev, audits: prev.audits.filter(a => a.id !== id) }))
+  }, [setData])
+
   const addTransaction = useCallback((tx) => {
     setData(prev => {
       const id = `T-${String(prev._nextTxId).padStart(3, '0')}`
@@ -236,7 +240,7 @@ export function ConfigProvider({ children }) {
     <ConfigContext.Provider value={{
       config, setConfig,
       data, setData,
-      addAudit, addTransaction,
+      addAudit, deleteAudit, addTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       settings, saveSettings, refreshSales,
