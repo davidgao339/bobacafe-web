@@ -214,6 +214,9 @@ const en = {
   'po.stepReceived':       'Received',
   'po.addMoreIngredients': 'Add more ingredients',
   'po.addMoreNote':        '— set qty > 0 to include',
+  'po.createdDate':        'Created Date',
+  'po.sentDate':           'Sent Date',
+  'po.receivedDate':       'Received Date',
 
   // Replenishment Report
   'report.title':            'Replenishment Report',

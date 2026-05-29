@@ -214,6 +214,9 @@ const ru = {
   'po.stepReceived':       'Получен',
   'po.addMoreIngredients': 'Добавить ещё ингредиенты',
   'po.addMoreNote':        '— укажите кол-во > 0 для включения',
+  'po.createdDate':        'Дата создания',
+  'po.sentDate':           'Дата отправки',
+  'po.receivedDate':       'Дата получения',
 
   // Replenishment Report
   'report.title':            'Отчёт по закупкам',

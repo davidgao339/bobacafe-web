@@ -15,10 +15,17 @@ const STATUS_LABEL = { draft: 'Draft', sent: 'Sent', received: 'Received' }
 
 // ─── Inline confirm ───────────────────────────────────────────────────────────
 
-function ConfirmInline({ message, onConfirm, onCancel, danger }) {
+function ConfirmInline({ message, onConfirm, onCancel, danger, dateLabel, date, onDateChange }) {
   const { t } = useLanguage()
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
+      {dateLabel && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-500">{dateLabel}</span>
+          <input type="date" value={date} onChange={e => onDateChange(e.target.value)}
+            className="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+        </div>
+      )}
       <span className="text-xs text-gray-600">{message}</span>
       <button onClick={onConfirm}
         className={`px-2.5 py-1 text-xs rounded-md text-white font-medium ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
@@ -67,10 +74,11 @@ function StatusStepper({ po }) {
 
 // ─── Create / Edit form ───────────────────────────────────────────────────────
 
-function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore, lockStore, onSave, onCancel }) {
+function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate }) {
   const { t } = useLanguage()
-  const [store, setStore] = useState(initialStore ?? STORES[0])
-  const [qtys,  setQtys]  = useState(() => {
+  const [store,       setStore]       = useState(initialStore ?? STORES[0])
+  const [createdDate, setCreatedDate] = useState(initialCreatedDate ?? TODAY)
+  const [qtys,        setQtys]        = useState(() => {
     if (initialLines) {
       const map = {}
       initialLines.forEach(l => { map[`${initialStore}:${l.ingredientId}`] = l.ordered })
@@ -99,6 +107,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   const handleSave = () => {
     onSave({
       store,
+      createdDate,
       lines: lines.map(l => ({ ingredientId: l.id, ordered: Math.max(0, Number(l.qty) || 0) })),
     })
   }
@@ -127,18 +136,25 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
-      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-3">
         <h2 className="font-semibold text-gray-900">{title}</h2>
-        {!lockStore && (
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-gray-600">{t('common.store')}</label>
-            <select value={store} onChange={e => handleStoreChange(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              {STORES.map(s => <option key={s}>{s}</option>)}
-            </select>
+        <div className="flex items-center gap-4 flex-wrap">
+          {!lockStore && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-gray-600">{t('common.store')}</label>
+              <select value={store} onChange={e => handleStoreChange(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                {STORES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
+          {lockStore && <span className="text-sm font-medium text-gray-700">{store}</span>}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600">{t('po.createdDate')}</label>
+            <input type="date" value={createdDate} onChange={e => setCreatedDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-        )}
-        {lockStore && <span className="text-sm font-medium text-gray-700">{store}</span>}
+        </div>
       </div>
 
       <table className="w-full text-sm">
@@ -215,16 +231,16 @@ export default function PurchaseOrders() {
 
   const requestConfirm = (poId, action, e) => {
     e.stopPropagation()
-    setConfirm(prev => (prev?.poId === poId && prev?.action === action) ? null : { poId, action })
+    setConfirm(prev => (prev?.poId === poId && prev?.action === action) ? null : { poId, action, date: TODAY })
   }
 
   const doConfirm = () => {
     if (!confirm) return
-    const { poId, action } = confirm
-    if (action === 'send')     updatePurchaseOrder(poId, { status: 'sent',     sentDate: TODAY })
-    if (action === 'receive')  updatePurchaseOrder(poId, { status: 'received', receivedDate: TODAY })
-    if (action === 'revertToSent')  updatePurchaseOrder(poId, { status: 'sent',  receivedDate: null })
-    if (action === 'revertToDraft') updatePurchaseOrder(poId, { status: 'draft', sentDate: null })
+    const { poId, action, date } = confirm
+    if (action === 'send')          updatePurchaseOrder(poId, { status: 'sent',     sentDate: date })
+    if (action === 'receive')       updatePurchaseOrder(poId, { status: 'received', receivedDate: date })
+    if (action === 'revertToSent')  updatePurchaseOrder(poId, { status: 'sent',     receivedDate: null })
+    if (action === 'revertToDraft') updatePurchaseOrder(poId, { status: 'draft',    sentDate: null })
     if (action === 'delete') {
       deletePurchaseOrder(poId)
       if (expanded === poId) setExpanded(null)
@@ -232,14 +248,14 @@ export default function PurchaseOrders() {
     setConfirm(null)
   }
 
-  const handleCreate = (newPO) => {
-    addPurchaseOrder({ ...newPO, id: nextId, status: 'draft', createdDate: TODAY, sentDate: null, receivedDate: null })
+  const handleCreate = ({ store, lines, createdDate }) => {
+    addPurchaseOrder({ store, lines, id: nextId, status: 'draft', createdDate, sentDate: null, receivedDate: null })
     setCreating(false)
     setExpanded(nextId)
   }
 
-  const handleEditSave = (poId, { lines }) => {
-    updatePurchaseOrder(poId, { lines })
+  const handleEditSave = (poId, { lines, createdDate }) => {
+    updatePurchaseOrder(poId, { lines, createdDate })
     setEditingId(null)
   }
 
@@ -324,13 +340,16 @@ export default function PurchaseOrders() {
                             {t(`po.${po.status}`)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 min-w-64" onClick={e => e.stopPropagation()}>
+                        <td className="px-4 py-3 min-w-72" onClick={e => e.stopPropagation()}>
                           {pendingConfirm ? (
                             <ConfirmInline
                               message={cl.msg}
                               danger={cl.danger}
                               onConfirm={doConfirm}
                               onCancel={() => setConfirm(null)}
+                              dateLabel={pendingConfirm === 'send' ? t('po.sentDate') : pendingConfirm === 'receive' ? t('po.receivedDate') : undefined}
+                              date={confirm?.date}
+                              onDateChange={d => setConfirm(prev => ({ ...prev, date: d }))}
                             />
                           ) : (
                             <div className="flex items-center gap-2 flex-wrap">
@@ -367,10 +386,11 @@ export default function PurchaseOrders() {
                                 title={t('po.editTitle', { id: po.id })}
                                 initialLines={po.lines}
                                 initialStore={po.store}
+                                initialCreatedDate={po.createdDate}
                                 lockStore
                                 ingredients={config.ingredients}
                                 getOrderQty={getOrderQty}
-                                onSave={({ lines }) => handleEditSave(po.id, { lines })}
+                                onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
                                 onCancel={() => setEditingId(null)}
                               />
                             ) : (
