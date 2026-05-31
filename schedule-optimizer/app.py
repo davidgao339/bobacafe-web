@@ -25,7 +25,8 @@ T = STRINGS[st.session_state.lang]
 if not getattr(st.user, 'is_logged_in', False):
     st.title(T["app_title"])
     st.markdown(T["sign_in_desc"])
-    st.button(T["sign_in_btn"], on_click=st.login, args=("google",), type="primary")
+    if st.button(T["sign_in_btn"], type="primary"):
+        st.login("google")
     st.stop()
 
 if st.user.email not in ALLOWED_EMAILS:
