@@ -229,6 +229,8 @@ const ru = {
   'po.sentDate':             'Дата отправки',
   'po.receivedDate':         'Дата получения',
   'po.searchIngredients':    'Поиск ингредиентов…',
+  'po.daysToFill':           'Дней запаса',
+  'po.days':                 'дн.',
 
   // Replenishment Report
   'report.title':            'Отчёт по закупкам',

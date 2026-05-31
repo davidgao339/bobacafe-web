@@ -229,6 +229,8 @@ const en = {
   'po.sentDate':             'Sent Date',
   'po.receivedDate':         'Received Date',
   'po.searchIngredients':    'Search ingredients…',
+  'po.daysToFill':           'Days to fill',
+  'po.days':                 'days',
 
   // Replenishment Report
   'report.title':            'Replenishment Report',

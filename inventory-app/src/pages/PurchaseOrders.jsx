@@ -78,6 +78,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   const { t } = useLanguage()
   const [store,       setStore]       = useState(initialStore ?? STORES[0])
   const [createdDate, setCreatedDate] = useState(initialCreatedDate ?? TODAY)
+  const [days,        setDays]        = useState(7)
   const [search,      setSearch]      = useState('')
   const [qtys,        setQtys]        = useState(() => {
     if (initialLines) {
@@ -93,7 +94,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
 
   const lines = ingredients.map(p => {
     const key = `${store}:${p.id}`
-    const suggested = getOrderQty(store, p.id)
+    const suggested = getOrderQty(store, p.id, days)
     const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : 0)
     return { ...p, suggested, qty, isOriginal: originalIds.has(p.id) }
   })
@@ -155,6 +156,13 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
             <label className="text-xs font-medium text-gray-600">{t('po.createdDate')}</label>
             <input type="date" value={createdDate} onChange={e => setCreatedDate(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600">{t('po.daysToFill')}</label>
+            <input type="number" min="1" max="365" value={days}
+              onChange={e => setDays(Math.max(1, parseInt(e.target.value) || 7))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-right" />
+            <span className="text-xs text-gray-400">{t('po.days')}</span>
           </div>
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
