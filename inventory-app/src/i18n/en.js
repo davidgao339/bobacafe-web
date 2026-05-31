@@ -231,11 +231,11 @@ const en = {
   'report.nothingToOrder':   'Nothing to order for this store',
   'report.product':          'Product',
   'report.consumed7d':       'Consumed 7d',
-  'report.adjDelta':         'Adj Delta',
+  'report.currentStock':     'Current Stock',
   'report.orderQty':         'Order Qty',
   'report.itemsToOrder':     'Items to order',
   'report.ingredientsLabel': 'ingredients',
-  'report.formula':          'Order Qty = ⌈Consumed × 1.05⌉ − Adj Delta',
+  'report.formula':          'Order Qty = max(0, ⌈Consumed × 1.05⌉ − Current Stock)',
 
   // Variance Report
   'variance.title':           'Unexplained Losses',

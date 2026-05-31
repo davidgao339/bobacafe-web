@@ -231,11 +231,11 @@ const ru = {
   'report.nothingToOrder':   'Нечего заказывать для этого магазина',
   'report.product':          'Продукт',
   'report.consumed7d':       'Расход 7д',
-  'report.adjDelta':         'Корр.',
+  'report.currentStock':     'Тек. остаток',
   'report.orderQty':         'К заказу',
   'report.itemsToOrder':     'Позиций к заказу',
   'report.ingredientsLabel': 'ингредиентов',
-  'report.formula':          'К заказу = ⌈Расход × 1.05⌉ − Корректировка',
+  'report.formula':          'К заказу = max(0, ⌈Расход × 1.05⌉ − Тек. остаток)',
 
   // Variance Report
   'variance.title':           'Необъяснимые потери',

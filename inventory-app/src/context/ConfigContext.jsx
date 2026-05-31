@@ -335,7 +335,7 @@ export function useCalcs() {
     }
 
     const getOrderQty = (store, ingredientId) =>
-      Math.max(0, Math.ceil(getConsumed7d(store, ingredientId) * 1.05) - getAdjDelta(store, ingredientId))
+      Math.max(0, Math.ceil(getConsumed7d(store, ingredientId) * 1.05) - estimateCurrentStock(store, ingredientId))
 
     const estimateCurrentStock = (store, ingredientId) => {
       // Use the most recent audit that actually counted this ingredient.

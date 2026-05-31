@@ -5,7 +5,7 @@ import { STORES } from '../data/fakeData'
 
 export default function ReplenishmentReport() {
   const { config, reportFrom, reportTo } = useConfig()
-  const { getConsumed7d, getAdjDelta, getOrderQty } = useCalcs()
+  const { getConsumed7d, estimateCurrentStock, getOrderQty } = useCalcs()
   const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
   const [hideZero,      setHideZero]      = useState(true)
@@ -18,11 +18,11 @@ export default function ReplenishmentReport() {
       rows: config.ingredients.map(p => ({
         ...p,
         consumed: getConsumed7d(store, p.id),
-        adjDelta: getAdjDelta(store, p.id),
+        currentStock: estimateCurrentStock(store, p.id),
         orderQty: getOrderQty(store, p.id),
       })),
     })),
-    [selectedStore, config.ingredients, getConsumed7d, getAdjDelta, getOrderQty]
+    [selectedStore, config.ingredients, getConsumed7d, estimateCurrentStock, getOrderQty]
   )
 
   const csvField = (v) => {
@@ -31,9 +31,9 @@ export default function ReplenishmentReport() {
   }
 
   const handleExportCSV = () => {
-    const lines = ['Store,Product,Unit,Consumed 7d,Adj Delta,Order Qty']
+    const lines = ['Store,Product,Unit,Consumed 7d,Current Stock,Order Qty']
     reportRows.forEach(({ store, rows }) =>
-      rows.forEach(r => lines.push([store, r.name, r.unit, r.consumed, r.adjDelta, r.orderQty].map(csvField).join(',')))
+      rows.forEach(r => lines.push([store, r.name, r.unit, r.consumed, r.currentStock, r.orderQty].map(csvField).join(',')))
     )
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
@@ -107,7 +107,7 @@ export default function ReplenishmentReport() {
                     <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
                     <th className="px-4 py-3 font-medium text-right">{t('report.consumed7d')}</th>
                     <th className="px-4 py-3 font-medium text-right">× 1.05</th>
-                    <th className="px-4 py-3 font-medium text-right">{t('report.adjDelta')}</th>
+                    <th className="px-4 py-3 font-medium text-right">{t('report.currentStock')}</th>
                     <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700">{t('report.orderQty')}</th>
                   </tr>
                 </thead>
@@ -118,14 +118,7 @@ export default function ReplenishmentReport() {
                       <td className="px-4 py-3 text-gray-500">{r.unit}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.consumed}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-500">{Math.ceil(r.consumed * 1.05)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {r.adjDelta === 0
-                          ? <span className="text-gray-300">—</span>
-                          : <span className={`font-medium ${r.adjDelta < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {r.adjDelta > 0 ? '+' : ''}{r.adjDelta}
-                            </span>
-                        }
-                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.currentStock}</td>
                       <td className="px-4 py-3 text-right bg-blue-50">
                         <span className="font-bold text-blue-700 tabular-nums text-base">{r.orderQty}</span>
                         <span className="text-blue-400 text-xs ml-1">{r.unit}</span>
