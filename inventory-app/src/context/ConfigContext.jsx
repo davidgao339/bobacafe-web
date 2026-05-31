@@ -323,8 +323,19 @@ export function useCalcs() {
         .reduce((sum, t) => sum + t.quantity, 0))
     }
 
-    const getConsumed7d = (store, ingredientId) =>
-      r1(getSalesConsumption(store, ingredientId) + getDirectConsumption(store, ingredientId))
+    const getConsumed7d = (store, ingredientId) => {
+      const to   = sales.length > 0 ? sales[0].date : new Date().toISOString().slice(0, 10)
+      const cut  = new Date(to + 'T12:00:00'); cut.setDate(cut.getDate() - 7)
+      const from = cut.toISOString().slice(0, 10)
+      return r1(
+        [...sales, ...posWaste]
+          .filter(s => s.store === store && s.date > from && s.date <= to)
+          .reduce((sum, s) => sum + s.quantity * (recipes[s.product]?.[ingredientId] ?? 0), 0)
+        + data.transactions
+          .filter(t => t.store === store && t.ingredientId === ingredientId && t.type !== 'adjustment' && t.date > from && t.date <= to)
+          .reduce((sum, t) => sum + t.quantity, 0)
+      )
+    }
 
     const getAdjDelta = (store, ingredientId) => {
       const win = getVarianceWindow(store)
