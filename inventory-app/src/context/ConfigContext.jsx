@@ -397,11 +397,12 @@ export function useCalcs() {
     const getClosingStock = (store, ingredientId) => { const win = getVarianceWindow(store); return win ? (win.closing.counts[ingredientId] ?? 0) : 0 }
     const getActualConsumed = (store, ingredientId) => {
       const win = getVarianceWindow(store)
-      if (!win) return 0
+      if (!win) return null
+      // If the closing audit didn't count this ingredient, we have no closing stock —
+      // treating it as 0 would falsely show all opening stock as consumed.
+      if (win.closing.counts[ingredientId] == null) return null
       const opening = win.opening.counts[ingredientId] ?? 0
-      const closing = win.closing.counts[ingredientId] ?? 0
-      // POs received between the two audits inflate closing stock — add them back so
-      // actualConsumed = true consumption, not (opening - closing) which would show as a gain
+      const closing = win.closing.counts[ingredientId]
       const poInWindow = data.purchaseOrders
         .filter(po => po.store === store && po.status === 'received'
           && (po.receivedDate ?? '') > win.opening.date
@@ -409,8 +410,11 @@ export function useCalcs() {
         .reduce((sum, po) => sum + (po.lines.find(l => l.ingredientId === ingredientId)?.ordered ?? 0), 0)
       return r1(opening - closing + poInWindow)
     }
-    const getUnexplainedVariance = (store, ingredientId) =>
-      r1(getActualConsumed(store, ingredientId) - getSalesConsumption(store, ingredientId) - getDirectConsumption(store, ingredientId))
+    const getUnexplainedVariance = (store, ingredientId) => {
+      const actual = getActualConsumed(store, ingredientId)
+      if (actual === null) return null
+      return r1(actual - getSalesConsumption(store, ingredientId) - getDirectConsumption(store, ingredientId))
+    }
     const getVariancePct = (store, ingredientId) => {
       const t = getSalesConsumption(store, ingredientId)
       return t === 0 ? 0 : Math.round(getUnexplainedVariance(store, ingredientId) / t * 1000) / 10

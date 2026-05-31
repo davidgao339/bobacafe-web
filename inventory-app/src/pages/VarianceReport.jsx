@@ -22,12 +22,12 @@ function StoreSection({ store, issuesOnly }) {
       const expected = getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id)
       const actual   = getActualConsumed(store, p.id)
       const lost     = getUnexplainedVariance(store, p.id)
-      const pct = expected > 0
-        ? getVariancePct(store, p.id)
+      const pct = actual === null ? 0
+        : expected > 0 ? getVariancePct(store, p.id)
         : actual > 0 ? 100 : 0
       return { id: p.id, name: p.name, unit: p.unit, expected, actual, lost, pct }
     })
-    .filter(r => r.expected > 0 || r.actual > 0)
+    .filter(r => r.actual !== null && (r.expected > 0 || r.actual > 0))
     .sort((a, b) => b.pct - a.pct)
 
   const visibleRows = issuesOnly ? rows.filter(r => r.pct > 5) : rows
