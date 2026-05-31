@@ -90,6 +90,17 @@ const ru = {
   'audit.noCountsRecorded':  'В этой инвентаризации нет данных.',
   'audit.noMatch':           'Нет ингредиентов по запросу «{{query}}»',
   'audit.auditsCount':       '{{count}} инвентаризаций',
+  'audit.tabImport':         'Импорт CSV',
+  'audit.importTitle':       'Массовый импорт из CSV',
+  'audit.importDesc':        'Загрузите CSV-файл для создания нескольких инвентаризаций сразу. Скачайте шаблон для начала работы.',
+  'audit.downloadTemplate':  'Скачать шаблон',
+  'audit.uploadCSV':         'Загрузить CSV',
+  'audit.importReady':       'Корректных: {{valid}} · Ошибок: {{errors}}',
+  'audit.importNow':         'Импортировать {{count}} строк',
+  'audit.importSuccess':     'Импортировано инвентаризаций: {{count}}',
+  'audit.importWarnings':    'Предупреждения по столбцам (пропущены):',
+  'audit.importNoRows':      'В файле не найдено строк данных',
+  'audit.importBadHeader':   'CSV должен начинаться со столбцов "store" и "date"',
 
   // Inventory Levels
   'levels.title':          'Уровень запасов',
@@ -214,9 +225,10 @@ const ru = {
   'po.stepReceived':       'Получен',
   'po.addMoreIngredients': 'Добавить ещё ингредиенты',
   'po.addMoreNote':        '— укажите кол-во > 0 для включения',
-  'po.createdDate':        'Дата создания',
-  'po.sentDate':           'Дата отправки',
-  'po.receivedDate':       'Дата получения',
+  'po.createdDate':          'Дата создания',
+  'po.sentDate':             'Дата отправки',
+  'po.receivedDate':         'Дата получения',
+  'po.searchIngredients':    'Поиск ингредиентов…',
 
   // Replenishment Report
   'report.title':            'Отчёт по закупкам',

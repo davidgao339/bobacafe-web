@@ -78,6 +78,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   const { t } = useLanguage()
   const [store,       setStore]       = useState(initialStore ?? STORES[0])
   const [createdDate, setCreatedDate] = useState(initialCreatedDate ?? TODAY)
+  const [search,      setSearch]      = useState('')
   const [qtys,        setQtys]        = useState(() => {
     if (initialLines) {
       const map = {}
@@ -97,8 +98,9 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
     return { ...p, suggested, qty, isOriginal: originalIds.has(p.id) }
   })
 
-  const inOrder  = lines.filter(l => l.isOriginal || (!initialLines && true))
-  const notInOrder = initialLines ? lines.filter(l => !l.isOriginal) : []
+  const q = search.toLowerCase()
+  const inOrder    = lines.filter(l => (l.isOriginal || !initialLines) && (!q || l.name.toLowerCase().includes(q)))
+  const notInOrder = initialLines ? lines.filter(l => !l.isOriginal && (!q || l.name.toLowerCase().includes(q))) : []
 
   const handleStoreChange = (s) => { setStore(s); setQtys({}) }
   const setQty = (ingredientId, val) =>
@@ -153,6 +155,15 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
             <label className="text-xs font-medium text-gray-600">{t('po.createdDate')}</label>
             <input type="date" value={createdDate} onChange={e => setCreatedDate(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder={t('po.searchIngredients')} value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="border border-gray-300 rounded-lg pl-8 pr-8 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
           </div>
         </div>
       </div>

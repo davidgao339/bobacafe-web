@@ -11,6 +11,7 @@ export default function InventoryLevels() {
   const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
   const [issuesOnly, setIssuesOnly] = useState(false)
+  const [search, setSearch] = useState('')
 
   const stores = selectedStore === 'All' ? STORES : [selectedStore]
   const { ingredients } = config
@@ -54,7 +55,9 @@ export default function InventoryLevels() {
     const lastAudit  = getLastAudit(store)
     const auditLabel = lastAudit ? t('levels.lastAudit', { date: lastAudit.date }) : t('levels.noAudit')
 
+    const q = search.toLowerCase()
     const rows = ingredients
+      .filter(ing => !q || ing.name.toLowerCase().includes(q))
       .map(ing => ({ ing, ...stockLevel(store, ing) }))
       .sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status])
     const visibleRows = issuesOnly ? rows.filter(r => r.status !== 'ok' && r.status !== 'unknown') : rows
@@ -67,11 +70,22 @@ export default function InventoryLevels() {
             <h1 className="text-2xl font-semibold text-gray-900">{t('levels.title')}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{t('levels.subtitle')}</p>
           </div>
-          <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false) }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="All">{t('common.allStores')}</option>
-            {STORES.map(s => <option key={s}>{s}</option>)}
-          </select>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="border border-gray-300 rounded-lg pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+              )}
+            </div>
+            <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false); setSearch('') }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="All">{t('common.allStores')}</option>
+              {STORES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -142,7 +156,9 @@ export default function InventoryLevels() {
   }
 
   // All stores: matrix view — sort ingredients by worst status across all stores
+  const q = search.toLowerCase()
   const matrixRows = ingredients
+    .filter(ing => !q || ing.name.toLowerCase().includes(q))
     .map(ing => {
       const cells = stores.map(s => ({ store: s, ...stockLevel(s, ing) }))
       const worstRank = Math.min(...cells.map(c => STATUS_RANK[c.status]))
@@ -157,11 +173,22 @@ export default function InventoryLevels() {
           <h1 className="text-2xl font-semibold text-gray-900">{t('levels.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t('levels.subtitle')}</p>
         </div>
-        <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false) }}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="All">{t('common.allStores')}</option>
-          {STORES.map(s => <option key={s}>{s}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="border border-gray-300 rounded-lg pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
+          </div>
+          <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false); setSearch('') }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="All">{t('common.allStores')}</option>
+            {STORES.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">

@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react'
+import { useState, useRef, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { STORES } from '../data/fakeData'
@@ -300,6 +300,185 @@ function HistoryTab() {
   )
 }
 
+// ─── Import tab ───────────────────────────────────────────────────────────────
+
+function parseCSVLine(line) {
+  const result = []
+  let current = '', inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+      else inQuotes = !inQuotes
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current); current = ''
+    } else {
+      current += ch
+    }
+  }
+  result.push(current)
+  return result
+}
+
+function ImportTab() {
+  const { config, addAudit } = useConfig()
+  const { t } = useLanguage()
+  const [parsed,  setParsed]  = useState(null)
+  const [result,  setResult]  = useState(null)
+  const fileRef = useRef(null)
+
+  const downloadTemplate = () => {
+    const headers = ['store', 'date', ...config.ingredients.map(i => `${i.name} (${i.unit})`)]
+    const example = [STORES[0], new Date().toISOString().slice(0, 10), ...config.ingredients.map(() => '')]
+    const csv = [headers, example].map(r => r.map(v => /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'audit-template.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseFile = (text) => {
+    const clean = text.replace(/^﻿/, '')
+    const lines = clean.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return { rows: [], warnings: [t('audit.importNoRows')] }
+
+    const headers = parseCSVLine(lines[0])
+    if (headers[0]?.toLowerCase() !== 'store' || headers[1]?.toLowerCase() !== 'date')
+      return { rows: [], warnings: [t('audit.importBadHeader')] }
+
+    const ingByName = {}
+    config.ingredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
+
+    const warnings = []
+    const colIngs = headers.slice(2).map(h => {
+      const name = h.replace(/\s*\(.*\)\s*$/, '').trim()
+      const ing = ingByName[name.toLowerCase()]
+      if (!ing) warnings.push(`"${h}"`)
+      return ing ?? null
+    })
+
+    const rows = []
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i])
+      if (cells.every(c => !c.trim())) continue
+      const store = cells[0]?.trim() ?? ''
+      const date  = cells[1]?.trim() ?? ''
+      const errors = []
+      if (!STORES.includes(store)) errors.push(`unknown store "${store}"`)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${date}"`)
+      const counts = {}
+      colIngs.forEach((ing, j) => {
+        if (!ing) return
+        const v = cells[j + 2]?.trim()
+        if (v) { const n = parseFloat(v); if (!isNaN(n)) counts[ing.id] = Math.max(0, n) }
+      })
+      rows.push({ rowNum: i + 1, store, date, counts, errors, countedItems: Object.keys(counts).length })
+    }
+    return { rows, warnings }
+  }
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setResult(null)
+    const reader = new FileReader()
+    reader.onload = ev => setParsed(parseFile(ev.target.result))
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleImport = () => {
+    const valid = parsed?.rows.filter(r => r.errors.length === 0) ?? []
+    valid.forEach(r => addAudit(r.store, r.date, r.counts))
+    setResult({ imported: valid.length })
+    setParsed(null)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const validRows = parsed?.rows.filter(r => r.errors.length === 0) ?? []
+  const errorRows = parsed?.rows.filter(r => r.errors.length > 0) ?? []
+
+  return (
+    <>
+      <div className="mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">{t('audit.importTitle')}</h2>
+        <p className="text-sm text-gray-500">{t('audit.importDesc')}</p>
+      </div>
+
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={downloadTemplate}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          {t('audit.downloadTemplate')}
+        </button>
+        <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          {t('audit.uploadCSV')}
+          <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
+        </label>
+      </div>
+
+      {result && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+          {t('audit.importSuccess', { count: result.imported })}
+        </div>
+      )}
+
+      {parsed && (
+        <>
+          {parsed.warnings.length > 0 && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <p className="text-xs font-medium text-amber-700 mb-1">{t('audit.importWarnings')}</p>
+              <p className="text-xs text-amber-600">{parsed.warnings.join(', ')}</p>
+            </div>
+          )}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
+            <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
+              <span className="text-sm font-medium text-gray-700">
+                {t('audit.importReady', { valid: validRows.length, errors: errorRows.length })}
+              </span>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-2 font-medium">Row</th>
+                  <th className="px-4 py-2 font-medium">{t('common.store')}</th>
+                  <th className="px-4 py-2 font-medium">{t('common.date')}</th>
+                  <th className="px-4 py-2 font-medium text-right">{t('audit.colCounted')}</th>
+                  <th className="px-4 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {parsed.rows.map(r => (
+                  <tr key={r.rowNum} className={r.errors.length > 0 ? 'bg-red-50' : ''}>
+                    <td className="px-4 py-2 text-xs text-gray-400 tabular-nums">{r.rowNum}</td>
+                    <td className="px-4 py-2 font-medium text-gray-900">{r.store}</td>
+                    <td className="px-4 py-2 text-gray-700">{r.date}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-gray-600">{r.countedItems}</td>
+                    <td className="px-4 py-2">
+                      {r.errors.length > 0
+                        ? <span className="text-xs text-red-600">{r.errors.join('; ')}</span>
+                        : <span className="text-xs text-green-600">✓</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {validRows.length > 0 && (
+            <div className="flex justify-end">
+              <button onClick={handleImport}
+                className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                {t('audit.importNow', { count: validRows.length })}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InventoryAudit() {
@@ -316,7 +495,7 @@ export default function InventoryAudit() {
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
-        {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')]].map(([id, label]) => (
+        {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')], ['import', t('audit.tabImport')]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -328,6 +507,7 @@ export default function InventoryAudit() {
 
       {tab === 'count'   && <CountTab   store={store} setStore={setStore} date={date} setDate={setDate} />}
       {tab === 'history' && <HistoryTab />}
+      {tab === 'import'  && <ImportTab />}
     </div>
   )
 }

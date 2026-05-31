@@ -90,6 +90,17 @@ const en = {
   'audit.noCountsRecorded':  'No counts recorded in this audit.',
   'audit.noMatch':           'No ingredients match "{{query}}"',
   'audit.auditsCount':       '{{count}} audits',
+  'audit.tabImport':         'Import CSV',
+  'audit.importTitle':       'Bulk Import from CSV',
+  'audit.importDesc':        'Upload a CSV file to create multiple audit records at once. Download the template to get started.',
+  'audit.downloadTemplate':  'Download Template',
+  'audit.uploadCSV':         'Upload CSV File',
+  'audit.importReady':       '{{valid}} row(s) valid · {{errors}} error(s)',
+  'audit.importNow':         'Import {{count}} row(s)',
+  'audit.importSuccess':     'Successfully imported {{count}} audit(s)',
+  'audit.importWarnings':    'Column warnings (skipped):',
+  'audit.importNoRows':      'No data rows found in file',
+  'audit.importBadHeader':   'CSV must have "store" and "date" as first two columns',
 
   // Inventory Levels
   'levels.title':          'Inventory Levels',
@@ -214,9 +225,10 @@ const en = {
   'po.stepReceived':       'Received',
   'po.addMoreIngredients': 'Add more ingredients',
   'po.addMoreNote':        '— set qty > 0 to include',
-  'po.createdDate':        'Created Date',
-  'po.sentDate':           'Sent Date',
-  'po.receivedDate':       'Received Date',
+  'po.createdDate':          'Created Date',
+  'po.sentDate':             'Sent Date',
+  'po.receivedDate':         'Received Date',
+  'po.searchIngredients':    'Search ingredients…',
 
   // Replenishment Report
   'report.title':            'Replenishment Report',
