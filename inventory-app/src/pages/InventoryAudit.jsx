@@ -327,10 +327,15 @@ function ImportTab() {
   const [result,  setResult]  = useState(null)
   const fileRef = useRef(null)
 
+  const csvEsc = v => /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+
   const downloadTemplate = () => {
-    const headers = ['store', 'date', ...config.ingredients.map(i => `${i.name} (${i.unit})`)]
-    const example = [STORES[0], new Date().toISOString().slice(0, 10), ...config.ingredients.map(() => '')]
-    const csv = [headers, example].map(r => r.map(v => /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(',')).join('\n')
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = [
+      ['store', 'date', 'ingredient', 'unit', 'qty'],
+      ...config.ingredients.map(i => [STORES[0], today, i.name, i.unit, '']),
+    ]
+    const csv = rows.map(r => r.map(csvEsc).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = 'audit-template.csv'; a.click()
@@ -340,41 +345,50 @@ function ImportTab() {
   const parseFile = (text) => {
     const clean = text.replace(/^﻿/, '')
     const lines = clean.split(/\r?\n/).filter(l => l.trim())
-    if (lines.length < 2) return { rows: [], warnings: [t('audit.importNoRows')] }
+    if (lines.length < 2) return { audits: [], rowErrors: [] }
 
-    const headers = parseCSVLine(lines[0])
-    if (headers[0]?.toLowerCase() !== 'store' || headers[1]?.toLowerCase() !== 'date')
-      return { rows: [], warnings: [t('audit.importBadHeader')] }
+    const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase())
+    const iStore = headers.indexOf('store')
+    const iDate  = headers.indexOf('date')
+    const iIng   = headers.indexOf('ingredient')
+    const iQty   = headers.indexOf('qty')
+    if (iStore < 0 || iDate < 0 || iIng < 0 || iQty < 0)
+      return { audits: [], rowErrors: [{ rowNum: 1, msg: t('audit.importBadHeader') }] }
 
     const ingByName = {}
     config.ingredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
 
-    const warnings = []
-    const colIngs = headers.slice(2).map(h => {
-      const name = h.replace(/\s*\(.*\)\s*$/, '').trim()
-      const ing = ingByName[name.toLowerCase()]
-      if (!ing) warnings.push(`"${h}"`)
-      return ing ?? null
-    })
+    // collect raw row errors and valid counts grouped by store+date
+    const groups = {}   // key "store||date" -> { store, date, counts: {} }
+    const rowErrors = []
 
-    const rows = []
     for (let i = 1; i < lines.length; i++) {
       const cells = parseCSVLine(lines[i])
       if (cells.every(c => !c.trim())) continue
-      const store = cells[0]?.trim() ?? ''
-      const date  = cells[1]?.trim() ?? ''
+      const rowNum = i + 1
+      const store  = cells[iStore]?.trim() ?? ''
+      const date   = cells[iDate]?.trim()  ?? ''
+      const ingRaw = cells[iIng]?.trim()   ?? ''
+      const qtyRaw = cells[iQty]?.trim()   ?? ''
       const errors = []
+
       if (!STORES.includes(store)) errors.push(`unknown store "${store}"`)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${date}"`)
-      const counts = {}
-      colIngs.forEach((ing, j) => {
-        if (!ing) return
-        const v = cells[j + 2]?.trim()
-        if (v) { const n = parseFloat(v); if (!isNaN(n)) counts[ing.id] = Math.max(0, n) }
-      })
-      rows.push({ rowNum: i + 1, store, date, counts, errors, countedItems: Object.keys(counts).length })
+      const ing = ingByName[ingRaw.toLowerCase()]
+      if (!ing) errors.push(`unknown ingredient "${ingRaw}"`)
+      const qty = parseFloat(qtyRaw)
+      if (qtyRaw && isNaN(qty)) errors.push(`invalid qty "${qtyRaw}"`)
+
+      if (errors.length > 0) { rowErrors.push({ rowNum, msg: errors.join('; ') }); continue }
+      if (!qtyRaw) continue  // blank qty = not counted, skip silently
+
+      const key = `${store}||${date}`
+      if (!groups[key]) groups[key] = { store, date, counts: {} }
+      groups[key].counts[ing.id] = Math.max(0, qty)
     }
-    return { rows, warnings }
+
+    const audits = Object.values(groups)
+    return { audits, rowErrors }
   }
 
   const handleFile = (e) => {
@@ -387,15 +401,11 @@ function ImportTab() {
   }
 
   const handleImport = () => {
-    const valid = parsed?.rows.filter(r => r.errors.length === 0) ?? []
-    valid.forEach(r => addAudit(r.store, r.date, r.counts))
-    setResult({ imported: valid.length })
+    parsed?.audits.forEach(a => addAudit(a.store, a.date, a.counts))
+    setResult({ imported: parsed?.audits.length ?? 0 })
     setParsed(null)
     if (fileRef.current) fileRef.current.value = ''
   }
-
-  const validRows = parsed?.rows.filter(r => r.errors.length === 0) ?? []
-  const errorRows = parsed?.rows.filter(r => r.errors.length > 0) ?? []
 
   return (
     <>
@@ -426,52 +436,54 @@ function ImportTab() {
 
       {parsed && (
         <>
-          {parsed.warnings.length > 0 && (
-            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <p className="text-xs font-medium text-amber-700 mb-1">{t('audit.importWarnings')}</p>
-              <p className="text-xs text-amber-600">{parsed.warnings.join(', ')}</p>
+          {parsed.rowErrors.length > 0 && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              <p className="text-xs font-medium text-red-700 mb-1.5">{parsed.rowErrors.length} row error(s) — these rows were skipped:</p>
+              <ul className="text-xs text-red-600 space-y-0.5">
+                {parsed.rowErrors.map(e => <li key={e.rowNum}>Row {e.rowNum}: {e.msg}</li>)}
+              </ul>
             </div>
           )}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
-            <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
-              <span className="text-sm font-medium text-gray-700">
-                {t('audit.importReady', { valid: validRows.length, errors: errorRows.length })}
-              </span>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
-                  <th className="px-4 py-2 font-medium">Row</th>
-                  <th className="px-4 py-2 font-medium">{t('common.store')}</th>
-                  <th className="px-4 py-2 font-medium">{t('common.date')}</th>
-                  <th className="px-4 py-2 font-medium text-right">{t('audit.colCounted')}</th>
-                  <th className="px-4 py-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {parsed.rows.map(r => (
-                  <tr key={r.rowNum} className={r.errors.length > 0 ? 'bg-red-50' : ''}>
-                    <td className="px-4 py-2 text-xs text-gray-400 tabular-nums">{r.rowNum}</td>
-                    <td className="px-4 py-2 font-medium text-gray-900">{r.store}</td>
-                    <td className="px-4 py-2 text-gray-700">{r.date}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-gray-600">{r.countedItems}</td>
-                    <td className="px-4 py-2">
-                      {r.errors.length > 0
-                        ? <span className="text-xs text-red-600">{r.errors.join('; ')}</span>
-                        : <span className="text-xs text-green-600">✓</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {validRows.length > 0 && (
-            <div className="flex justify-end">
-              <button onClick={handleImport}
-                className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                {t('audit.importNow', { count: validRows.length })}
-              </button>
-            </div>
+
+          {parsed.audits.length > 0 ? (
+            <>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
+                <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
+                  <span className="text-sm font-medium text-gray-700">
+                    {t('audit.importReady', { valid: parsed.audits.length, errors: parsed.rowErrors.length })}
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
+                      <th className="px-4 py-2 font-medium">{t('common.store')}</th>
+                      <th className="px-4 py-2 font-medium">{t('common.date')}</th>
+                      <th className="px-4 py-2 font-medium text-right">{t('audit.colCounted')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {parsed.audits.map(a => (
+                      <tr key={`${a.store}||${a.date}`}>
+                        <td className="px-4 py-2 font-medium text-gray-900">{a.store}</td>
+                        <td className="px-4 py-2 text-gray-700">{a.date}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-gray-600">
+                          {Object.keys(a.counts).length}
+                          <span className="text-gray-400 text-xs"> / {config.ingredients.length}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end">
+                <button onClick={handleImport}
+                  className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                  {t('audit.importNow', { count: parsed.audits.length })}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">{t('audit.importNoRows')}</p>
           )}
         </>
       )}
