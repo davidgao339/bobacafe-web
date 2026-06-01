@@ -512,8 +512,7 @@ function ImportTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function InventoryAudit() {
-  const [tab,   setTab]   = useState('count')
+export default function InventoryAudit({ activeTab = 'count', onTabChange }) {
   const [store, setStore] = useState(STORES[0])
   const [date,  setDate]  = useState(new Date().toISOString().slice(0, 10))
   const { t } = useLanguage()
@@ -527,18 +526,18 @@ export default function InventoryAudit() {
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
         {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')], ['import', t('audit.tabImport')]].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)}
+          <button key={id} onClick={() => onTabChange?.(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}>
             {label}
           </button>
         ))}
       </div>
 
-      {tab === 'count'   && <CountTab   store={store} setStore={setStore} date={date} setDate={setDate} />}
-      {tab === 'history' && <HistoryTab />}
-      {tab === 'import'  && <ImportTab />}
+      {activeTab === 'count'   && <CountTab   store={store} setStore={setStore} date={date} setDate={setDate} />}
+      {activeTab === 'history' && <HistoryTab />}
+      {activeTab === 'import'  && <ImportTab />}
     </div>
   )
 }

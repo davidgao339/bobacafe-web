@@ -4,36 +4,68 @@ import { useLanguage } from '../context/LanguageContext'
 
 const STAFF_NAV = [
   { id: 'dashboard', labelKey: 'nav.home',      icon: DashIcon },
-  { id: 'audit',     labelKey: 'nav.countStock', icon: AuditIcon },
+  { id: 'audit',     labelKey: 'nav.countStock', icon: AuditIcon, children: [
+    { id: 'count',   labelKey: 'audit.tabCount' },
+    { id: 'history', labelKey: 'audit.tabHistory' },
+    { id: 'import',  labelKey: 'audit.tabImport' },
+  ]},
 ]
 
 const MANAGER_NAV = [
   { id: 'inventory',    labelKey: 'nav.inventory',     icon: InventoryIcon },
-  { id: 'transactions', labelKey: 'nav.transactions',  icon: TxIcon },
-  { id: 'recipes',      labelKey: 'nav.recipes',       icon: RecipeIcon },
-  { id: 'variance',     labelKey: 'nav.losses',        icon: VarianceIcon },
-  { id: 'purchases',    labelKey: 'nav.purchases',     icon: POIcon },
-  { id: 'report',       labelKey: 'nav.replenishment', icon: ReportIcon },
+  { id: 'transactions', labelKey: 'nav.transactions',  icon: TxIcon, children: [
+    { id: 'sales',  labelKey: 'tx.tabSales' },
+    { id: 'waste',  labelKey: 'tx.tabWaste' },
+  ]},
+  { id: 'recipes', labelKey: 'nav.recipes', icon: RecipeIcon, children: [
+    { id: 'ingredients', labelKey: 'recipes.tabIngredients' },
+    { id: 'recipes',     labelKey: 'recipes.tabRecipes' },
+    { id: 'suppliers',   labelKey: 'recipes.tabSuppliers' },
+  ]},
+  { id: 'variance',  labelKey: 'nav.losses',        icon: VarianceIcon },
+  { id: 'purchases', labelKey: 'nav.purchases',     icon: POIcon },
+  { id: 'report',    labelKey: 'nav.replenishment', icon: ReportIcon },
 ]
 
-function NavButton({ id, labelKey, icon: Icon, currentPage, onNavigate }) {
+function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, onNavigate }) {
   const { t } = useLanguage()
+  const isActive = currentPage === id
   return (
-    <button
-      onClick={() => onNavigate(id)}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-        currentPage === id
-          ? 'bg-slate-600 text-white'
-          : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-      }`}
-    >
-      <Icon />
-      {t(labelKey)}
-    </button>
+    <div>
+      <button
+        onClick={() => onNavigate(id)}
+        className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+          isActive ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+        }`}
+      >
+        <Icon />
+        <span className="flex-1 text-left">{t(labelKey)}</span>
+        {children && (
+          <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${isActive ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+          </svg>
+        )}
+      </button>
+      {isActive && children && (
+        <div className="mt-0.5 ml-4 pl-3 border-l border-slate-600 flex flex-col gap-0.5 pb-1">
+          {children.map(child => (
+            <button key={child.id} onClick={() => onNavigate(id, child.id)}
+              className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                currentTab === child.id
+                  ? 'text-white bg-slate-500'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+              }`}>
+              {t(child.labelKey)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
-export default function Sidebar({ currentPage, onNavigate }) {
+export default function Sidebar({ currentPage, currentTab, onNavigate }) {
   const { listCloudBackups, saveCloudBackup, restoreCloudBackup } = useConfig()
   const { lang, setLang, t } = useLanguage()
 
@@ -109,14 +141,14 @@ export default function Sidebar({ currentPage, onNavigate }) {
 
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
         {STAFF_NAV.map(item => (
-          <NavButton key={item.id} {...item} currentPage={currentPage} onNavigate={onNavigate} />
+          <NavItem key={item.id} {...item} currentPage={currentPage} currentTab={currentTab} onNavigate={onNavigate} />
         ))}
 
         <div className="my-3 border-t border-slate-700" />
         <p className="px-3 text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">{t('nav.manager')}</p>
 
         {MANAGER_NAV.map(item => (
-          <NavButton key={item.id} {...item} currentPage={currentPage} onNavigate={onNavigate} />
+          <NavItem key={item.id} {...item} currentPage={currentPage} currentTab={currentTab} onNavigate={onNavigate} />
         ))}
       </nav>
 

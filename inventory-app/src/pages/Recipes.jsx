@@ -648,8 +648,9 @@ function RecipesTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function Recipes() {
-  const [tab, setTab] = useState('ingredients')
+export default function Recipes({ activeTab = 'ingredients', onTabChange }) {
+  const tab = activeTab
+  const setTab = (t) => onTabChange?.(t)
   const { exportConfig, importConfig } = useConfig()
   const { t } = useLanguage()
   const importRef = useRef()

@@ -350,8 +350,7 @@ function WasteTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function Transactions() {
-  const [tab, setTab] = useState('sales')
+export default function Transactions({ activeTab = 'sales', onTabChange }) {
   const { t } = useLanguage()
 
   return (
@@ -363,17 +362,17 @@ export default function Transactions() {
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
         {[['sales', t('tx.tabSales')], ['waste', t('tx.tabWaste')]].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)}
+          <button key={id} onClick={() => onTabChange?.(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}>
             {label}
           </button>
         ))}
       </div>
 
-      {tab === 'sales' && <SalesTab />}
-      {tab === 'waste' && <WasteTab />}
+      {activeTab === 'sales' && <SalesTab />}
+      {activeTab === 'waste' && <WasteTab />}
     </div>
   )
 }
