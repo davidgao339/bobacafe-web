@@ -8,7 +8,20 @@ const en = {
   'nav.losses':        'Unexplained Losses',
   'nav.purchases':     'Purchase Orders',
   'nav.replenishment': 'Replenishment',
+  'nav.usage':         'Usage',
   'nav.manager':       'Manager',
+
+  // Usage Report
+  'usage.title':     'Ingredient Usage',
+  'usage.subtitle':  'Total consumption from sales, waste and direct write-offs for the selected period',
+  'usage.colSales':  'Sales + Waste',
+  'usage.colDirect': 'Direct',
+  'usage.colTotal':  'Total',
+  'usage.noData':    'No sales data — refresh transactions to load from Databricks',
+  'usage.noUsage':          'No usage recorded for this period and store',
+  'usage.note':             'Sales + Waste = recipe-based consumption (fiscal + non-fiscal). Direct = manually logged write-offs.',
+  'usage.selectIngredient': 'Select an ingredient from the list',
+  'usage.total':            'Total',
 
   // Common
   'common.all':         'All',

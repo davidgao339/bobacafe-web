@@ -8,7 +8,20 @@ const ru = {
   'nav.losses':        'Необъяснимые потери',
   'nav.purchases':     'Заказы',
   'nav.replenishment': 'Закупка',
+  'nav.usage':         'Расход',
   'nav.manager':       'Менеджер',
+
+  // Usage Report
+  'usage.title':     'Расход ингредиентов',
+  'usage.subtitle':  'Суммарный расход из продаж, списаний и прямых операций за выбранный период',
+  'usage.colSales':  'Продажи + Списания',
+  'usage.colDirect': 'Прямые',
+  'usage.colTotal':  'Итого',
+  'usage.noData':    'Нет данных о продажах — обновите транзакции',
+  'usage.noUsage':          'За этот период расход не зафиксирован',
+  'usage.note':             'Продажи + Списания = расход по рецептуре (фискальные + нефискальные). Прямые = вручную введённые списания.',
+  'usage.selectIngredient': 'Выберите ингредиент из списка',
+  'usage.total':            'Итого',
 
   // Common
   'common.all':         'Все',
