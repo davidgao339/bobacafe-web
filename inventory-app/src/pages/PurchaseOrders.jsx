@@ -231,6 +231,98 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function exportPO(po, config) {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const suppliers = config.suppliers ?? []
+  const active = po.lines
+    .filter(l => l.ordered > 0)
+    .map(l => {
+      const ing = config.ingredients.find(i => i.id === l.ingredientId)
+      return { name: ing?.name ?? '?', unit: ing?.unit ?? '', ordered: l.ordered, supplierId: ing?.supplierId ?? null }
+    })
+
+  const groups = []
+  for (const s of suppliers) {
+    const lines = active.filter(l => l.supplierId === s.id)
+    if (lines.length) groups.push({ name: s.name, lines })
+  }
+  const other = active.filter(l => !suppliers.find(s => s.id === l.supplierId))
+  if (other.length) groups.push({ name: 'Остальное', lines: other })
+  if (!groups.length) return
+
+  const sectionsHtml = groups.map((g, i) => `
+    <div class="section">
+      <div class="section-header">${i + 1}. ${esc(g.name)}</div>
+      <table>
+        <thead><tr>
+          <th class="col-fact">ФАКТ</th>
+          <th class="col-name">НАИМЕНОВАНИЕ</th>
+          <th class="col-qty">ЗАКАЗ</th>
+          <th class="col-unit">ЕД. ИЗМ.</th>
+        </tr></thead>
+        <tbody>${g.lines.map(l => `
+          <tr>
+            <td class="col-fact"><span class="cb"></span></td>
+            <td class="col-name">${esc(l.name)}</td>
+            <td class="col-qty">${l.ordered}</td>
+            <td class="col-unit">${esc(l.unit)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><title>Заявка ${esc(po.id)}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;padding:36px 48px;color:#222;font-size:13px}
+.store{font-size:26px;font-weight:900;color:#1a6e34;letter-spacing:.5px;margin-bottom:6px}
+.title{font-size:15px;color:#333;margin-bottom:3px}
+.cat{font-size:11px;color:#999}
+hr{border:none;border-top:1.5px solid #ddd;margin:18px 0}
+.section{margin-bottom:28px}
+.section-header{font-size:15px;font-weight:bold;border-left:4px solid #1a6e34;padding:8px 14px;background:#f7f7f7;margin-bottom:0}
+table{width:100%;border-collapse:collapse}
+th{text-transform:uppercase;font-size:10px;letter-spacing:.4px;font-weight:700;color:#666;padding:8px 12px;border-bottom:1.5px solid #e8e8e8;background:#fafafa;text-align:left}
+td{padding:10px 12px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
+.col-fact{width:56px}
+.col-qty{width:90px;text-align:right;font-weight:700}
+.col-unit{width:80px;color:#888;font-size:12px}
+.cb{display:inline-block;width:17px;height:17px;border:1.5px solid #aaa;border-radius:3px}
+.instr{font-style:italic;font-size:11px;color:#888;padding:14px 0;border-top:1px dashed #ccc;margin-top:8px}
+.sig-box{border:1px solid #ddd;border-radius:6px;padding:16px 20px;margin-top:14px}
+.sig-title{font-weight:700;font-size:13px;margin-bottom:20px}
+.sig-row{display:flex;gap:32px}
+.sig-field{flex:1}
+.sig-label{font-size:12px;color:#444;margin-bottom:22px}
+.sig-line{border-bottom:1px solid #333}
+.pgnum{position:fixed;bottom:18px;right:40px;font-size:10px;color:#bbb}
+@media print{body{padding:20px 30px}}
+</style></head><body>
+<div class="store">${esc(po.store)}</div>
+<div class="title">ЗАЯВКА НА ЗАКАЗ (СВЕРКА ПРИЕМКИ)</div>
+<div class="cat">Категория: Снабжение кафе / Контроль поставок</div>
+<hr>
+${sectionsHtml}
+<div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
+<div class="sig-box">
+  <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
+  <div class="sig-row">
+    <div class="sig-field"><div class="sig-label">Товар принял (ФИО сотрудника):</div><div class="sig-line"></div></div>
+    <div class="sig-field"><div class="sig-label">Подпись:</div><div class="sig-line"></div></div>
+    <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
+  </div>
+</div>
+<div class="pgnum">Страница 1</div>
+</body></html>`
+
+  const win = window.open('', '_blank')
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => win.print(), 400)
+}
+
 export default function PurchaseOrders() {
   const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder } = useConfig()
   const { getOrderQty } = useCalcs()
@@ -419,6 +511,11 @@ export default function PurchaseOrders() {
                                 <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
                                   className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertSent')}</button>
                               )}
+                              <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
+                                className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                {t('po.exportPDF')}
+                              </button>
                             </div>
                           )}
                         </td>

@@ -185,6 +185,12 @@ const en = {
   'recipes.clearAll':         'Clear all',
   'recipes.invalidConfig':    'Invalid config file',
   'recipes.searchPlaceholder': 'Search…',
+  'recipes.tabSuppliers':      'Suppliers',
+  'recipes.suppliersDesc':     'Define supplier groups — each ingredient is assigned to one group, and PO exports are split by group.',
+  'recipes.supplierName':      'Supplier name',
+  'recipes.addSupplier':       'Add supplier',
+  'recipes.supplier':          'Supplier',
+  'recipes.supplierOther':     'Other',
   'recipes.ingredientCount':  '{{count}} ingredient',
   'recipes.ingredientsCount': '{{count}} ingredients',
 
@@ -229,6 +235,7 @@ const en = {
   'po.sentDate':             'Sent Date',
   'po.receivedDate':         'Received Date',
   'po.searchIngredients':    'Search ingredients…',
+  'po.exportPDF':            'PDF',
   'po.daysToFill':           'Days to fill',
   'po.days':                 'days',
 

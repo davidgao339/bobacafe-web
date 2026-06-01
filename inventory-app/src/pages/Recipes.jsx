@@ -7,15 +7,17 @@ import { useLanguage } from '../context/LanguageContext'
 function IngredientsTab() {
   const { config, setConfig } = useConfig()
   const { t } = useLanguage()
-  const [editingId,      setEditingId]      = useState(null)
-  const [editVals,       setEditVals]       = useState({})
-  const [adding,         setAdding]         = useState(false)
-  const [newIng,         setNewIng]         = useState({ name: '', unit: '' })
+  const [editingId,       setEditingId]       = useState(null)
+  const [editVals,        setEditVals]        = useState({})
+  const [adding,          setAdding]          = useState(false)
+  const [newIng,          setNewIng]          = useState({ name: '', unit: '', supplierId: null })
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
-  const [search,         setSearch]         = useState('')
-  const [sortDir,        setSortDir]        = useState(null)
+  const [search,          setSearch]          = useState('')
+  const [sortDir,         setSortDir]         = useState(null)
   const cycleSort = () => setSortDir(d => d === null ? 'asc' : d === 'asc' ? 'desc' : null)
   const si = sortDir === 'asc' ? ' ↑' : sortDir === 'desc' ? ' ↓' : ''
+  const suppliers = config.suppliers ?? []
+  const hasSuppliers = suppliers.length > 0
 
   const startEdit = (ing) => { setEditingId(ing.id); setEditVals({ name: ing.name, unit: ing.unit }) }
 
@@ -28,6 +30,13 @@ function IngredientsTab() {
       ),
     }))
     setEditingId(null)
+  }
+
+  const setIngSupplier = (id, supplierId) => {
+    setConfig(prev => ({
+      ...prev,
+      ingredients: prev.ingredients.map(i => i.id === id ? { ...i, supplierId } : i),
+    }))
   }
 
   const deleteIngredient = (id) => {
@@ -48,10 +57,10 @@ function IngredientsTab() {
     if (!newIng.name.trim()) return
     setConfig(prev => ({
       ...prev,
-      ingredients: [...prev.ingredients, { id: prev._nextIngId, name: newIng.name.trim(), unit: newIng.unit.trim() }],
+      ingredients: [...prev.ingredients, { id: prev._nextIngId, name: newIng.name.trim(), unit: newIng.unit.trim(), supplierId: newIng.supplierId ?? null }],
       _nextIngId: prev._nextIngId + 1,
     }))
-    setNewIng({ name: '', unit: '' })
+    setNewIng({ name: '', unit: '', supplierId: null })
     setAdding(false)
   }
 
@@ -83,6 +92,7 @@ function IngredientsTab() {
           <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
             <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={cycleSort}>{t('common.name')}{si}</th>
             <th className="px-4 py-3 font-medium w-32">{t('common.unit')}</th>
+            {hasSuppliers && <th className="px-4 py-3 font-medium w-44">{t('recipes.supplier')}</th>}
             <th className="px-4 py-3 w-28"></th>
           </tr>
         </thead>
@@ -107,6 +117,15 @@ function IngredientsTab() {
                   : <span className="text-gray-500">{ing.unit}</span>
                 }
               </td>
+              {hasSuppliers && (
+                <td className="px-4 py-2.5">
+                  <select value={ing.supplierId ?? ''} onChange={e => setIngSupplier(ing.id, e.target.value ? Number(e.target.value) : null)}
+                    className="border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 w-full">
+                    <option value="">{t('recipes.supplierOther')}</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </td>
+              )}
               <td className="px-4 py-2.5 text-right">
                 {editingId === ing.id
                   ? <div className="flex gap-2 justify-end">
@@ -145,10 +164,19 @@ function IngredientsTab() {
                   onKeyDown={e => e.key === 'Enter' && addIngredient()}
                   className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </td>
+              {hasSuppliers && (
+                <td className="px-4 py-2.5">
+                  <select value={newIng.supplierId ?? ''} onChange={e => setNewIng(v => ({ ...v, supplierId: e.target.value ? Number(e.target.value) : null }))}
+                    className="border border-blue-300 rounded px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full">
+                    <option value="">{t('recipes.supplierOther')}</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </td>
+              )}
               <td className="px-4 py-2.5 text-right">
                 <div className="flex gap-2 justify-end">
                   <button onClick={addIngredient} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('recipes.add')}</button>
-                  <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '' }) }}
+                  <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '', supplierId: null }) }}
                     className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                 </div>
               </td>
@@ -163,6 +191,94 @@ function IngredientsTab() {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Suppliers Tab ────────────────────────────────────────────────────────────
+
+function SuppliersTab() {
+  const { config, addSupplier, updateSupplier, deleteSupplier } = useConfig()
+  const { t } = useLanguage()
+  const [adding,    setAdding]    = useState(false)
+  const [newName,   setNewName]   = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editName,  setEditName]  = useState('')
+  const suppliers = config.suppliers ?? []
+
+  const handleAdd = () => {
+    if (!newName.trim()) return
+    addSupplier(newName.trim())
+    setNewName(''); setAdding(false)
+  }
+  const handleSave = () => {
+    if (!editName.trim()) return
+    updateSupplier(editingId, editName.trim())
+    setEditingId(null)
+  }
+
+  return (
+    <div className="max-w-lg">
+      <p className="text-sm text-gray-500 mb-4">{t('recipes.suppliersDesc')}</p>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
+              <th className="px-6 py-3 font-medium">{t('recipes.supplierName')}</th>
+              <th className="px-4 py-3 w-28"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {suppliers.map(s => (
+              <tr key={s.id} className="hover:bg-gray-50">
+                <td className="px-6 py-2.5">
+                  {editingId === s.id
+                    ? <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSave()}
+                        className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    : <span className="font-medium text-gray-900">{s.name}</span>
+                  }
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  {editingId === s.id
+                    ? <div className="flex gap-2 justify-end">
+                        <button onClick={handleSave} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('common.save')}</button>
+                        <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
+                      </div>
+                    : <div className="flex gap-3 justify-end">
+                        <button onClick={() => { setEditingId(s.id); setEditName(s.name) }} className="text-xs text-blue-600 hover:text-blue-800">{t('common.edit')}</button>
+                        <button onClick={() => deleteSupplier(s.id)} className="text-xs text-red-400 hover:text-red-600">{t('common.delete')}</button>
+                      </div>
+                  }
+                </td>
+              </tr>
+            ))}
+            {adding && (
+              <tr className="bg-blue-50">
+                <td className="px-6 py-2.5">
+                  <input autoFocus placeholder={t('recipes.supplierName')} value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                    className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={handleAdd} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('recipes.add')}</button>
+                    <button onClick={() => { setAdding(false); setNewName('') }} className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {!adding && (
+          <div className="px-6 py-3 border-t border-gray-100">
+            <button onClick={() => setAdding(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              + {t('recipes.addSupplier')}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -575,7 +691,7 @@ export default function Recipes() {
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-5">
-        {[['ingredients', t('recipes.tabIngredients')], ['recipes', t('recipes.tabRecipes')]].map(([id, label]) => (
+        {[['ingredients', t('recipes.tabIngredients')], ['recipes', t('recipes.tabRecipes')], ['suppliers', t('recipes.tabSuppliers')]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -587,6 +703,7 @@ export default function Recipes() {
 
       {tab === 'ingredients' && <IngredientsTab />}
       {tab === 'recipes'     && <RecipesTab />}
+      {tab === 'suppliers'   && <SuppliersTab />}
     </div>
   )
 }

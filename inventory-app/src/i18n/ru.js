@@ -185,6 +185,12 @@ const ru = {
   'recipes.clearAll':         'Очистить всё',
   'recipes.invalidConfig':    'Некорректный файл',
   'recipes.searchPlaceholder': 'Поиск…',
+  'recipes.tabSuppliers':      'Поставщики',
+  'recipes.suppliersDesc':     'Настройте группы поставщиков — каждый ингредиент относится к одной группе, и экспорт заказа разбивается по группам.',
+  'recipes.supplierName':      'Название поставщика',
+  'recipes.addSupplier':       'Добавить поставщика',
+  'recipes.supplier':          'Поставщик',
+  'recipes.supplierOther':     'Остальное',
   'recipes.ingredientCount':  '{{count}} ингредиент',
   'recipes.ingredientsCount': '{{count}} ингредиентов',
 
@@ -229,6 +235,7 @@ const ru = {
   'po.sentDate':             'Дата отправки',
   'po.receivedDate':         'Дата получения',
   'po.searchIngredients':    'Поиск ингредиентов…',
+  'po.exportPDF':            'PDF',
   'po.daysToFill':           'Дней запаса',
   'po.days':                 'дн.',
 

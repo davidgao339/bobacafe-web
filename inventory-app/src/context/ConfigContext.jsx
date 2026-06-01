@@ -53,11 +53,15 @@ function saveToStorage(key, value) {
 function migrateConfig(raw) {
   if (!raw) return null
   const ingredients = raw.ingredients ?? DEFAULT_INGREDIENTS
-  const maxId = ingredients.reduce((m, i) => Math.max(m, i.id), 0)
+  const suppliers   = raw.suppliers   ?? []
+  const maxIngId  = ingredients.reduce((m, i) => Math.max(m, i.id), 0)
+  const maxSuppId = suppliers.reduce((m, s) => Math.max(m, s.id), 0)
   return {
     ingredients,
-    recipes: raw.recipes ?? DEFAULT_RECIPES,
-    _nextIngId: raw._nextIngId ?? maxId + 1,
+    recipes:          raw.recipes          ?? DEFAULT_RECIPES,
+    suppliers,
+    _nextIngId:       raw._nextIngId       ?? maxIngId  + 1,
+    _nextSupplierId:  raw._nextSupplierId  ?? maxSuppId + 1,
   }
 }
 
@@ -67,7 +71,7 @@ const ConfigContext = createContext(null)
 
 export function ConfigProvider({ children }) {
   const [config, setConfigState] = useState(() =>
-    migrateConfig(loadFromStorage(STORAGE_KEY)) ?? { ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, _nextIngId: 1 }
+    migrateConfig(loadFromStorage(STORAGE_KEY)) ?? { ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 }
   )
   const [data,       setDataState]       = useState(() => loadFromStorage(DATA_KEY)        ?? DEFAULT_DATA)
   const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
@@ -270,6 +274,26 @@ export function ConfigProvider({ children }) {
     })
   , [setConfig])
 
+  const addSupplier = useCallback((name) => {
+    setConfig(prev => ({
+      ...prev,
+      suppliers: [...(prev.suppliers ?? []), { id: prev._nextSupplierId ?? 1, name }],
+      _nextSupplierId: (prev._nextSupplierId ?? 1) + 1,
+    }))
+  }, [setConfig])
+
+  const updateSupplier = useCallback((id, name) => {
+    setConfig(prev => ({ ...prev, suppliers: (prev.suppliers ?? []).map(s => s.id === id ? { ...s, name } : s) }))
+  }, [setConfig])
+
+  const deleteSupplier = useCallback((id) => {
+    setConfig(prev => ({
+      ...prev,
+      suppliers: (prev.suppliers ?? []).filter(s => s.id !== id),
+      ingredients: prev.ingredients.map(i => i.supplierId === id ? { ...i, supplierId: null } : i),
+    }))
+  }, [setConfig])
+
   return (
     <ConfigContext.Provider value={{
       config, setConfig,
@@ -281,6 +305,7 @@ export function ConfigProvider({ children }) {
       reportFrom, reportTo,
       exportConfig, importConfig,
       listCloudBackups, saveCloudBackup, restoreCloudBackup,
+      addSupplier, updateSupplier, deleteSupplier,
     }}>
       {children}
     </ConfigContext.Provider>
