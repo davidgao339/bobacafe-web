@@ -13,6 +13,9 @@ function IngredientsTab() {
   const [newIng,         setNewIng]         = useState({ name: '', unit: '' })
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [search,         setSearch]         = useState('')
+  const [sortDir,        setSortDir]        = useState(null)
+  const cycleSort = () => setSortDir(d => d === null ? 'asc' : d === 'asc' ? 'desc' : null)
+  const si = sortDir === 'asc' ? ' ↑' : sortDir === 'desc' ? ' ↓' : ''
 
   const startEdit = (ing) => { setEditingId(ing.id); setEditVals({ name: ing.name, unit: ing.unit }) }
 
@@ -53,9 +56,14 @@ function IngredientsTab() {
   }
 
   const q = search.toLowerCase()
-  const visibleIngredients = config.ingredients.filter(ing =>
-    !q || ing.id === editingId || ing.name.toLowerCase().includes(q)
-  )
+  const visibleIngredients = (() => {
+    const filtered = config.ingredients.filter(ing => !q || ing.id === editingId || ing.name.toLowerCase().includes(q))
+    if (!sortDir) return filtered
+    return [...filtered].sort((a, b) => {
+      const cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  })()
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -73,7 +81,7 @@ function IngredientsTab() {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-            <th className="px-6 py-3 font-medium">{t('common.name')}</th>
+            <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={cycleSort}>{t('common.name')}{si}</th>
             <th className="px-4 py-3 font-medium w-32">{t('common.unit')}</th>
             <th className="px-4 py-3 w-28"></th>
           </tr>

@@ -10,9 +10,16 @@ function CountTab({ store, setStore, date, setDate }) {
   const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
 
-  const [counts, setCounts] = useState({})
-  const [saved,  setSaved]  = useState(false)
-  const [search, setSearch] = useState('')
+  const [counts,  setCounts]  = useState({})
+  const [saved,   setSaved]   = useState(false)
+  const [search,  setSearch]  = useState('')
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+  const handleSort = key => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
   const lastAudit     = getLastAudit(store)
   const lastAuditDate = lastAudit?.date ?? null
@@ -94,9 +101,11 @@ function CountTab({ store, setStore, date, setDate }) {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
-          <span className="col-span-2">{t('common.ingredient')}</span>
-          <span>
-            {t('audit.prevCount')}{' '}
+          <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
+            {t('common.ingredient')}{si('name')}
+          </span>
+          <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
+            {t('audit.prevCount')}{si('prev')}{' '}
             <span className="font-normal normal-case text-gray-400">
               {lastAuditDate ? `(${lastAuditDate})` : '(none)'}
             </span>
@@ -109,9 +118,19 @@ function CountTab({ store, setStore, date, setDate }) {
             <div className="px-6 py-8 text-center text-sm text-gray-400">{t('audit.noMatch', { query: search })}</div>
           )
         }
-        {config.ingredients
-          .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
-          .map((product, i) => {
+        {(() => {
+          const filtered = config.ingredients.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+          const sorted = sortKey ? [...filtered].sort((a, b) => {
+            let cmp = 0
+            if (sortKey === 'name') cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+            if (sortKey === 'prev') {
+              const pa = lastAudit?.counts[a.id] ?? -1, pb = lastAudit?.counts[b.id] ?? -1
+              cmp = pa - pb
+            }
+            return sortDir === 'asc' ? cmp : -cmp
+          }) : filtered
+          return sorted
+        })().map((product, i) => {
           const prev  = lastCount(product.id)
           const val   = getValue(product.id)
           const delta = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null

@@ -10,8 +10,15 @@ export default function InventoryLevels() {
   const { estimateCurrentStock, getDailyAvg, getLastAudit } = useCalcs()
   const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
-  const [issuesOnly, setIssuesOnly] = useState(false)
-  const [search, setSearch] = useState('')
+  const [issuesOnly,    setIssuesOnly]    = useState(false)
+  const [search,        setSearch]        = useState('')
+  const [sortKey,       setSortKey]       = useState(null)
+  const [sortDir,       setSortDir]       = useState('asc')
+  const handleSort = key => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
   const stores = selectedStore === 'All' ? STORES : [selectedStore]
   const { ingredients } = config
@@ -59,7 +66,14 @@ export default function InventoryLevels() {
     const rows = ingredients
       .filter(ing => !q || ing.name.toLowerCase().includes(q))
       .map(ing => ({ ing, ...stockLevel(store, ing) }))
-      .sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status])
+      .sort((a, b) => {
+        if (sortKey === 'name') {
+          const cmp = a.ing.name.localeCompare(b.ing.name, undefined, { sensitivity: 'base' })
+          return sortDir === 'asc' ? cmp : -cmp
+        }
+        if (sortKey === 'qty') return sortDir === 'asc' ? a.qty - b.qty : b.qty - a.qty
+        return STATUS_RANK[a.status] - STATUS_RANK[b.status]
+      })
     const visibleRows = issuesOnly ? rows.filter(r => r.status !== 'ok' && r.status !== 'unknown') : rows
     const issueCount  = rows.filter(r => r.status === 'depleted' || r.status === 'critical' || r.status === 'low').length
 
@@ -111,8 +125,8 @@ export default function InventoryLevels() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-2.5 font-medium">{t('common.ingredient')}</th>
-                <th className="px-4 py-2.5 font-medium text-right">{t('levels.estStock')}</th>
+                <th className="px-5 py-2.5 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
+                <th className="px-4 py-2.5 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('qty')}>{t('levels.estStock')}{si('qty')}</th>
                 <th className="px-4 py-2.5 font-medium">{t('common.unit')}</th>
                 <th className="px-4 py-2.5 font-medium text-right">{t('levels.dailyAvg')}</th>
                 <th className="px-4 py-2.5 font-medium text-right">{t('levels.daysLeft')}</th>
@@ -164,7 +178,13 @@ export default function InventoryLevels() {
       const worstRank = Math.min(...cells.map(c => STATUS_RANK[c.status]))
       return { ing, cells, worstRank }
     })
-    .sort((a, b) => a.worstRank - b.worstRank)
+    .sort((a, b) => {
+      if (sortKey === 'name') {
+        const cmp = a.ing.name.localeCompare(b.ing.name, undefined, { sensitivity: 'base' })
+        return sortDir === 'asc' ? cmp : -cmp
+      }
+      return a.worstRank - b.worstRank
+    })
 
   return (
     <div className="p-8">
@@ -195,7 +215,7 @@ export default function InventoryLevels() {
         <table className="text-sm" style={{ minWidth: `${220 + stores.length * 110}px` }}>
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
-              <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 min-w-48">{t('common.ingredient')}</th>
+              <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 min-w-48 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
               {stores.map(s => (
                 <th key={s} className="px-3 py-3 font-medium text-center whitespace-nowrap">
                   <button onClick={() => setSelectedStore(s)}

@@ -80,6 +80,13 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   const [createdDate, setCreatedDate] = useState(initialCreatedDate ?? TODAY)
   const [days,        setDays]        = useState(7)
   const [search,      setSearch]      = useState('')
+  const [sortKey,     setSortKey]     = useState(null)
+  const [sortDir,     setSortDir]     = useState('asc')
+  const handleSort = key => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
   const [qtys,        setQtys]        = useState(() => {
     if (initialLines) {
       const map = {}
@@ -100,8 +107,12 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   })
 
   const q = search.toLowerCase()
-  const inOrder    = lines.filter(l => (l.isOriginal || !initialLines) && (!q || l.name.toLowerCase().includes(q)))
-  const notInOrder = initialLines ? lines.filter(l => !l.isOriginal && (!q || l.name.toLowerCase().includes(q))) : []
+  const applySort = arr => sortKey ? [...arr].sort((a, b) => {
+    const cmp = sortKey === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : a.suggested - b.suggested
+    return sortDir === 'asc' ? cmp : -cmp
+  }) : arr
+  const inOrder    = applySort(lines.filter(l => (l.isOriginal || !initialLines) && (!q || l.name.toLowerCase().includes(q))))
+  const notInOrder = initialLines ? applySort(lines.filter(l => !l.isOriginal && (!q || l.name.toLowerCase().includes(q)))) : []
 
   const handleStoreChange = (s) => { setStore(s); setQtys({}) }
   const setQty = (ingredientId, val) =>
@@ -117,9 +128,9 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
 
   const colHead = (
     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-      <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
+      <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
       <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
-      <th className="px-4 py-3 font-medium text-right">{t('po.suggested')}</th>
+      <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('suggested')}>{t('po.suggested')}{si('suggested')}</th>
       <th className="px-4 py-3 font-medium text-right">{t('po.orderQty')}</th>
     </tr>
   )

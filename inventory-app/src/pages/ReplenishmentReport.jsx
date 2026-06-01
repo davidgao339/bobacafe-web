@@ -9,6 +9,17 @@ export default function ReplenishmentReport() {
   const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
   const [hideZero,      setHideZero]      = useState(true)
+  const [sortKey,       setSortKey]       = useState(null)
+  const [sortDir,       setSortDir]       = useState('asc')
+  const handleSort = key => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+  const applySort = rows => sortKey ? [...rows].sort((a, b) => {
+    const cmp = sortKey === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : a.orderQty - b.orderQty
+    return sortDir === 'asc' ? cmp : -cmp
+  }) : rows
 
   const stores = selectedStore === 'All' ? STORES : [selectedStore]
 
@@ -87,7 +98,7 @@ export default function ReplenishmentReport() {
 
       <div className="space-y-8">
         {reportRows.map(({ store, rows }) => {
-          const visibleRows  = hideZero ? rows.filter(r => r.orderQty > 0) : rows
+          const visibleRows  = applySort(hideZero ? rows.filter(r => r.orderQty > 0) : rows)
           const itemsToOrder = rows.filter(r => r.orderQty > 0).length
           return (
             <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -103,12 +114,12 @@ export default function ReplenishmentReport() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                    <th className="px-6 py-3 font-medium">{t('report.product')}</th>
+                    <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('report.product')}{si('name')}</th>
                     <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
                     <th className="px-4 py-3 font-medium text-right">{t('report.consumed7d')}</th>
                     <th className="px-4 py-3 font-medium text-right">× 1.05</th>
                     <th className="px-4 py-3 font-medium text-right">{t('report.currentStock')}</th>
-                    <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700">{t('report.orderQty')}</th>
+                    <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700 cursor-pointer select-none hover:bg-blue-100" onClick={() => handleSort('orderQty')}>{t('report.orderQty')}{si('orderQty')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
