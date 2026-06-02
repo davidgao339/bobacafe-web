@@ -147,7 +147,7 @@ function SalesTab() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
@@ -272,7 +272,7 @@ function WasteTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
@@ -354,7 +354,7 @@ export default function Transactions({ activeTab = 'sales', onTabChange }) {
   const { t } = useLanguage()
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">{t('tx.title')}</h1>
         <p className="text-sm text-gray-500 mt-0.5">{t('tx.subtitle')}</p>

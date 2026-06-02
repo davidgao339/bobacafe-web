@@ -84,7 +84,7 @@ export default function Dashboard({ onNavigate }) {
   const recentSales = sales.slice(0, 5)
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900">{t('dash.greeting')}</h1>
         <p className="text-sm text-gray-500 mt-0.5">{t('dash.subtitle')}</p>

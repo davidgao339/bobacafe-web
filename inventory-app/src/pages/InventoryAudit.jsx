@@ -99,7 +99,8 @@ function CountTab({ store, setStore, date, setDate }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto mb-6">
+       <div className="min-w-[480px]">
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
           <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
             {t('common.ingredient')}{si('name')}
@@ -158,6 +159,7 @@ function CountTab({ store, setStore, date, setDate }) {
             </div>
           )
         })}
+       </div>
       </div>
 
       <div className="flex items-center justify-between">
@@ -228,7 +230,7 @@ function HistoryTab() {
           {t('audit.noAuditsYet')}{historyStore !== 'All' ? ` for ${historyStore}` : ''}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
@@ -518,7 +520,7 @@ export default function InventoryAudit({ activeTab = 'count', onTabChange }) {
   const { t } = useLanguage()
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 md:p-8 max-w-4xl">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">{t('audit.title')}</h1>
         <p className="text-sm text-gray-500 mt-0.5">{t('audit.subtitle')}</p>

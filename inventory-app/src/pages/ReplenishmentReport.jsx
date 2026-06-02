@@ -56,15 +56,15 @@ export default function ReplenishmentReport() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-start justify-between mb-8 no-print">
+    <div className="p-4 md:p-8">
+      <div className="flex flex-wrap items-start justify-between mb-8 no-print gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('report.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {t('report.subtitle', { from: reportFrom, to: reportTo })}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
             <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
@@ -101,7 +101,7 @@ export default function ReplenishmentReport() {
           const visibleRows  = applySort(hideZero ? rows.filter(r => r.orderQty > 0) : rows)
           const itemsToOrder = rows.filter(r => r.orderQty > 0).length
           return (
-            <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
               <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{store}</h2>
                 <span className="text-sm text-gray-500">

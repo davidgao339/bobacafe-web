@@ -75,7 +75,7 @@ function IngredientsTab() {
   })()
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
       <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
         <div className="relative max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -220,7 +220,7 @@ function SuppliersTab() {
   return (
     <div className="max-w-lg">
       <p className="text-sm text-gray-500 mb-4">{t('recipes.suppliersDesc')}</p>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
@@ -401,9 +401,9 @@ function RecipesTab() {
   const draftUnused = config.ingredients.filter(i => !(i.id in draftQtys))
 
   return (
-    <div className="flex gap-4" style={{ height: 580 }}>
+    <div className="flex flex-col md:flex-row gap-4 md:h-[580px]">
       {/* Left: product list */}
-      <div className="w-72 flex-shrink-0 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
+      <div className="w-full md:w-72 flex-shrink-0 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white h-52 md:h-auto">
         <div className="p-3 border-b border-gray-100 space-y-2">
           <input type="text" placeholder={t('recipes.searchPlaceholder')} value={search}
             onChange={e => setSearch(e.target.value)}
@@ -669,7 +669,7 @@ export default function Recipes({ activeTab = 'ingredients', onTabChange }) {
   }
 
   return (
-    <div className="p-8 flex flex-col">
+    <div className="p-4 md:p-8 flex flex-col">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('recipes.title')}</h1>

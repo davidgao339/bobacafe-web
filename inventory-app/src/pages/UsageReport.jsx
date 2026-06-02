@@ -95,7 +95,7 @@ export default function UsageReport() {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── Filters ──────────────────────────────────────────────────────── */}
-      <div className="px-8 pt-8 pb-4 flex items-start justify-between flex-wrap gap-4 flex-shrink-0">
+      <div className="px-4 md:px-8 pt-4 md:pt-8 pb-4 flex items-start justify-between flex-wrap gap-4 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('usage.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t('usage.subtitle')}</p>
@@ -120,10 +120,10 @@ export default function UsageReport() {
       </div>
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden px-8 pb-8 gap-5 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden px-4 md:px-8 pb-4 md:pb-8 gap-5 min-h-0">
 
         {/* Ingredient list */}
-        <div className="w-60 flex-shrink-0 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="w-full md:w-60 flex-shrink-0 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-48 md:h-auto">
           <div className="p-2.5 border-b border-gray-100">
             <div className="relative">
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>

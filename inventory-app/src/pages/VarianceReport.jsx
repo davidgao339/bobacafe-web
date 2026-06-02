@@ -58,6 +58,7 @@ function StoreSection({ store, issuesOnly }) {
           : <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">{t('variance.allGood')}</span>
         }
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
@@ -99,6 +100,7 @@ function StoreSection({ store, issuesOnly }) {
           }
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
@@ -110,8 +112,8 @@ export default function VarianceReport() {
   const visibleStores = store === 'All' ? STORES : [store]
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-start justify-between">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('variance.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
