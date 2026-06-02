@@ -66,7 +66,7 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
   )
 }
 
-export default function Sidebar({ currentPage, currentTab, onNavigate }) {
+export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose }) {
   const { listCloudBackups, saveCloudBackup, restoreCloudBackup } = useConfig()
   const { lang, setLang, t } = useLanguage()
 
@@ -134,7 +134,18 @@ export default function Sidebar({ currentPage, currentTab, onNavigate }) {
   }
 
   return (
-    <aside className="w-56 bg-slate-800 flex flex-col h-full flex-shrink-0">
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+    <aside className={`w-56 bg-slate-800 flex flex-col h-full flex-shrink-0 ${
+      mobileOpen
+        ? 'fixed inset-y-0 left-0 z-50'
+        : 'hidden md:flex'
+    }`}>
       <div className="px-6 py-5 border-b border-slate-700">
         <p className="text-white font-semibold text-sm tracking-wide">BOBA</p>
         <p className="text-slate-400 text-xs mt-0.5">Inventory Manager</p>
@@ -233,6 +244,7 @@ export default function Sidebar({ currentPage, currentTab, onNavigate }) {
         <p className="px-3 pt-1 text-slate-600 text-xs">Boba Кролик · Inventory</p>
       </div>
     </aside>
+    </>
   )
 }
 
