@@ -127,8 +127,8 @@ export default function InventoryLevels() {
               <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/50">
                 <th className="px-5 py-2.5 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
                 <th className="px-4 py-2.5 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('qty')}>{t('levels.estStock')}{si('qty')}</th>
-                <th className="px-4 py-2.5 font-medium">{t('common.unit')}</th>
-                <th className="px-4 py-2.5 font-medium text-right">{t('levels.dailyAvg')}</th>
+                <th className="px-4 py-2.5 font-medium hidden sm:table-cell">{t('common.unit')}</th>
+                <th className="px-4 py-2.5 font-medium text-right hidden sm:table-cell">{t('levels.dailyAvg')}</th>
                 <th className="px-4 py-2.5 font-medium text-right">{t('levels.daysLeft')}</th>
                 <th className="px-4 py-2.5 font-medium">{t('common.status')}</th>
               </tr>
@@ -136,10 +136,13 @@ export default function InventoryLevels() {
             <tbody className="divide-y divide-gray-50">
               {visibleRows.map(({ ing, qty, daily, daysLeft, status }) => (
                 <tr key={ing.id} className={`${status !== 'ok' ? 'bg-opacity-50' : ''} hover:bg-gray-50`}>
-                  <td className="px-5 py-2.5 font-medium text-gray-900">{ing.name}</td>
+                  <td className="px-5 py-2.5 font-medium text-gray-900">
+                    {ing.name}
+                    <span className="sm:hidden text-gray-400 text-xs font-normal ml-1">{ing.unit}</span>
+                  </td>
                   <td className={`px-4 py-2.5 text-right tabular-nums ${STATUS_CELL[status]}`}>{qty}</td>
-                  <td className="px-4 py-2.5 text-gray-400 text-xs">{ing.unit}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-400 text-xs">
+                  <td className="px-4 py-2.5 text-gray-400 text-xs hidden sm:table-cell">{ing.unit}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-400 text-xs hidden sm:table-cell">
                     {daily > 0 ? daily : '—'}
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-xs font-medium">
@@ -215,7 +218,7 @@ export default function InventoryLevels() {
         <table className="text-sm" style={{ minWidth: `${220 + stores.length * 110}px` }}>
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
-              <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 min-w-48 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
+              <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 w-32 sm:w-48 max-w-[128px] sm:max-w-none cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
               {stores.map(s => (
                 <th key={s} className="px-3 py-3 font-medium text-center whitespace-nowrap">
                   <button onClick={() => setSelectedStore(s)}
@@ -229,9 +232,9 @@ export default function InventoryLevels() {
           <tbody className="divide-y divide-gray-50">
             {matrixRows.map(({ ing, cells }) => (
               <tr key={ing.id} className="hover:bg-gray-50">
-                <td className="px-5 py-2.5 sticky left-0 bg-white z-10">
-                  <span className="font-medium text-gray-900">{ing.name}</span>
-                  <span className="text-xs text-gray-400 ml-1">{ing.unit}</span>
+                <td className="px-5 py-2.5 sticky left-0 bg-white z-10 max-w-[128px] sm:max-w-none">
+                  <span className="font-medium text-gray-900 block truncate">{ing.name}</span>
+                  <span className="text-xs text-gray-400">{ing.unit}</span>
                 </td>
                 {cells.map(({ store, qty, daysLeft, status, hasData }) => (
                   <td key={store} className={`px-3 py-2.5 text-center tabular-nums ${STATUS_CELL[status]}`}>
