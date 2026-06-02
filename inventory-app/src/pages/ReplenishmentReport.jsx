@@ -101,7 +101,7 @@ export default function ReplenishmentReport() {
           const visibleRows  = applySort(hideZero ? rows.filter(r => r.orderQty > 0) : rows)
           const itemsToOrder = rows.filter(r => r.orderQty > 0).length
           return (
-            <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">{store}</h2>
                 <span className="text-sm text-gray-500">
@@ -110,46 +110,69 @@ export default function ReplenishmentReport() {
               </div>
               {visibleRows.length === 0 ? (
                 <p className="px-6 py-8 text-sm text-gray-400 text-center">{t('report.nothingToOrder')}</p>
-              ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
-                    <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('report.product')}{si('name')}</th>
-                    <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
-                    <th className="px-4 py-3 font-medium text-right">{t('report.consumed7d')}</th>
-                    <th className="px-4 py-3 font-medium text-right">× 1.05</th>
-                    <th className="px-4 py-3 font-medium text-right">{t('report.currentStock')}</th>
-                    <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700 cursor-pointer select-none hover:bg-blue-100" onClick={() => handleSort('orderQty')}>{t('report.orderQty')}{si('orderQty')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
+              ) : (<>
+                {/* Mobile: cards */}
+                <div className="md:hidden divide-y divide-gray-100">
                   {visibleRows.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{r.unit}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.consumed}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-500">{Math.ceil(r.consumed * 1.05)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.currentStock}</td>
-                      <td className="px-4 py-3 text-right bg-blue-50">
-                        <span className="font-bold text-blue-700 tabular-nums text-base">{r.orderQty}</span>
-                        <span className="text-blue-400 text-xs ml-1">{r.unit}</span>
-                      </td>
-                    </tr>
+                    <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 leading-snug">{r.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {t('report.currentStock')}: {r.currentStock} {r.unit}
+                          {r.consumed > 0 && <span className="ml-2">{t('report.consumed7d')}: {r.consumed}</span>}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xl font-bold tabular-nums text-blue-700">{r.orderQty}</p>
+                        <p className="text-xs text-blue-400">{r.unit}</p>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">
-                      {t('report.itemsToOrder')}
-                    </td>
-                    <td className="px-4 py-3 text-right bg-blue-100">
-                      <span className="font-bold text-blue-800 tabular-nums text-base">{itemsToOrder}</span>
-                      <span className="text-blue-500 text-xs ml-1">{t('report.ingredientsLabel')}</span>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-              )}
+                  <div className="px-4 py-3 bg-blue-50 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">{t('report.itemsToOrder')}</span>
+                    <span className="font-bold text-blue-800 tabular-nums">{itemsToOrder} {t('report.ingredientsLabel')}</span>
+                  </div>
+                </div>
+                {/* Desktop: table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                        <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('report.product')}{si('name')}</th>
+                        <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
+                        <th className="px-4 py-3 font-medium text-right">{t('report.consumed7d')}</th>
+                        <th className="px-4 py-3 font-medium text-right">× 1.05</th>
+                        <th className="px-4 py-3 font-medium text-right">{t('report.currentStock')}</th>
+                        <th className="px-4 py-3 font-medium text-right bg-blue-50 text-blue-700 cursor-pointer select-none hover:bg-blue-100" onClick={() => handleSort('orderQty')}>{t('report.orderQty')}{si('orderQty')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {visibleRows.map(r => (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
+                          <td className="px-4 py-3 text-gray-500">{r.unit}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.consumed}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-500">{Math.ceil(r.consumed * 1.05)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.currentStock}</td>
+                          <td className="px-4 py-3 text-right bg-blue-50">
+                            <span className="font-bold text-blue-700 tabular-nums text-base">{r.orderQty}</span>
+                            <span className="text-blue-400 text-xs ml-1">{r.unit}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 bg-gray-50">
+                        <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">{t('report.itemsToOrder')}</td>
+                        <td className="px-4 py-3 text-right bg-blue-100">
+                          <span className="font-bold text-blue-800 tabular-nums text-base">{itemsToOrder}</span>
+                          <span className="text-blue-500 text-xs ml-1">{t('report.ingredientsLabel')}</span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>)}
               <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
                 {t('report.formula')}
               </div>

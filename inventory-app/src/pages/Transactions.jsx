@@ -147,69 +147,123 @@ function SalesTab() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-3 font-medium">{t('tx.date')}</th>
-              <th className="px-4 py-3 font-medium">{t('common.store')}</th>
-              <th className="px-4 py-3 font-medium">{t('common.name')}</th>
-              <th className="px-4 py-3 font-medium text-right">{t('tx.qtySold')}</th>
-              <th className="px-4 py-3 font-medium text-gray-400 font-normal">{t('tx.ingredientImpact')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0
-              ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
-              : filtered.map(s => {
-                  const impact = getSaleIngredientImpact(s.product, s.quantity)
-                  const isOpen = expanded === s.id
-                  return (
-                    <Fragment key={s.id}>
-                      <tr onClick={() => toggle(s.id)}
-                        className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer">
-                        <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{s.date}</td>
-                        <td className="px-4 py-2.5 text-gray-800">{s.store}</td>
-                        <td className="px-4 py-2.5 text-gray-800 text-xs">{s.product}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
-                          {s.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex flex-wrap gap-1.5">
-                            {impact.map(i => (
-                              <span key={i.id} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs tabular-nums">
-                                {i.consumed} {i.unit} {i.name}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr className="bg-blue-50 border-b border-blue-100">
-                          <td colSpan={5} className="px-6 py-3">
-                            <p className="text-xs font-semibold text-blue-700 mb-2">
-                              {t('tx.recipeBreakdown', { qty: s.quantity, product: s.product })}
-                            </p>
-                            <div className="flex flex-wrap gap-3">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Mobile: cards */}
+        {filtered.length === 0
+          ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</p>
+          : <div className="md:hidden divide-y divide-gray-100">
+              {filtered.map(s => {
+                const impact = getSaleIngredientImpact(s.product, s.quantity)
+                const isOpen = expanded === s.id
+                return (
+                  <div key={s.id}>
+                    <div onClick={() => toggle(s.id)}
+                      className={`px-4 py-3 cursor-pointer ${isOpen ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span className="font-mono">{s.date}</span>
+                          <span>·</span>
+                          <span>{s.store}</span>
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums text-gray-800">
+                          {s.quantity} <span className="text-xs font-normal text-gray-400">{t('tx.cups')}</span>
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1.5">{s.product}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {impact.map(i => (
+                          <span key={i.id} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs tabular-nums">
+                            {i.consumed} {i.unit} {i.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div className="bg-blue-50 border-t border-blue-100 px-4 py-3">
+                        <p className="text-xs font-semibold text-blue-700 mb-2">
+                          {t('tx.recipeBreakdown', { qty: s.quantity, product: s.product })}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {impact.map(i => (
+                            <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
+                              <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                              <p className="text-gray-500">{i.name}</p>
+                              <p className="text-blue-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / s.quantity).toFixed(3) })}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+        }
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th className="px-6 py-3 font-medium">{t('tx.date')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.name')}</th>
+                <th className="px-4 py-3 font-medium text-right">{t('tx.qtySold')}</th>
+                <th className="px-4 py-3 font-medium text-gray-400 font-normal">{t('tx.ingredientImpact')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
+                : filtered.map(s => {
+                    const impact = getSaleIngredientImpact(s.product, s.quantity)
+                    const isOpen = expanded === s.id
+                    return (
+                      <Fragment key={s.id}>
+                        <tr onClick={() => toggle(s.id)}
+                          className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer">
+                          <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{s.date}</td>
+                          <td className="px-4 py-2.5 text-gray-800">{s.store}</td>
+                          <td className="px-4 py-2.5 text-gray-800 text-xs">{s.product}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
+                            {s.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-wrap gap-1.5">
                               {impact.map(i => (
-                                <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
-                                  <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
-                                  <p className="text-gray-500">{i.name}</p>
-                                  <p className="text-blue-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / s.quantity).toFixed(3) })}</p>
-                                </div>
+                                <span key={i.id} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs tabular-nums">
+                                  {i.consumed} {i.unit} {i.name}
+                                </span>
                               ))}
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </Fragment>
-                  )
-                })
-            }
-          </tbody>
-        </table>
+                        {isOpen && (
+                          <tr className="bg-blue-50 border-b border-blue-100">
+                            <td colSpan={5} className="px-6 py-3">
+                              <p className="text-xs font-semibold text-blue-700 mb-2">
+                                {t('tx.recipeBreakdown', { qty: s.quantity, product: s.product })}
+                              </p>
+                              <div className="flex flex-wrap gap-3">
+                                {impact.map(i => (
+                                  <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
+                                    <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                                    <p className="text-gray-500">{i.name}</p>
+                                    <p className="text-blue-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / s.quantity).toFixed(3) })}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
-      <p className="text-xs text-gray-400 mt-3 text-center">{t('tx.clickRow')}</p>
+      <p className="text-xs text-gray-400 mt-3 text-center hidden md:block">{t('tx.clickRow')}</p>
     </>
   )
 }
@@ -272,78 +326,133 @@ function WasteTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-3 font-medium">
-                <button onClick={() => setSortAsc(v => !v)}
-                  className="flex items-center gap-1 hover:text-gray-800 transition-colors">
-                  {t('tx.date')}
-                  <span className="text-gray-300">{sortAsc ? '↑' : '↓'}</span>
-                </button>
-              </th>
-              <th className="px-4 py-3 font-medium">{t('common.store')}</th>
-              <th className="px-4 py-3 font-medium">{t('tx.itemWrittenOff')}</th>
-              <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
-              <th className="px-4 py-3 font-medium text-gray-400 font-normal">{t('tx.ingredientImpact')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0
-              ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">
-                  {posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}
-                </td></tr>
-              : filtered.map(r => {
-                  const impact = getSaleIngredientImpact(r.product, r.quantity)
-                  const isOpen = expanded === r.id
-                  return (
-                    <Fragment key={r.id}>
-                      <tr onClick={() => toggle(r.id)}
-                        className="border-b border-gray-50 hover:bg-orange-50 cursor-pointer">
-                        <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{r.date}</td>
-                        <td className="px-4 py-2.5 text-gray-800">{r.store}</td>
-                        <td className="px-4 py-2.5 text-gray-800 text-xs">{r.product}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
-                          {r.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex flex-wrap gap-1.5">
-                            {impact.map(i => (
-                              <span key={i.id} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded text-xs tabular-nums">
-                                {i.consumed} {i.unit} {i.name}
-                              </span>
-                            ))}
-                            {impact.length === 0 && <span className="text-xs text-gray-300">{t('tx.noRecipe')}</span>}
-                          </div>
-                        </td>
-                      </tr>
-                      {isOpen && impact.length > 0 && (
-                        <tr className="bg-orange-50 border-b border-orange-100">
-                          <td colSpan={5} className="px-6 py-3">
-                            <p className="text-xs font-semibold text-orange-700 mb-2">
-                              {t('tx.ingredientLoss', { qty: r.quantity, product: r.product })}
-                            </p>
-                            <div className="flex flex-wrap gap-3">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Mobile: cards */}
+        {filtered.length === 0
+          ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}</p>
+          : <div className="md:hidden divide-y divide-gray-100">
+              {filtered.map(r => {
+                const impact = getSaleIngredientImpact(r.product, r.quantity)
+                const isOpen = expanded === r.id
+                return (
+                  <div key={r.id}>
+                    <div onClick={() => toggle(r.id)}
+                      className={`px-4 py-3 cursor-pointer ${isOpen ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span className="font-mono">{r.date}</span>
+                          <span>·</span>
+                          <span>{r.store}</span>
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums text-gray-800">
+                          {r.quantity} <span className="text-xs font-normal text-gray-400">{t('tx.cups')}</span>
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1.5">{r.product}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {impact.map(i => (
+                          <span key={i.id} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded text-xs tabular-nums">
+                            {i.consumed} {i.unit} {i.name}
+                          </span>
+                        ))}
+                        {impact.length === 0 && <span className="text-xs text-gray-300">{t('tx.noRecipe')}</span>}
+                      </div>
+                    </div>
+                    {isOpen && impact.length > 0 && (
+                      <div className="bg-orange-50 border-t border-orange-100 px-4 py-3">
+                        <p className="text-xs font-semibold text-orange-700 mb-2">
+                          {t('tx.ingredientLoss', { qty: r.quantity, product: r.product })}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {impact.map(i => (
+                            <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs">
+                              <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                              <p className="text-gray-500">{i.name}</p>
+                              <p className="text-orange-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / r.quantity).toFixed(3) })}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+        }
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th className="px-6 py-3 font-medium">
+                  <button onClick={() => setSortAsc(v => !v)}
+                    className="flex items-center gap-1 hover:text-gray-800 transition-colors">
+                    {t('tx.date')}
+                    <span className="text-gray-300">{sortAsc ? '↑' : '↓'}</span>
+                  </button>
+                </th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">{t('tx.itemWrittenOff')}</th>
+                <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
+                <th className="px-4 py-3 font-medium text-gray-400 font-normal">{t('tx.ingredientImpact')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">
+                    {posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}
+                  </td></tr>
+                : filtered.map(r => {
+                    const impact = getSaleIngredientImpact(r.product, r.quantity)
+                    const isOpen = expanded === r.id
+                    return (
+                      <Fragment key={r.id}>
+                        <tr onClick={() => toggle(r.id)}
+                          className="border-b border-gray-50 hover:bg-orange-50 cursor-pointer">
+                          <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{r.date}</td>
+                          <td className="px-4 py-2.5 text-gray-800">{r.store}</td>
+                          <td className="px-4 py-2.5 text-gray-800 text-xs">{r.product}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
+                            {r.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-wrap gap-1.5">
                               {impact.map(i => (
-                                <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs">
-                                  <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
-                                  <p className="text-gray-500">{i.name}</p>
-                                  <p className="text-orange-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / r.quantity).toFixed(3) })}</p>
-                                </div>
+                                <span key={i.id} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded text-xs tabular-nums">
+                                  {i.consumed} {i.unit} {i.name}
+                                </span>
                               ))}
+                              {impact.length === 0 && <span className="text-xs text-gray-300">{t('tx.noRecipe')}</span>}
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </Fragment>
-                  )
-                })
-            }
-          </tbody>
-        </table>
+                        {isOpen && impact.length > 0 && (
+                          <tr className="bg-orange-50 border-b border-orange-100">
+                            <td colSpan={5} className="px-6 py-3">
+                              <p className="text-xs font-semibold text-orange-700 mb-2">
+                                {t('tx.ingredientLoss', { qty: r.quantity, product: r.product })}
+                              </p>
+                              <div className="flex flex-wrap gap-3">
+                                {impact.map(i => (
+                                  <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs">
+                                    <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                                    <p className="text-gray-500">{i.name}</p>
+                                    <p className="text-orange-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / r.quantity).toFixed(3) })}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
-      <p className="text-xs text-gray-400 mt-3 text-center">{t('tx.clickRow')}</p>
+      <p className="text-xs text-gray-400 mt-3 text-center hidden md:block">{t('tx.clickRow')}</p>
     </>
   )
 }

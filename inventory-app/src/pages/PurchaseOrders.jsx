@@ -443,130 +443,215 @@ export default function PurchaseOrders() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-3 font-medium">{t('po.colId')}</th>
-              <th className="px-4 py-3 font-medium">{t('common.store')}</th>
-              <th className="px-4 py-3 font-medium">{t('po.colCreated')}</th>
-              <th className="px-4 py-3 font-medium">{t('po.colSent')}</th>
-              <th className="px-4 py-3 font-medium">{t('po.colReceived')}</th>
-              <th className="px-4 py-3 font-medium text-right">{t('po.colLines')}</th>
-              <th className="px-4 py-3 font-medium">{t('common.status')}</th>
-              <th className="px-4 py-3 font-medium">{t('po.colActions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0
-              ? <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400 text-sm">
-                  {filter === 'all' ? t('po.noPOs') : t('po.noFilteredPOs', { status: STATUS_LABEL[filter].toLowerCase() })}
-                </td></tr>
-              : filtered.map(po => {
-                  const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
-                  const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null
-                  return (
-                    <Fragment key={po.id}>
-                      <tr onClick={() => toggle(po.id)}
-                        className={`border-b border-gray-50 cursor-pointer ${expanded === po.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                        <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-700">{po.id}</td>
-                        <td className="px-4 py-3 text-gray-800">{po.store}</td>
-                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.createdDate}</td>
-                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.sentDate ?? '—'}</td>
-                        <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.receivedDate ?? '—'}</td>
-                        <td className="px-4 py-3 text-right text-gray-600">{po.lines.filter(l => l.ordered > 0).length}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
-                            {t(`po.${po.status}`)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 min-w-72" onClick={e => e.stopPropagation()}>
-                          {pendingConfirm ? (
-                            <ConfirmInline
-                              message={cl.msg}
-                              danger={cl.danger}
-                              onConfirm={doConfirm}
-                              onCancel={() => setConfirm(null)}
-                              dateLabel={pendingConfirm === 'send' ? t('po.sentDate') : pendingConfirm === 'receive' ? t('po.receivedDate') : undefined}
-                              date={confirm?.date}
-                              onDateChange={d => setConfirm(prev => ({ ...prev, date: d }))}
-                            />
-                          ) : (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {po.status === 'draft' && <>
-                                <button onClick={e => requestConfirm(po.id, 'send', e)}
-                                  className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700">{t('po.send')}</button>
-                                <button onClick={e => { e.stopPropagation(); setEditingId(po.id); setExpanded(po.id) }}
-                                  className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50">{t('common.edit')}</button>
-                                <button onClick={e => requestConfirm(po.id, 'delete', e)}
-                                  className="px-2.5 py-1 text-red-400 text-xs hover:text-red-600">{t('common.delete')}</button>
-                              </>}
-                              {po.status === 'sent' && <>
-                                <button onClick={e => requestConfirm(po.id, 'receive', e)}
-                                  className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700">{t('po.markReceived')}</button>
-                                <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
-                                  className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertDraft')}</button>
-                              </>}
-                              {po.status === 'received' && (
-                                <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
-                                  className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertSent')}</button>
-                              )}
-                              <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
-                                className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50 flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                                {t('po.exportPDF')}
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-
-                      {expanded === po.id && (
-                        <tr className="bg-blue-50 border-b border-blue-100">
-                          <td colSpan={8} className="px-8 py-5">
-                            <StatusStepper po={po} />
-
-                            {editingId === po.id && po.status === 'draft' ? (
-                              <DraftForm
-                                title={t('po.editTitle', { id: po.id })}
-                                initialLines={po.lines}
-                                initialStore={po.store}
-                                initialCreatedDate={po.createdDate}
-                                lockStore
-                                ingredients={config.ingredients}
-                                getOrderQty={getOrderQty}
-                                onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
-                                onCancel={() => setEditingId(null)}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Mobile: cards */}
+        {filtered.length === 0
+          ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">
+              {filter === 'all' ? t('po.noPOs') : t('po.noFilteredPOs', { status: STATUS_LABEL[filter].toLowerCase() })}
+            </p>
+          : <div className="md:hidden divide-y divide-gray-100">
+              {filtered.map(po => {
+                const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
+                const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null
+                const lineCount = po.lines.filter(l => l.ordered > 0).length
+                return (
+                  <div key={po.id} className={expanded === po.id ? 'bg-blue-50' : ''}>
+                    <div onClick={() => toggle(po.id)} className="px-4 py-3 cursor-pointer">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono text-sm font-semibold text-gray-700">{po.id}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
+                          {t(`po.${po.status}`)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-800 mb-1">{po.store}</p>
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        <span>{po.createdDate}</span>
+                        {po.sentDate && <span>→ {po.sentDate}</span>}
+                        {po.receivedDate && <span>✓ {po.receivedDate}</span>}
+                        <span className="ml-auto">{lineCount} {t('po.colLines').toLowerCase()}</span>
+                      </div>
+                    </div>
+                    <div className="px-4 pb-3 flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+                      {pendingConfirm ? (
+                        <ConfirmInline
+                          message={cl.msg} danger={cl.danger}
+                          onConfirm={doConfirm} onCancel={() => setConfirm(null)}
+                          dateLabel={pendingConfirm === 'send' ? t('po.sentDate') : pendingConfirm === 'receive' ? t('po.receivedDate') : undefined}
+                          date={confirm?.date} onDateChange={d => setConfirm(prev => ({ ...prev, date: d }))}
+                        />
+                      ) : (<>
+                        {po.status === 'draft' && <>
+                          <button onClick={e => requestConfirm(po.id, 'send', e)}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg">{t('po.send')}</button>
+                          <button onClick={e => { e.stopPropagation(); setEditingId(po.id); setExpanded(po.id) }}
+                            className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">{t('common.edit')}</button>
+                          <button onClick={e => requestConfirm(po.id, 'delete', e)}
+                            className="px-3 py-1.5 text-red-400 text-xs">{t('common.delete')}</button>
+                        </>}
+                        {po.status === 'sent' && <>
+                          <button onClick={e => requestConfirm(po.id, 'receive', e)}
+                            className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg">{t('po.markReceived')}</button>
+                          <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
+                            className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.revertDraft')}</button>
+                        </>}
+                        {po.status === 'received' && (
+                          <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
+                            className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.revertSent')}</button>
+                        )}
+                        <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
+                          className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                          {t('po.exportPDF')}
+                        </button>
+                      </>)}
+                    </div>
+                    {expanded === po.id && (
+                      <div className="px-4 pb-4 border-t border-blue-100">
+                        <StatusStepper po={po} />
+                        {editingId === po.id && po.status === 'draft' ? (
+                          <DraftForm
+                            title={t('po.editTitle', { id: po.id })}
+                            initialLines={po.lines} initialStore={po.store}
+                            initialCreatedDate={po.createdDate} lockStore
+                            ingredients={config.ingredients} getOrderQty={getOrderQty}
+                            onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
+                            onCancel={() => setEditingId(null)}
+                          />
+                        ) : (
+                          <div className="divide-y divide-gray-100 bg-white rounded-lg border border-blue-100 overflow-hidden">
+                            {po.lines.filter(l => l.ordered > 0).map(l => (
+                              <div key={l.ingredientId} className="px-4 py-2 flex items-center justify-between text-sm">
+                                <span className="font-medium text-gray-800">{ingredientName(l.ingredientId)}</span>
+                                <span className="tabular-nums font-semibold text-gray-900">{l.ordered} <span className="text-gray-400 font-normal text-xs">{ingredientUnit(l.ingredientId)}</span></span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+        }
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th className="px-6 py-3 font-medium">{t('po.colId')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">{t('po.colCreated')}</th>
+                <th className="px-4 py-3 font-medium">{t('po.colSent')}</th>
+                <th className="px-4 py-3 font-medium">{t('po.colReceived')}</th>
+                <th className="px-4 py-3 font-medium text-right">{t('po.colLines')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.status')}</th>
+                <th className="px-4 py-3 font-medium">{t('po.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={8} className="px-6 py-10 text-center text-gray-400 text-sm">
+                    {filter === 'all' ? t('po.noPOs') : t('po.noFilteredPOs', { status: STATUS_LABEL[filter].toLowerCase() })}
+                  </td></tr>
+                : filtered.map(po => {
+                    const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
+                    const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null
+                    return (
+                      <Fragment key={po.id}>
+                        <tr onClick={() => toggle(po.id)}
+                          className={`border-b border-gray-50 cursor-pointer ${expanded === po.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                          <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-700">{po.id}</td>
+                          <td className="px-4 py-3 text-gray-800">{po.store}</td>
+                          <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.createdDate}</td>
+                          <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.sentDate ?? '—'}</td>
+                          <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.receivedDate ?? '—'}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{po.lines.filter(l => l.ordered > 0).length}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
+                              {t(`po.${po.status}`)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 min-w-72" onClick={e => e.stopPropagation()}>
+                            {pendingConfirm ? (
+                              <ConfirmInline
+                                message={cl.msg} danger={cl.danger}
+                                onConfirm={doConfirm} onCancel={() => setConfirm(null)}
+                                dateLabel={pendingConfirm === 'send' ? t('po.sentDate') : pendingConfirm === 'receive' ? t('po.receivedDate') : undefined}
+                                date={confirm?.date} onDateChange={d => setConfirm(prev => ({ ...prev, date: d }))}
                               />
                             ) : (
-                              <table className="w-full max-w-md text-sm bg-white rounded-lg border border-blue-100 overflow-hidden">
-                                <thead>
-                                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-                                    <th className="px-4 py-2 font-medium">{t('common.ingredient')}</th>
-                                    <th className="px-4 py-2 font-medium text-right">{t('po.received')}</th>
-                                    <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                  {po.lines.filter(l => l.ordered > 0).map(l => (
-                                    <tr key={l.ingredientId}>
-                                      <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
-                                      <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-900">{l.ordered}</td>
-                                      <td className="px-4 py-2 text-gray-400">{ingredientUnit(l.ingredientId)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {po.status === 'draft' && <>
+                                  <button onClick={e => requestConfirm(po.id, 'send', e)}
+                                    className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700">{t('po.send')}</button>
+                                  <button onClick={e => { e.stopPropagation(); setEditingId(po.id); setExpanded(po.id) }}
+                                    className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50">{t('common.edit')}</button>
+                                  <button onClick={e => requestConfirm(po.id, 'delete', e)}
+                                    className="px-2.5 py-1 text-red-400 text-xs hover:text-red-600">{t('common.delete')}</button>
+                                </>}
+                                {po.status === 'sent' && <>
+                                  <button onClick={e => requestConfirm(po.id, 'receive', e)}
+                                    className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700">{t('po.markReceived')}</button>
+                                  <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
+                                    className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertDraft')}</button>
+                                </>}
+                                {po.status === 'received' && (
+                                  <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
+                                    className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertSent')}</button>
+                                )}
+                                <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
+                                  className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                  {t('po.exportPDF')}
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
-                      )}
-                    </Fragment>
-                  )
-                })
-            }
-          </tbody>
-        </table>
+                        {expanded === po.id && (
+                          <tr className="bg-blue-50 border-b border-blue-100">
+                            <td colSpan={8} className="px-8 py-5">
+                              <StatusStepper po={po} />
+                              {editingId === po.id && po.status === 'draft' ? (
+                                <DraftForm
+                                  title={t('po.editTitle', { id: po.id })}
+                                  initialLines={po.lines} initialStore={po.store}
+                                  initialCreatedDate={po.createdDate} lockStore
+                                  ingredients={config.ingredients} getOrderQty={getOrderQty}
+                                  onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
+                                  onCancel={() => setEditingId(null)}
+                                />
+                              ) : (
+                                <table className="w-full max-w-md text-sm bg-white rounded-lg border border-blue-100 overflow-hidden">
+                                  <thead>
+                                    <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
+                                      <th className="px-4 py-2 font-medium">{t('common.ingredient')}</th>
+                                      <th className="px-4 py-2 font-medium text-right">{t('po.received')}</th>
+                                      <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-50">
+                                    {po.lines.filter(l => l.ordered > 0).map(l => (
+                                      <tr key={l.ingredientId}>
+                                        <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
+                                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-900">{l.ordered}</td>
+                                        <td className="px-4 py-2 text-gray-400">{ingredientUnit(l.ingredientId)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

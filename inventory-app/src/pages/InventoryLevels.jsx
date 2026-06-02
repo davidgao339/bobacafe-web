@@ -102,7 +102,7 @@ export default function InventoryLevels() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="font-semibold text-gray-800 text-sm">{store}</span>
@@ -122,51 +122,87 @@ export default function InventoryLevels() {
               <span className="text-xs text-gray-400">{auditLabel}</span>
             </div>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/50">
-                <th className="px-5 py-2.5 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
-                <th className="px-4 py-2.5 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('qty')}>{t('levels.estStock')}{si('qty')}</th>
-                <th className="px-4 py-2.5 font-medium hidden sm:table-cell">{t('common.unit')}</th>
-                <th className="px-4 py-2.5 font-medium text-right hidden sm:table-cell">{t('levels.dailyAvg')}</th>
-                <th className="px-4 py-2.5 font-medium text-right">{t('levels.daysLeft')}</th>
-                <th className="px-4 py-2.5 font-medium">{t('common.status')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {visibleRows.map(({ ing, qty, daily, daysLeft, status }) => (
-                <tr key={ing.id} className={`${status !== 'ok' ? 'bg-opacity-50' : ''} hover:bg-gray-50`}>
-                  <td className="px-5 py-2.5 font-medium text-gray-900">
-                    {ing.name}
-                    <span className="sm:hidden text-gray-400 text-xs font-normal ml-1">{ing.unit}</span>
-                  </td>
-                  <td className={`px-4 py-2.5 text-right tabular-nums ${STATUS_CELL[status]}`}>{qty}</td>
-                  <td className="px-4 py-2.5 text-gray-400 text-xs hidden sm:table-cell">{ing.unit}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-400 text-xs hidden sm:table-cell">
-                    {daily > 0 ? daily : '—'}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-xs font-medium">
-                    {status === 'unknown' || daysLeft === null ? <span className="text-gray-300">—</span>
-                      : daysLeft < 1 ? <span className="text-red-600">&lt;1d</span>
-                      : <span className={daysLeft < 3 ? 'text-amber-600' : 'text-gray-500'}>{Math.round(daysLeft)}d</span>
-                    }
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {status === 'unknown'  && <span className="text-xs text-gray-300">—</span>}
-                    {status === 'depleted' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">{t('levels.depleted')}</span>}
-                    {status === 'critical' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs">{t('levels.critical')}</span>}
-                    {status === 'low'      && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">{t('levels.low')}</span>}
-                    {status === 'ok'       && <span className="text-xs text-gray-300">{t('levels.ok')}</span>}
-                  </td>
+
+          {/* Mobile: card list */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {visibleRows.map(({ ing, qty, daily, daysLeft, status }) => (
+              <div key={ing.id} className={`px-4 py-3 ${
+                status === 'depleted' || status === 'critical' ? 'bg-red-50' :
+                status === 'low' ? 'bg-amber-50/50' : ''
+              }`}>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="font-medium text-gray-900 leading-snug">{ing.name}</p>
+                  {status === 'depleted' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium shrink-0">{t('levels.depleted')}</span>}
+                  {status === 'critical' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs shrink-0">{t('levels.critical')}</span>}
+                  {status === 'low'      && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs shrink-0">{t('levels.low')}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xl font-bold tabular-nums leading-none ${
+                    status === 'depleted' ? 'text-red-700' :
+                    status === 'critical' ? 'text-red-600' :
+                    status === 'low'      ? 'text-amber-700' : 'text-gray-800'
+                  }`}>{qty}</span>
+                  <span className="text-sm text-gray-400">{ing.unit}</span>
+                  {daysLeft !== null && status !== 'unknown' && (
+                    <span className={`text-xs ml-1 ${
+                      daysLeft < 1 ? 'text-red-600 font-medium' :
+                      daysLeft < 3 ? 'text-amber-600' : 'text-gray-400'
+                    }`}>{daysLeft < 1 ? '< 1 day' : `${Math.round(daysLeft)}d`}</span>
+                  )}
+                  {daily > 0 && (
+                    <span className="text-xs text-gray-400 ml-auto tabular-nums">{daily}/day</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {visibleRows.length === 0 && (
+              <p className="px-5 py-8 text-center text-sm text-gray-400">{t('levels.noIssues')}</p>
+            )}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/50">
+                  <th className="px-5 py-2.5 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
+                  <th className="px-4 py-2.5 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('qty')}>{t('levels.estStock')}{si('qty')}</th>
+                  <th className="px-4 py-2.5 font-medium">{t('common.unit')}</th>
+                  <th className="px-4 py-2.5 font-medium text-right">{t('levels.dailyAvg')}</th>
+                  <th className="px-4 py-2.5 font-medium text-right">{t('levels.daysLeft')}</th>
+                  <th className="px-4 py-2.5 font-medium">{t('common.status')}</th>
                 </tr>
-              ))}
-              {visibleRows.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-6 text-center text-sm text-gray-400">{t('levels.noIssues')}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {visibleRows.map(({ ing, qty, daily, daysLeft, status }) => (
+                  <tr key={ing.id} className={`${status !== 'ok' ? 'bg-opacity-50' : ''} hover:bg-gray-50`}>
+                    <td className="px-5 py-2.5 font-medium text-gray-900">{ing.name}</td>
+                    <td className={`px-4 py-2.5 text-right tabular-nums ${STATUS_CELL[status]}`}>{qty}</td>
+                    <td className="px-4 py-2.5 text-gray-400 text-xs">{ing.unit}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-400 text-xs">{daily > 0 ? daily : '—'}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-xs font-medium">
+                      {status === 'unknown' || daysLeft === null ? <span className="text-gray-300">—</span>
+                        : daysLeft < 1 ? <span className="text-red-600">&lt;1d</span>
+                        : <span className={daysLeft < 3 ? 'text-amber-600' : 'text-gray-500'}>{Math.round(daysLeft)}d</span>
+                      }
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {status === 'unknown'  && <span className="text-xs text-gray-300">—</span>}
+                      {status === 'depleted' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">{t('levels.depleted')}</span>}
+                      {status === 'critical' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs">{t('levels.critical')}</span>}
+                      {status === 'low'      && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">{t('levels.low')}</span>}
+                      {status === 'ok'       && <span className="text-xs text-gray-300">{t('levels.ok')}</span>}
+                    </td>
+                  </tr>
+                ))}
+                {visibleRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-6 text-center text-sm text-gray-400">{t('levels.noIssues')}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )
