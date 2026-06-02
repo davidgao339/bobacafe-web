@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory App — Feature Overview</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222636;
+    --border: #2e3347;
+    --accent: #7c6af5;
+    --accent2: #56cfb2;
+    --accent3: #f5a623;
+    --accent4: #e05c5c;
+    --text: #e2e5f0;
+    --muted: #8a90a8;
+    --green: #4caf80;
+    --yellow: #f0b429;
+    --red: #e05c5c;
+    --blue: #4a9eff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 24px 64px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+
+  /* ── Section headers ── */
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 40px 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Cards ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+  .card.purple::before { background: var(--accent); }
+  .card.teal::before   { background: var(--accent2); }
+  .card.orange::before { background: var(--accent3); }
+  .card.red::before    { background: var(--accent4); }
+  .card.green::before  { background: var(--green); }
+  .card.blue::before   { background: var(--blue); }
+  .card.yellow::before { background: var(--yellow); }
+
+  .card-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* ── Data flow diagram ── */
+  .flow {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+  }
+
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  .flow-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    min-width: 120px;
+  }
+  .flow-node.source  { border-color: var(--blue);   color: var(--blue);   }
+  .flow-node.store   { border-color: var(--accent);  color: var(--accent); }
+  .flow-node.calc    { border-color: var(--accent2); color: var(--accent2);}
+  .flow-node.output  { border-color: var(--green);   color: var(--green);  }
+  .flow-node.storage { border-color: var(--accent3); color: var(--accent3);}
+
+  .arrow {
+    color: var(--muted);
+    font-size: 18px;
+    padding: 0 6px;
+  }
+
+  .flow-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  /* ── Entity table ── */
+  .entity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .entity-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .entity-header {
+    background: var(--surface2);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .entity-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .entity-fields {
+    padding: 12px 16px;
+  }
+  .field-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .field-row:last-child { border-bottom: none; }
+  .field-name { color: var(--text); font-family: monospace; }
+  .field-type { color: var(--muted); font-size: 11px; }
+
+  /* ── Tech stack ── */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .tech-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tech-icon {
+    font-size: 24px;
+    width: 36px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .tech-name { font-size: 13px; font-weight: 600; }
+  .tech-role { font-size: 11px; color: var(--muted); }
+
+  /* ── Workflow diagram ── */
+  .workflow-track {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .workflow-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    align-items: center;
+  }
+  .step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+  }
+  .step.draft   { border-color: var(--muted); color: var(--muted); }
+  .step.active  { border-color: var(--accent); color: var(--accent); }
+  .step.success { border-color: var(--green); color: var(--green); }
+  .step.warn    { border-color: var(--yellow); color: var(--yellow); }
+  .step.danger  { border-color: var(--red); color: var(--red); }
+  .step-arrow   { color: var(--muted); padding: 0 8px; font-size: 16px; }
+
+  /* ── Stores ── */
+  .stores-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .store-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* ── Calculation box ── */
+  .calc-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .calc-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+  .formula {
+    font-family: monospace;
+    font-size: 13px;
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text);
+    border-left: 3px solid var(--accent);
+    margin-bottom: 8px;
+  }
+  .calc-note {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── Alert indicators ── */
+  .alert-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .alert-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+  .alert-chip.critical { background: rgba(224,92,92,0.1); border-color: var(--red); color: var(--red); }
+  .alert-chip.warning  { background: rgba(240,180,41,0.1); border-color: var(--yellow); color: var(--yellow); }
+  .alert-chip.info     { background: rgba(76,158,255,0.1); border-color: var(--blue); color: var(--blue); }
+  .alert-chip.ok       { background: rgba(76,175,128,0.1); border-color: var(--green); color: var(--green); }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Inventory App — Feature Map</h1>
+<div class="subtitle">Боба Кролик · Multi-store bubble tea café · React + Vite · v2025</div>
+
+<!-- ═══════════════════════════════════════════════ PAGES ══ -->
+<div class="section-title">Pages &amp; Modules</div>
+<div class="card-grid">
+
+  <div class="card blue">
+    <div class="card-icon">🏠</div>
+    <div class="card-title">Dashboard</div>
+    <div class="card-desc">Home screen with live alerts. Shows depleted stock warnings, overdue audits, pending PO deliveries, and quick-action task cards colour-coded by urgency.</div>
+    <div class="tag-row">
+      <span class="tag">alerts</span>
+      <span class="tag">quick actions</span>
+      <span class="tag">task cards</span>
+    </div>
+  </div>
+
+  <div class="card teal">
+    <div class="card-icon">📋</div>
+    <div class="card-title">Count Stock (Audit)</div>
+    <div class="card-desc">Physical inventory counting interface. Select store &amp; date, enter quantities for each ingredient. Supports partial saves; highlights missing counts.</div>
+    <div class="tag-row">
+      <span class="tag">per-store</span>
+      <span class="tag">per-ingredient</span>
+      <span class="tag">partial save</span>
+    </div>
+  </div>
+
+  <div class="card purple">
+    <div class="card-icon">📦</div>
+    <div class="card-title">Inventory Levels</div>
+    <div class="card-desc">Shows estimated current stock. Single-store list view or all-stores matrix. Colour-coded low/critical indicators. Stock formula: last audit + PO receipts − sales − waste.</div>
+    <div class="tag-row">
+      <span class="tag">single store</span>
+      <span class="tag">all-stores matrix</span>
+      <span class="tag">low-stock badge</span>
+    </div>
+  </div>
+
+  <div class="card orange">
+    <div class="card-icon">💳</div>
+    <div class="card-title">Transactions</div>
+    <div class="card-desc">Lists all sales pulled from Databricks (POS) and any manual waste entries. Filter by store or date. View ingredient consumption per transaction via recipe mapping.</div>
+    <div class="tag-row">
+      <span class="tag">Databricks POS</span>
+      <span class="tag">non-fiscal waste</span>
+      <span class="tag">filter by store</span>
+    </div>
+  </div>
+
+  <div class="card green">
+    <div class="card-icon">⚗️</div>
+    <div class="card-title">Recipes &amp; Config</div>
+    <div class="card-desc">Master data editor. Add/remove ingredients, define product recipes (ingredient quantities per menu item), import/export config JSON. Product → ingredient mapping used site-wide.</div>
+    <div class="tag-row">
+      <span class="tag">ingredients</span>
+      <span class="tag">recipes</span>
+      <span class="tag">JSON import/export</span>
+    </div>
+  </div>
+
+  <div class="card yellow">
+    <div class="card-icon">🛒</div>
+    <div class="card-title">Purchase Orders</div>
+    <div class="card-desc">Full supplier order lifecycle. Create draft POs by store, add line items (ingredient + qty), progress through Draft → Sent → Received. Receipt updates stock estimates.</div>
+    <div class="tag-row">
+      <span class="tag">draft → sent → received</span>
+      <span class="tag">per-store</span>
+      <span class="tag">updates stock</span>
+    </div>
+  </div>
+
+  <div class="card teal">
+    <div class="card-icon">📊</div>
+    <div class="card-title">Replenishment Report</div>
+    <div class="card-desc">Auto-calculates suggested order quantities (consumed × 1.05 − manual adjustments). Filterable by store. Print-friendly layout &amp; CSV export for ordering workflow.</div>
+    <div class="tag-row">
+      <span class="tag">auto-suggest</span>
+      <span class="tag">CSV export</span>
+      <span class="tag">print-friendly</span>
+    </div>
+  </div>
+
+  <div class="card red">
+    <div class="card-icon">🔍</div>
+    <div class="card-title">Variance / Loss Report</div>
+    <div class="card-desc">Compares actual vs expected consumption between two audits to surface unexplained losses (shrinkage, spillage, over-pouring). Colour badges at &gt;5 % and &gt;10 % loss.</div>
+    <div class="tag-row">
+      <span class="tag">shrinkage detection</span>
+      <span class="tag">% loss badge</span>
+      <span class="tag">per-store</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════ STORES ══ -->
+<div class="section-title">Managed Stores</div>
+<div class="stores-row">
+  <span class="store-chip">НОВО КП</span>
+  <span class="store-chip">ГРИН ПАРК</span>
+  <span class="store-chip">БОН ПАССАЖ</span>
+  <span class="store-chip">ЧЕРНОМОРСКИЙ</span>
+  <span class="store-chip">СОВЕТОВ</span>
+  <span class="store-chip">КИОСК</span>
+  <span class="store-chip">ГАЛЕРЕЯ</span>
+  <span class="store-chip">ОЗМОЛЛ</span>
+</div>
+
+<!-- ═══════════════════════════════════════ DATA FLOW ══ -->
+<div class="section-title">Data Flow</div>
+<div class="flow">
+
+  <div class="flow-row">
+    <div class="flow-node source">Databricks SQL<br><small>POS Sales API</small></div>
+    <div class="arrow">→</div>
+    <div class="flow-node storage">Sales Cache<br><small>localStorage</small></div>
+    <div class="arrow">→</div>
+    <div class="flow-node calc">Recipe Mapping<br><small>product → ingredients</small></div>
+    <div class="arrow">→</div>
+    <div class="flow-node calc">Sales Consumption<br><small>getConsumed7d()</small></div>
+  </div>
+
+  <div class="flow-row" style="margin-top:20px;">
+    <div class="flow-node store">Inventory Audit<br><small>physical counts</small></div>
+    <div class="arrow">+</div>
+    <div class="flow-node store">PO Receipts<br><small>received orders</small></div>
+    <div class="arrow">−</div>
+    <div class="flow-node calc">Sales Consumption<br><small>+ waste txns</small></div>
+    <div class="arrow">=</div>
+    <div class="flow-node output">Estimated Stock<br><small>estimateCurrentStock()</small></div>
+  </div>
+
+  <div class="flow-row" style="margin-top:20px;">
+    <div class="flow-node output">Estimated Stock</div>
+    <div class="arrow">→</div>
+    <div class="flow-node output">Low-Stock Alerts<br><small>&lt; 3 days supply</small></div>
+    <div class="arrow">+</div>
+    <div class="flow-node output">Order Suggestions<br><small>consumed × 1.05</small></div>
+    <div class="arrow">+</div>
+    <div class="flow-node output">Variance Report<br><small>actual − expected</small></div>
+  </div>
+
+  <div class="flow-legend">
+    <div><span class="legend-dot" style="background:var(--blue)"></span> External source</div>
+    <div><span class="legend-dot" style="background:var(--accent3)"></span> localStorage persistence</div>
+    <div><span class="legend-dot" style="background:var(--accent)"></span> User input</div>
+    <div><span class="legend-dot" style="background:var(--accent2)"></span> Calculation / derivation</div>
+    <div><span class="legend-dot" style="background:var(--green)"></span> Output / report</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════ FORMULAS ══ -->
+<div class="section-title">Core Calculation Formulas</div>
+
+<div class="two-col">
+  <div>
+    <div class="calc-box">
+      <div class="calc-title">Estimated Current Stock</div>
+      <div class="formula">last_audit_count<br>+ sum(received_PO_lines)<br>− sales_consumption<br>− manual_transactions</div>
+      <div class="calc-note">Calculated per ingredient per store. Refreshes when PO received or new audit saved.</div>
+    </div>
+
+    <div class="calc-box">
+      <div class="calc-title">Replenishment Order Quantity</div>
+      <div class="formula">ceil( consumed_7d × 1.05 )<br>− adjustment_delta</div>
+      <div class="calc-note">5 % safety buffer above recent consumption. Minus any positive manual adjustments already applied.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="calc-box">
+      <div class="calc-title">Unexplained Variance (Loss)</div>
+      <div class="formula">actual_consumed =<br>  opening_stock − closing_stock<br>  + PO_receipts_in_period<br><br>variance_pct =<br>  (actual − expected) / expected × 100</div>
+      <div class="calc-note">Expected = sales-derived consumption via recipes. Period = two most-recent audits.</div>
+    </div>
+
+    <div class="calc-box">
+      <div class="calc-title">Low-Stock Threshold</div>
+      <div class="formula">daily_avg = consumed_7d / 7<br>low_stock = stock &lt; daily_avg × 3</div>
+      <div class="calc-note">Flags if less than 3 days of supply remain. Shown as critical alert on Dashboard.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ ENTITIES ══ -->
+<div class="section-title">Data Entities</div>
+<div class="entity-grid">
+
+  <div class="entity-box">
+    <div class="entity-header">
+      <span class="entity-dot" style="background:var(--accent)"></span>
+      Audit
+    </div>
+    <div class="entity-fields">
+      <div class="field-row"><span class="field-name">id</span><span class="field-type">auto-increment</span></div>
+      <div class="field-row"><span class="field-name">store</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">date</span><span class="field-type">ISO date</span></div>
+      <div class="field-row"><span class="field-name">counts</span><span class="field-type">{ ingredientId → qty }</span></div>
+    </div>
+  </div>
+
+  <div class="entity-box">
+    <div class="entity-header">
+      <span class="entity-dot" style="background:var(--yellow)"></span>
+      Purchase Order
+    </div>
+    <div class="entity-fields">
+      <div class="field-row"><span class="field-name">id</span><span class="field-type">auto-increment</span></div>
+      <div class="field-row"><span class="field-name">store</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">'draft' | 'sent' | 'received'</span></div>
+      <div class="field-row"><span class="field-name">createdDate / sentDate / receivedDate</span><span class="field-type">ISO date</span></div>
+      <div class="field-row"><span class="field-name">lines</span><span class="field-type">[ { ingredientId, qty } ]</span></div>
+    </div>
+  </div>
+
+  <div class="entity-box">
+    <div class="entity-header">
+      <span class="entity-dot" style="background:var(--orange, #f5a623)"></span>
+      Transaction
+    </div>
+    <div class="entity-fields">
+      <div class="field-row"><span class="field-name">id</span><span class="field-type">auto-increment</span></div>
+      <div class="field-row"><span class="field-name">store</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">ingredientId</span><span class="field-type">ref → Ingredient</span></div>
+      <div class="field-row"><span class="field-name">type</span><span class="field-type">'adjustment' | 'consumption'</span></div>
+      <div class="field-row"><span class="field-name">quantity</span><span class="field-type">number</span></div>
+      <div class="field-row"><span class="field-name">date</span><span class="field-type">ISO date</span></div>
+    </div>
+  </div>
+
+  <div class="entity-box">
+    <div class="entity-header">
+      <span class="entity-dot" style="background:var(--green)"></span>
+      Ingredient
+    </div>
+    <div class="entity-fields">
+      <div class="field-row"><span class="field-name">id</span><span class="field-type">string slug</span></div>
+      <div class="field-row"><span class="field-name">name</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">unit</span><span class="field-type">string (e.g. 'kg', 'L')</span></div>
+    </div>
+  </div>
+
+  <div class="entity-box">
+    <div class="entity-header">
+      <span class="entity-dot" style="background:var(--accent2)"></span>
+      Recipe
+    </div>
+    <div class="entity-fields">
+      <div class="field-row"><span class="field-name">productId</span><span class="field-type">POS product name</span></div>
+      <div class="field-row"><span class="field-name">ingredients</span><span class="field-type">{ ingredientId → qty }</span></div>
+    </div>
+  </div>
+
+  <div class="entity-box">
+    <div class="entity-header">
+      <span class="entity-dot" style="background:var(--blue)"></span>
+      Sales (POS)
+    </div>
+    <div class="entity-fields">
+      <div class="field-row"><span class="field-name">id</span><span class="field-type">Databricks row id</span></div>
+      <div class="field-row"><span class="field-name">store</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">product</span><span class="field-type">string (menu item name)</span></div>
+      <div class="field-row"><span class="field-name">date</span><span class="field-type">ISO date</span></div>
+      <div class="field-row"><span class="field-name">quantity</span><span class="field-type">number</span></div>
+      <div class="field-row"><span class="field-name">transaction_type</span><span class="field-type">'sale' | 'waste'</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════ WORKFLOWS ══ -->
+<div class="section-title">Key Workflows</div>
+
+<div class="workflow-track">
+  <div class="workflow-title">Purchase Order Lifecycle</div>
+  <div class="steps">
+    <div class="step draft">Create Draft</div>
+    <div class="step-arrow">→</div>
+    <div class="step draft">Add Line Items</div>
+    <div class="step-arrow">→</div>
+    <div class="step active">Mark Sent</div>
+    <div class="step-arrow">→</div>
+    <div class="step success">Confirm Receipt</div>
+    <div class="step-arrow">→</div>
+    <div class="step success">Stock Updated ✓</div>
+  </div>
+</div>
+
+<div class="workflow-track">
+  <div class="workflow-title">Weekly Variance Audit Flow</div>
+  <div class="steps">
+    <div class="step active">Physical Count (Audit 1)</div>
+    <div class="step-arrow">→</div>
+    <div class="step active">Operations (sales + orders)</div>
+    <div class="step-arrow">→</div>
+    <div class="step active">Physical Count (Audit 2)</div>
+    <div class="step-arrow">→</div>
+    <div class="step warn">Run Variance Report</div>
+    <div class="step-arrow">→</div>
+    <div class="step danger">Investigate Loss &gt;10%</div>
+  </div>
+</div>
+
+<div class="workflow-track">
+  <div class="workflow-title">Replenishment Cycle</div>
+  <div class="steps">
+    <div class="step active">Sales Pulled from Databricks</div>
+    <div class="step-arrow">→</div>
+    <div class="step active">Recipe Mapping Applied</div>
+    <div class="step-arrow">→</div>
+    <div class="step warn">Qty = consumed × 1.05</div>
+    <div class="step-arrow">→</div>
+    <div class="step active">Replenishment Report</div>
+    <div class="step-arrow">→</div>
+    <div class="step success">Export CSV / Print</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ ALERTS ══ -->
+<div class="section-title">Dashboard Alert Types</div>
+<div class="alert-row">
+  <div class="alert-chip critical">🔴 Stock Depleted — ingredient at zero</div>
+  <div class="alert-chip warning">🟡 Low Stock — &lt; 3 days supply remaining</div>
+  <div class="alert-chip warning">🟡 Overdue Audit — no count in 7+ days</div>
+  <div class="alert-chip info">🔵 Pending Delivery — PO sent, not yet received</div>
+  <div class="alert-chip ok">🟢 Draft PO Ready — waiting to be sent</div>
+</div>
+
+<!-- ═══════════════════════════════════ TECH ══ -->
+<div class="section-title">Tech Stack</div>
+<div class="tech-grid">
+
+  <div class="tech-card">
+    <div class="tech-icon">⚛️</div>
+    <div><div class="tech-name">React 18</div><div class="tech-role">UI framework</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">⚡</div>
+    <div><div class="tech-name">Vite 5</div><div class="tech-role">Build tool + dev proxy</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">🎨</div>
+    <div><div class="tech-name">Tailwind CSS 3</div><div class="tech-role">Utility-first styling</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">🧠</div>
+    <div><div class="tech-name">React Context</div><div class="tech-role">Global state (no Redux)</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">💾</div>
+    <div><div class="tech-name">localStorage</div><div class="tech-role">Audits, POs, config, cache</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">🔷</div>
+    <div><div class="tech-name">Databricks SQL</div><div class="tech-role">POS sales data source</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">☁️</div>
+    <div><div class="tech-name">Cloudflare Worker</div><div class="tech-role">CORS proxy for Databricks</div></div>
+  </div>
+
+  <div class="tech-card">
+    <div class="tech-icon">📄</div>
+    <div><div class="tech-name">GitHub Pages</div><div class="tech-role">Deployment target</div></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════ STATE LAYERS ══ -->
+<div class="section-title">State &amp; Persistence Layers</div>
+<div class="card-grid">
+
+  <div class="card purple">
+    <div class="card-icon">⚙️</div>
+    <div class="card-title">config (localStorage)</div>
+    <div class="card-desc">Ingredient definitions and product recipe mappings. Exported/imported as JSON. Shared across all pages.</div>
+  </div>
+
+  <div class="card orange">
+    <div class="card-icon">🗄️</div>
+    <div class="card-title">data (localStorage)</div>
+    <div class="card-desc">Operational records: audits, manual transactions, purchase orders, auto-increment ID counters.</div>
+  </div>
+
+  <div class="card blue">
+    <div class="card-icon">📡</div>
+    <div class="card-title">salesCache (localStorage)</div>
+    <div class="card-desc">Cached Databricks query results with lastRefreshDate. Deduplication on merge prevents double-counting.</div>
+  </div>
+
+  <div class="card teal">
+    <div class="card-icon">🔑</div>
+    <div class="card-title">settings (localStorage)</div>
+    <div class="card-desc">Databricks PAT token and SQL warehouse ID. Never sent to any server except the Databricks endpoint.</div>
+  </div>
+
+</div>
+
+<div style="margin-top:48px; text-align:center; color:var(--muted); font-size:12px;">
+  Generated 2026-05-29 · Боба Кролик Inventory App · bobacafe.net/internal
+</div>
+
+</body>
+</html>
