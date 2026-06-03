@@ -107,7 +107,7 @@ function CountTab({ store, setStore, date, setDate }) {
             {t('common.ingredient')}{si('name')}
           </span>
           <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('supplier')}>
-            Supplier{si('supplier')}
+            {t('recipes.supplier')}{si('supplier')}
           </span>
           <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
             {t('audit.prevCount')}{si('prev')}{' '}
@@ -335,7 +335,7 @@ function HistoryTab() {
                           {isEditing ? (
                             <>
                               <p className="text-xs text-blue-700 font-medium mb-3">
-                                Edit counts — clear a value or click ✕ to remove it entirely
+                                {t('audit.editCountsHint')}
                               </p>
                               {/* Search within edit mode */}
                               <div className="relative mb-3 max-w-xs">

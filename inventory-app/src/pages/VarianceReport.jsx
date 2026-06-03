@@ -15,6 +15,7 @@ function badge(pct, t) {
 // ─── Detail breakdown card ────────────────────────────────────────────────────
 
 function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) {
+  const { t } = useLanguage()
   if (!iwin) return null
 
   const { id, unit } = ingredient
@@ -75,32 +76,32 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
     <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mt-1 max-w-lg">
 
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-        Balance &nbsp;<span className="font-normal font-mono normal-case text-gray-300">{from} → {to}</span>
+        {t('variance.detailBalance')} &nbsp;<span className="font-normal font-mono normal-case text-gray-300">{from} → {to}</span>
       </p>
 
       {/* Inflows */}
-      <Row label="Opening stock"  sub={opening.date} right={`+${openingCount} ${unit}`} rightColor="text-gray-700" />
+      <Row label={t('variance.detailOpening')} sub={opening.date} right={`+${openingCount} ${unit}`} rightColor="text-gray-700" />
       {posInWindow.length > 0
         ? posInWindow.map(po => (
-            <Row key={po.id} label={`+ Received (${po.id})`} sub={po.date}
+            <Row key={po.id} label={`${t('variance.detailReceived')} (${po.id})`} sub={po.date}
               right={`+${po.qty} ${unit}`} rightColor="text-green-600" />
           ))
-        : <Row label="+ Received" sub="none" right={`+0 ${unit}`} rightColor="text-gray-400" />
+        : <Row label={t('variance.detailReceived')} sub={t('variance.detailNone')} right={`+0 ${unit}`} rightColor="text-gray-400" />
       }
-      <Row label="Total available" right={`${totalAvailable} ${unit}`} bold divider />
+      <Row label={t('variance.detailAvailable')} right={`${totalAvailable} ${unit}`} bold divider />
 
       {/* Expected consumption */}
-      <Row label="− Sales × recipe"    right={`−${salesUsage} ${unit}`}   rightColor={salesUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
-      <Row label="− Non-Fiscal waste"  right={`−${wasteUsage} ${unit}`}   rightColor={wasteUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
-      <Row label="− Direct write-offs" right={`−${directUsage} ${unit}`}  rightColor={directUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
-      <Row label="Expected closing balance" right={`${expectedClosing} ${unit}`} bold divider />
+      <Row label={t('variance.detailSales')}  right={`−${salesUsage} ${unit}`}   rightColor={salesUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
+      <Row label={t('variance.detailWaste')}  right={`−${wasteUsage} ${unit}`}   rightColor={wasteUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
+      <Row label={t('variance.detailDirect')} right={`−${directUsage} ${unit}`}  rightColor={directUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
+      <Row label={t('variance.detailExpClosing')} right={`${expectedClosing} ${unit}`} bold divider />
 
       {/* Actual vs expected */}
-      <Row label="Actual closing" sub={closing.date} right={`${closingCount} ${unit}`} rightColor="text-gray-700" />
+      <Row label={t('variance.detailActClosing')} sub={closing.date} right={`${closingCount} ${unit}`} rightColor="text-gray-700" />
 
       <div className="border-t border-gray-200 mt-1 pt-2 flex items-center justify-between gap-4">
         <p className="text-sm font-semibold text-gray-900">
-          Variance <span className="text-xs font-normal text-gray-400">(actual − expected closing)</span>
+          {t('variance.detailVarianceLabel')} <span className="text-xs font-normal text-gray-400">{t('variance.detailVarianceSub')}</span>
         </p>
         <div className="flex items-center gap-2">
           <p className={`text-sm font-semibold tabular-nums font-mono ${variantColor}`}>
@@ -114,7 +115,7 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
         </div>
       </div>
       <p className={`text-xs mt-1 ${variantColor}`}>
-        {variance < 0 ? '▼ Loss — less stock than expected' : variance > 0 ? '▲ Surplus — more stock than expected' : '✓ Matches expectation'}
+        {variance < 0 ? t('variance.detailLoss') : variance > 0 ? t('variance.detailSurplus') : t('variance.detailMatch')}
       </p>
 
     </div>
@@ -187,7 +188,7 @@ function StoreSection({ store, issuesOnly }) {
               <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
               <th className="px-4 py-3 font-medium text-right">{t('variance.shouldHaveUsed')}</th>
               <th className="px-4 py-3 font-medium text-right">{t('variance.actuallyUsed')}</th>
-              <th className="px-4 py-3 font-medium text-right">Variance</th>
+              <th className="px-4 py-3 font-medium text-right">{t('variance.colVariance')}</th>
               <th className="px-4 py-3 font-medium"></th>
             </tr>
           </thead>
