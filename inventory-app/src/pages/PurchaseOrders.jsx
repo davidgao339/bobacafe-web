@@ -107,10 +107,19 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
   })
 
   const q = search.toLowerCase()
-  const applySort = arr => sortKey ? [...arr].sort((a, b) => {
-    const cmp = sortKey === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : a.suggested - b.suggested
-    return sortDir === 'asc' ? cmp : -cmp
-  }) : arr
+  const applySort = arr => {
+    const [withSugg, noSugg] = [arr.filter(l => l.suggested > 0), arr.filter(l => l.suggested === 0)]
+    const sort = sortKey
+      ? (a, b) => {
+          const cmp = sortKey === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : a.suggested - b.suggested
+          return sortDir === 'asc' ? cmp : -cmp
+        }
+      : null
+    return [
+      ...(sort ? [...withSugg].sort(sort) : withSugg),
+      ...(sort ? [...noSugg].sort(sort) : noSugg),
+    ]
+  }
   const inOrder    = applySort(lines.filter(l => (l.isOriginal || !initialLines) && (!q || l.name.toLowerCase().includes(q))))
   const notInOrder = initialLines ? applySort(lines.filter(l => !l.isOriginal && (!q || l.name.toLowerCase().includes(q)))) : []
 
@@ -130,7 +139,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
       <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
       <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
-      <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('suggested')}>{t('po.suggested')}{si('suggested')}</th>
+      <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('suggested')} title={t('po.applySuggested')}>{t('po.suggested')}{si('suggested')}</th>
       <th className="px-4 py-3 font-medium text-right">{t('po.orderQty')}</th>
     </tr>
   )
@@ -139,7 +148,16 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
     <tr key={l.id} className="hover:bg-gray-50">
       <td className="px-6 py-2.5 font-medium text-gray-900">{l.name}</td>
       <td className="px-4 py-2.5 text-gray-500">{l.unit}</td>
-      <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{l.suggested}</td>
+      <td className="px-4 py-2.5 text-right tabular-nums">
+        {l.suggested > 0
+          ? <button onClick={() => setQty(l.id, l.suggested)}
+              title={t('po.applySuggested')}
+              className="tabular-nums text-gray-400 hover:text-blue-600 hover:font-medium transition-colors cursor-pointer">
+              {l.suggested}
+            </button>
+          : <span className="text-gray-300">0</span>
+        }
+      </td>
       <td className="px-4 py-2.5 text-right">
         <input type="number" min="0" value={l.qty}
           onChange={e => setQty(l.id, e.target.value)}
