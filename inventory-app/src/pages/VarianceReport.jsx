@@ -15,7 +15,6 @@ function badge(pct, t) {
 // ─── Detail breakdown card ────────────────────────────────────────────────────
 
 function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) {
-  const { t } = useLanguage()
   if (!iwin) return null
 
   const { id, unit } = ingredient
@@ -34,11 +33,10 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
     .filter(s => s.store === store && s.date > from && s.date <= to)
     .reduce((sum, s) => sum + s.quantity * (config.recipes[s.product]?.[id] ?? 0), 0))
 
-  const directTxs = data.transactions.filter(t =>
-    t.store === store && Number(t.ingredientId) === id &&
-    t.type !== 'adjustment' && t.date > from && t.date <= to
-  )
-  const directUsage = r1(directTxs.reduce((sum, tx) => sum + tx.quantity, 0))
+  const directUsage = r1(data.transactions
+    .filter(tx => tx.store === store && Number(tx.ingredientId) === id &&
+      tx.type !== 'adjustment' && tx.date > from && tx.date <= to)
+    .reduce((sum, tx) => sum + tx.quantity, 0))
 
   const posInWindow = data.purchaseOrders
     .filter(po => po.store === store && po.status === 'received' &&
@@ -46,71 +44,79 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
     .map(po => ({ id: po.id, date: po.receivedDate, qty: po.lines.find(l => Number(l.ingredientId) === id)?.ordered ?? 0 }))
     .filter(po => po.qty > 0)
 
-  const totalReceived  = r1(posInWindow.reduce((sum, po) => sum + po.qty, 0))
-  const totalUsage     = r1(salesUsage + wasteUsage + directUsage)
-  const actualConsumed = r1(openingCount + totalReceived - closingCount)
-  const unexplained    = r1(actualConsumed - totalUsage)
-  const pct            = totalUsage > 0 ? Math.round(unexplained / totalUsage * 1000) / 10 : (actualConsumed > 0 ? 100 : 0)
+  const totalReceived   = r1(posInWindow.reduce((sum, po) => sum + po.qty, 0))
+  const totalAvailable  = r1(openingCount + totalReceived)
+  const totalExpected   = r1(salesUsage + wasteUsage + directUsage)
+  const expectedClosing = r1(totalAvailable - totalExpected)
 
-  const Row = ({ label, sub, right, bold, accent, border }) => (
-    <div className={`flex items-start justify-between gap-4 py-1.5 ${border ? 'border-t border-gray-100 mt-1 pt-2' : ''}`}>
+  // Positive = surplus (have more than expected), negative = loss (have less)
+  const variance = r1(closingCount - expectedClosing)
+  const pct      = totalExpected > 0 ? Math.round(variance / totalExpected * 1000) / 10 : 0
+
+  const variantColor = variance < 0 ? 'text-red-600' : variance > 0 ? 'text-green-600' : 'text-gray-500'
+  const badgeStyle   = variance < 0
+    ? 'bg-red-100 text-red-700'
+    : variance > 0 ? 'bg-green-100 text-green-700'
+    : 'bg-gray-100 text-gray-500'
+
+  const Row = ({ label, sub, right, rightColor, bold, divider }) => (
+    <div className={`flex items-start justify-between gap-4 ${divider ? 'border-t border-gray-200 pt-2 mt-1' : 'py-1'}`}>
       <div>
         <p className={`text-sm ${bold ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{label}</p>
-        {sub && <p className="text-xs text-gray-400 font-mono mt-0.5">{sub}</p>}
+        {sub && <p className="text-xs text-gray-400 font-mono">{sub}</p>}
       </div>
-      <p className={`text-sm tabular-nums font-mono whitespace-nowrap ${bold ? 'font-semibold text-gray-900' : accent ? accent : 'text-gray-700'}`}>
+      <p className={`text-sm tabular-nums font-mono whitespace-nowrap ${rightColor ?? (bold ? 'font-semibold text-gray-900' : 'text-gray-700')}`}>
         {right}
       </p>
     </div>
   )
 
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mt-1 text-sm">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+    <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mt-1 max-w-lg">
 
-        {/* Left column: stock movement */}
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Stock movement</p>
-          <Row label="Opening stock" sub={opening.date} right={`${openingCount} ${unit}`} />
-          {posInWindow.length > 0
-            ? posInWindow.map(po => (
-                <Row key={po.id} label={`+ Received (${po.id})`} sub={po.date} right={`+${po.qty} ${unit}`} accent="text-green-600" />
-              ))
-            : <Row label="+ Received" sub="none" right={`+0 ${unit}`} accent="text-gray-400" />
-          }
-          <div className="border-t border-gray-200 my-1.5" />
-          <Row label="Total available" right={`${r1(openingCount + totalReceived)} ${unit}`} bold />
-          <Row label="− Closing count" sub={closing.date} right={`−${closingCount} ${unit}`} accent="text-gray-600" />
-          <Row label="= Actually consumed" right={`${actualConsumed} ${unit}`} bold border />
-        </div>
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        Balance &nbsp;<span className="font-normal font-mono normal-case text-gray-300">{from} → {to}</span>
+      </p>
 
-        {/* Right column: expected usage */}
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-            Expected usage &nbsp;
-            <span className="text-gray-300 font-normal font-mono normal-case">{from} → {to}</span>
+      {/* Inflows */}
+      <Row label="Opening stock"  sub={opening.date} right={`+${openingCount} ${unit}`} rightColor="text-gray-700" />
+      {posInWindow.length > 0
+        ? posInWindow.map(po => (
+            <Row key={po.id} label={`+ Received (${po.id})`} sub={po.date}
+              right={`+${po.qty} ${unit}`} rightColor="text-green-600" />
+          ))
+        : <Row label="+ Received" sub="none" right={`+0 ${unit}`} rightColor="text-gray-400" />
+      }
+      <Row label="Total available" right={`${totalAvailable} ${unit}`} bold divider />
+
+      {/* Expected consumption */}
+      <Row label="− Sales × recipe"    right={`−${salesUsage} ${unit}`}   rightColor={salesUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
+      <Row label="− Non-Fiscal waste"  right={`−${wasteUsage} ${unit}`}   rightColor={wasteUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
+      <Row label="− Direct write-offs" right={`−${directUsage} ${unit}`}  rightColor={directUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
+      <Row label="Expected closing balance" right={`${expectedClosing} ${unit}`} bold divider />
+
+      {/* Actual vs expected */}
+      <Row label="Actual closing" sub={closing.date} right={`${closingCount} ${unit}`} rightColor="text-gray-700" />
+
+      <div className="border-t border-gray-200 mt-1 pt-2 flex items-center justify-between gap-4">
+        <p className="text-sm font-semibold text-gray-900">
+          Variance <span className="text-xs font-normal text-gray-400">(actual − expected closing)</span>
+        </p>
+        <div className="flex items-center gap-2">
+          <p className={`text-sm font-semibold tabular-nums font-mono ${variantColor}`}>
+            {variance > 0 ? '+' : ''}{variance} {unit}
           </p>
-          <Row label="Sales × recipe"    right={`${salesUsage} ${unit}`}  accent={salesUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
-          <Row label="Non-Fiscal waste"  right={`${wasteUsage} ${unit}`}  accent={wasteUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
-          <Row label="Direct write-offs" right={`${directUsage} ${unit}`} accent={directUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
-          <Row label="= Should have used" right={`${totalUsage} ${unit}`} bold border />
-
-          <div className={`mt-3 pt-3 border-t border-gray-200 flex items-center justify-between`}>
-            <p className="text-sm font-semibold text-gray-700">Unexplained</p>
-            <div className="flex items-center gap-2">
-              <p className={`text-sm font-semibold tabular-nums font-mono ${unexplained > 0 ? 'text-red-600' : unexplained < 0 ? 'text-blue-600' : 'text-green-600'}`}>
-                {unexplained > 0 ? '+' : ''}{unexplained} {unit}
-              </p>
-              {totalUsage > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge(pct, () => '').style}`}>
-                  {pct > 0 ? '+' : ''}{pct}%
-                </span>
-              )}
-            </div>
-          </div>
+          {totalExpected > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badgeStyle}`}>
+              {pct > 0 ? '+' : ''}{pct}%
+            </span>
+          )}
         </div>
-
       </div>
+      <p className={`text-xs mt-1 ${variantColor}`}>
+        {variance < 0 ? '▼ Loss — less stock than expected' : variance > 0 ? '▲ Surplus — more stock than expected' : '✓ Matches expectation'}
+      </p>
+
     </div>
   )
 }
