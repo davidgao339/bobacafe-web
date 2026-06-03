@@ -101,9 +101,12 @@ function CountTab({ store, setStore, date, setDate }) {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto mb-6">
        <div className="min-w-[480px]">
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-5 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
           <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
             {t('common.ingredient')}{si('name')}
+          </span>
+          <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('supplier')}>
+            Supplier{si('supplier')}
           </span>
           <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
             {t('audit.prevCount')}{si('prev')}{' '}
@@ -120,10 +123,15 @@ function CountTab({ store, setStore, date, setDate }) {
           )
         }
         {(() => {
-          const filtered = config.ingredients.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+          const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
+          const filtered = config.ingredients.filter(p =>
+            !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+            suppName(p).toLowerCase().includes(search.toLowerCase())
+          )
           const sorted = sortKey ? [...filtered].sort((a, b) => {
             let cmp = 0
-            if (sortKey === 'name') cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+            if (sortKey === 'name')     cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+            if (sortKey === 'supplier') cmp = suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' })
             if (sortKey === 'prev') {
               const pa = lastAudit?.counts[a.id] ?? -1, pb = lastAudit?.counts[b.id] ?? -1
               cmp = pa - pb
@@ -138,10 +146,13 @@ function CountTab({ store, setStore, date, setDate }) {
 
           return (
             <div key={product.id}
-              className={`px-6 py-4 grid grid-cols-4 gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
+              className={`px-6 py-4 grid grid-cols-5 gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
               <div className="col-span-2">
                 <p className="font-medium text-gray-900 text-sm">{product.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
+              </div>
+              <div className="text-xs text-gray-500 truncate">
+                {suppName(product) || <span className="text-gray-300">—</span>}
               </div>
               <div className="text-sm text-gray-700 tabular-nums">
                 {prev} <span className="text-gray-400 text-xs">{prev !== '—' ? product.unit : ''}</span>
