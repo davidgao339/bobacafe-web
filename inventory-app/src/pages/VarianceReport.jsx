@@ -6,10 +6,10 @@ import { STORES } from '../data/fakeData'
 const r1 = n => Math.round(n * 10) / 10
 
 function badge(pct, t) {
-  if (pct > 10) return { style: 'bg-red-100 text-red-700',    label: t('variance.high') }
-  if (pct > 5)  return { style: 'bg-amber-100 text-amber-700', label: t('variance.medium') }
-  if (pct < 0)  return { style: 'bg-blue-100 text-blue-700',   label: t('variance.surplus') }
-  return              { style: 'bg-green-100 text-green-700',  label: t('variance.ok') }
+  if (pct < -10) return { style: 'bg-red-100 text-red-700',    label: t('variance.high') }
+  if (pct < -5)  return { style: 'bg-amber-100 text-amber-700', label: t('variance.medium') }
+  if (pct > 5)   return { style: 'bg-blue-100 text-blue-700',   label: t('variance.surplus') }
+  return               { style: 'bg-green-100 text-green-700',  label: t('variance.ok') }
 }
 
 // ─── Detail breakdown card ────────────────────────────────────────────────────
@@ -134,13 +134,15 @@ function StoreSection({ store, issuesOnly }) {
 
   const rows = config.ingredients
     .map(p => {
-      const iwin     = getIngredientVarianceWindow(store, p.id)
-      const expected = getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id)
-      const actual   = getActualConsumed(store, p.id)
-      const lost     = getUnexplainedVariance(store, p.id)
-      const pct = actual === null ? 0
-        : expected > 0 ? getVariancePct(store, p.id)
-        : actual > 0 ? 100 : 0
+      const iwin       = getIngredientVarianceWindow(store, p.id)
+      const expected   = getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id)
+      const actual     = getActualConsumed(store, p.id)
+      const rawVariance = getUnexplainedVariance(store, p.id)  // positive = loss (old convention)
+      // Flip sign: negative = loss, positive = surplus
+      const lost = rawVariance !== null ? r1(-rawVariance) : null
+      const pct  = actual === null ? 0
+        : expected > 0 ? -getVariancePct(store, p.id)
+        : actual > 0 ? -100 : 0
       return {
         id: p.id, name: p.name, unit: p.unit, expected, actual, lost, pct,
         openDate:  iwin?.opening.date ?? null,
@@ -149,10 +151,10 @@ function StoreSection({ store, issuesOnly }) {
       }
     })
     .filter(r => r.actual !== null && (r.expected > 0 || r.actual > 0))
-    .sort((a, b) => b.pct - a.pct)
+    .sort((a, b) => a.pct - b.pct)   // most negative (worst loss) first
 
-  const visibleRows = issuesOnly ? rows.filter(r => r.pct > 5) : rows
-  const hasIssues   = rows.some(r => r.pct > 5)
+  const visibleRows = issuesOnly ? rows.filter(r => r.pct < -5) : rows
+  const hasIssues   = rows.some(r => r.pct < -5)
 
   if (!win) {
     return (
@@ -185,7 +187,7 @@ function StoreSection({ store, issuesOnly }) {
               <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
               <th className="px-4 py-3 font-medium text-right">{t('variance.shouldHaveUsed')}</th>
               <th className="px-4 py-3 font-medium text-right">{t('variance.actuallyUsed')}</th>
-              <th className="px-4 py-3 font-medium text-right">{t('variance.unexplainedLoss')}</th>
+              <th className="px-4 py-3 font-medium text-right">Variance</th>
               <th className="px-4 py-3 font-medium"></th>
             </tr>
           </thead>
@@ -197,7 +199,7 @@ function StoreSection({ store, issuesOnly }) {
               : visibleRows.map(r => {
                   const b        = badge(r.pct, t)
                   const isOpen   = expanded === r.id
-                  const rowBg    = isOpen ? 'bg-blue-50' : r.pct > 10 ? 'bg-red-50/40' : r.pct > 5 ? 'bg-amber-50/30' : ''
+                  const rowBg    = isOpen ? 'bg-blue-50' : r.pct < -10 ? 'bg-red-50/40' : r.pct < -5 ? 'bg-amber-50/30' : ''
                   return (
                     <Fragment key={r.id}>
                       <tr
@@ -221,8 +223,10 @@ function StoreSection({ store, issuesOnly }) {
                           {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">{t('variance.noRecipeSales')}</span>}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums text-gray-800 font-medium">{r.actual} {r.unit}</td>
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">
-                          {r.lost > 0 ? `+${r.lost} ${r.unit}` : r.lost < 0 ? `${r.lost} ${r.unit}` : '—'}
+                        <td className={`px-4 py-3 text-right tabular-nums font-semibold ${
+                          r.lost < 0 ? 'text-red-600' : r.lost > 0 ? 'text-green-600' : 'text-gray-400'
+                        }`}>
+                          {r.lost < 0 ? `${r.lost} ${r.unit}` : r.lost > 0 ? `+${r.lost} ${r.unit}` : '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {r.expected === 0 && r.actual > 0
