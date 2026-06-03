@@ -444,9 +444,16 @@ function ImportTab() {
 
   const downloadTemplate = () => {
     const today = new Date().toISOString().slice(0, 10)
+    const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
     const rows = [
-      ['store', 'date', 'ingredient', 'unit', 'qty'],
-      ...config.ingredients.map(i => [STORES[0], today, i.name, i.unit, '']),
+      ['store', 'date', 'ingredient', 'unit', 'supplier', 'qty'],
+      ...[...config.ingredients]
+        .sort((a, b) => {
+          const sa = suppName(a), sb = suppName(b)
+          if (sa !== sb) return sa.localeCompare(sb)
+          return a.name.localeCompare(b.name)
+        })
+        .map(i => [STORES[0], today, i.name, i.unit, suppName(i), '']),
     ]
     const csv = rows.map(r => r.map(csvEsc).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
