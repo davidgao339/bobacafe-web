@@ -71,14 +71,16 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
         {/* Left column: stock movement */}
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Stock movement</p>
-          <Row label="Opening" sub={opening.date} right={`${openingCount} ${unit}`} />
+          <Row label="Opening stock" sub={opening.date} right={`${openingCount} ${unit}`} />
           {posInWindow.length > 0
             ? posInWindow.map(po => (
                 <Row key={po.id} label={`+ Received (${po.id})`} sub={po.date} right={`+${po.qty} ${unit}`} accent="text-green-600" />
               ))
-            : <Row label="+ Received" sub="—" right={`0 ${unit}`} accent="text-gray-400" />
+            : <Row label="+ Received" sub="none" right={`+0 ${unit}`} accent="text-gray-400" />
           }
-          <Row label="Closing" sub={closing.date} right={`${closingCount} ${unit}`} />
+          <div className="border-t border-gray-200 my-1.5" />
+          <Row label="Total available" right={`${r1(openingCount + totalReceived)} ${unit}`} bold />
+          <Row label="− Closing count" sub={closing.date} right={`−${closingCount} ${unit}`} accent="text-gray-600" />
           <Row label="= Actually consumed" right={`${actualConsumed} ${unit}`} bold border />
         </div>
 
