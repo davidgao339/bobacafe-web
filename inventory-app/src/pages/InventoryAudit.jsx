@@ -198,15 +198,44 @@ function CountTab({ store, setStore, date, setDate }) {
 // ─── History tab ──────────────────────────────────────────────────────────────
 
 function HistoryTab() {
-  const { config, data, deleteAudit } = useConfig()
+  const { config, data, deleteAudit, updateAudit } = useConfig()
   const { t } = useLanguage()
   const [historyStore,  setHistoryStore]  = useState('All')
   const [expanded,      setExpanded]      = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [editingId,     setEditingId]     = useState(null)
+  const [editCounts,    setEditCounts]    = useState({}) // { ingredientId: string | null }
+  const [editSearch,    setEditSearch]    = useState('')
 
   const audits = [...data.audits]
     .filter(a => historyStore === 'All' || a.store === historyStore)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+
+  const startEdit = (audit) => {
+    // Pre-fill with existing counts as strings; null = will be removed on save
+    const draft = {}
+    Object.entries(audit.counts).forEach(([id, val]) => { draft[id] = String(val) })
+    setEditCounts(draft)
+    setEditingId(audit.id)
+    setEditSearch('')
+  }
+
+  const cancelEdit = () => { setEditingId(null); setEditCounts({}); setEditSearch('') }
+
+  const saveEdit = (auditId) => {
+    const newCounts = {}
+    Object.entries(editCounts).forEach(([id, val]) => {
+      if (val !== '' && val !== null) {
+        const num = parseFloat(val)
+        if (!isNaN(num)) newCounts[Number(id)] = Math.max(0, num)
+      }
+    })
+    updateAudit(auditId, newCounts)
+    cancelEdit()
+  }
+
+  const setIngVal = (id, val) => setEditCounts(prev => ({ ...prev, [id]: val }))
+  const removeIng = (id) => setEditCounts(prev => { const n = { ...prev }; delete n[id]; return n })
 
   return (
     <>
@@ -214,7 +243,7 @@ function HistoryTab() {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
           <select value={historyStore}
-            onChange={e => { setHistoryStore(e.target.value); setExpanded(null); setPendingDelete(null) }}
+            onChange={e => { setHistoryStore(e.target.value); setExpanded(null); setPendingDelete(null); cancelEdit() }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option value="All">{t('common.allStores')}</option>
             {STORES.map(s => <option key={s}>{s}</option>)}
@@ -238,58 +267,110 @@ function HistoryTab() {
                 <th className="px-4 py-3 font-medium">{t('common.date')}</th>
                 <th className="px-4 py-3 font-medium">{t('common.store')}</th>
                 <th className="px-4 py-3 font-medium text-right">{t('audit.colCounted')}</th>
-                <th className="px-4 py-3 font-medium w-48"></th>
+                <th className="px-4 py-3 font-medium w-52"></th>
               </tr>
             </thead>
             <tbody>
               {audits.map(audit => {
                 const isExpanded = expanded === audit.id
                 const isPending  = pendingDelete === audit.id
+                const isEditing  = editingId === audit.id
                 const counted    = Object.keys(audit.counts).length
 
                 return (
                   <Fragment key={audit.id}>
                     <tr
-                      onClick={() => { if (!isPending) setExpanded(prev => prev === audit.id ? null : audit.id) }}
-                      className={`border-b border-gray-50 cursor-pointer transition-colors ${isExpanded ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                      onClick={() => { if (!isPending && !isEditing) setExpanded(prev => prev === audit.id ? null : audit.id) }}
+                      className={`border-b border-gray-50 cursor-pointer transition-colors ${isExpanded || isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-6 py-3 font-mono text-xs text-gray-400">{audit.id}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{audit.date}</td>
                       <td className="px-4 py-3 text-gray-700">{audit.store}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">
-                        {counted}
+                        {isEditing
+                          ? <span className="text-blue-600">{Object.keys(editCounts).length}</span>
+                          : counted}
                         <span className="text-gray-400 text-xs"> / {config.ingredients.length}</span>
                       </td>
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                         {isPending ? (
                           <div className="flex items-center justify-end gap-2">
                             <span className="text-xs text-red-600">{t('audit.deleteThisAudit')}</span>
-                            <button
-                              onClick={() => {
-                                deleteAudit(audit.id)
-                                setPendingDelete(null)
-                                if (expanded === audit.id) setExpanded(null)
-                              }}
-                              className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">
-                              {t('common.yes')}
-                            </button>
+                            <button onClick={() => { deleteAudit(audit.id); setPendingDelete(null); if (expanded === audit.id) setExpanded(null) }}
+                              className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
                             <button onClick={() => setPendingDelete(null)}
-                              className="text-xs text-gray-500 hover:text-gray-700">
-                              {t('common.no')}
-                            </button>
+                              className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
+                          </div>
+                        ) : isEditing ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => saveEdit(audit.id)}
+                              className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700">{t('common.save')}</button>
+                            <button onClick={cancelEdit}
+                              className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                           </div>
                         ) : (
-                          <button onClick={() => setPendingDelete(audit.id)}
-                            className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                            {t('common.delete')}
-                          </button>
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={e => { e.stopPropagation(); startEdit(audit); setExpanded(audit.id) }}
+                              className="text-xs text-blue-500 hover:text-blue-700 transition-colors">{t('common.edit')}</button>
+                            <button onClick={() => setPendingDelete(audit.id)}
+                              className="text-xs text-red-400 hover:text-red-600 transition-colors">{t('common.delete')}</button>
+                          </div>
                         )}
                       </td>
                     </tr>
 
-                    {isExpanded && (
-                      <tr className="bg-blue-50 border-b border-blue-100">
+                    {(isExpanded || isEditing) && (
+                      <tr className={`border-b ${isEditing ? 'bg-blue-50 border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
                         <td colSpan={5} className="px-6 py-4">
-                          {counted === 0 ? (
+                          {isEditing ? (
+                            <>
+                              <p className="text-xs text-blue-700 font-medium mb-3">
+                                Edit counts — clear a value or click ✕ to remove it entirely
+                              </p>
+                              {/* Search within edit mode */}
+                              <div className="relative mb-3 max-w-xs">
+                                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input type="text" placeholder={t('audit.filterPlaceholder')} value={editSearch}
+                                  onChange={e => setEditSearch(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                {/* Counted ingredients (in draft) */}
+                                {config.ingredients
+                                  .filter(ing => ing.id in editCounts)
+                                  .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
+                                  .map(ing => (
+                                    <div key={ing.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="text-gray-500 truncate flex-1">{ing.name}</p>
+                                        <button onClick={() => removeIng(ing.id)}
+                                          className="text-gray-300 hover:text-red-400 ml-1 flex-shrink-0">✕</button>
+                                      </div>
+                                      <input type="number" min="0" step="0.1"
+                                        value={editCounts[ing.id] ?? ''}
+                                        onChange={e => setIngVal(ing.id, e.target.value)}
+                                        className="w-full border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
+                                      <span className="text-gray-400 text-xs">{ing.unit}</span>
+                                    </div>
+                                  ))
+                                }
+                                {/* Uncounted ingredients — can add */}
+                                {config.ingredients
+                                  .filter(ing => !(ing.id in editCounts))
+                                  .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
+                                  .map(ing => (
+                                    <div key={ing.id} className="bg-white rounded-lg px-3 py-2 border border-dashed border-gray-200 text-xs opacity-60 hover:opacity-100 transition-opacity">
+                                      <p className="text-gray-400 truncate mb-1">{ing.name}</p>
+                                      <input type="number" min="0" step="0.1" placeholder="—"
+                                        value=""
+                                        onChange={e => { if (e.target.value !== '') setIngVal(ing.id, e.target.value) }}
+                                        className="w-full border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
+                                      <span className="text-gray-400 text-xs">{ing.unit}</span>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            </>
+                          ) : counted === 0 ? (
                             <p className="text-sm text-gray-400">{t('audit.noCountsRecorded')}</p>
                           ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
