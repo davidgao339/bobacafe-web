@@ -12,20 +12,25 @@ function badge(pct, t) {
 
 function StoreSection({ store, issuesOnly }) {
   const { config } = useConfig()
-  const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance, getVariancePct, getVarianceWindow } = useCalcs()
+  const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance, getVariancePct, getVarianceWindow, getIngredientVarianceWindow } = useCalcs()
   const { t } = useLanguage()
 
   const win = getVarianceWindow(store)
 
   const rows = config.ingredients
     .map(p => {
+      const iwin     = getIngredientVarianceWindow(store, p.id)
       const expected = getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id)
       const actual   = getActualConsumed(store, p.id)
       const lost     = getUnexplainedVariance(store, p.id)
       const pct = actual === null ? 0
         : expected > 0 ? getVariancePct(store, p.id)
         : actual > 0 ? 100 : 0
-      return { id: p.id, name: p.name, unit: p.unit, expected, actual, lost, pct }
+      return {
+        id: p.id, name: p.name, unit: p.unit, expected, actual, lost, pct,
+        openDate:  iwin?.opening.date ?? null,
+        closeDate: iwin?.closing.date ?? null,
+      }
     })
     .filter(r => r.actual !== null && (r.expected > 0 || r.actual > 0))
     .sort((a, b) => b.pct - a.pct)
@@ -51,7 +56,7 @@ function StoreSection({ store, issuesOnly }) {
       <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-gray-900">{store}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{win.opening.date} → {win.closing.date}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t('variance.perIngredientWindow')}</p>
         </div>
         {hasIssues
           ? <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">{t('variance.lossesToReview')}</span>
@@ -78,7 +83,12 @@ function StoreSection({ store, issuesOnly }) {
                 const b = badge(r.pct, t)
                 return (
                   <tr key={r.id} className={r.pct > 10 ? 'bg-red-50/40' : r.pct > 5 ? 'bg-amber-50/30' : ''}>
-                    <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
+                    <td className="px-6 py-3">
+                      <p className="font-medium text-gray-900">{r.name}</p>
+                      {r.openDate && r.closeDate && (
+                        <p className="text-xs text-gray-400 mt-0.5 font-mono">{r.openDate} → {r.closeDate}</p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-500">
                       {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">{t('variance.noRecipeSales')}</span>}
                     </td>

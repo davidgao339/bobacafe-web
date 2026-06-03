@@ -289,6 +289,7 @@ const en = {
   'variance.surplus':         'Surplus?',
   'variance.noData':          'No data for this store',
   'variance.noIssues':        'No issues found',
+  'variance.perIngredientWindow': 'Each row uses its own audit window',
   'variance.footer':          '"Should have used" = sales × recipe + waste logged between the two most recent audits per store. Any gap is unexplained — possible causes: over-pouring, unrecorded spills, or measurement error during stock count.',
 }
 
