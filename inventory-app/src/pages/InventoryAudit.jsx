@@ -61,6 +61,7 @@ function CountTab({ store, setStore, date, setDate }) {
 
   const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
   const anyFilled = config.ingredients.some(p => getValue(p.id) !== '')
+  const suppName  = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
 
   return (
     <>
@@ -123,7 +124,6 @@ function CountTab({ store, setStore, date, setDate }) {
           )
         }
         {(() => {
-          const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
           const filtered = config.ingredients.filter(p =>
             !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
             suppName(p).toLowerCase().includes(search.toLowerCase())
