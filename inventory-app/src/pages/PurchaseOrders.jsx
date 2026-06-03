@@ -616,7 +616,7 @@ export default function PurchaseOrders() {
                                     className="px-2.5 py-1 text-red-400 text-xs hover:text-red-600">{t('common.delete')}</button>
                                 </>}
                                 {po.status === 'sent' && <>
-                                  <button onClick={e => requestConfirm(po.id, 'receive', e)}
+                                  <button onClick={e => startReceive(po, e)}
                                     className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700">{t('po.markReceived')}</button>
                                   <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
                                     className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertDraft')}</button>
