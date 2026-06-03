@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { STORES } from '../data/fakeData'
+
+const r1 = n => Math.round(n * 10) / 10
 
 function badge(pct, t) {
   if (pct > 10) return { style: 'bg-red-100 text-red-700',    label: t('variance.high') }
@@ -10,10 +12,115 @@ function badge(pct, t) {
   return              { style: 'bg-green-100 text-green-700',  label: t('variance.ok') }
 }
 
-function StoreSection({ store, issuesOnly }) {
-  const { config } = useConfig()
-  const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance, getVariancePct, getVarianceWindow, getIngredientVarianceWindow } = useCalcs()
+// ─── Detail breakdown card ────────────────────────────────────────────────────
+
+function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) {
   const { t } = useLanguage()
+  if (!iwin) return null
+
+  const { id, unit } = ingredient
+  const { opening, closing } = iwin
+  const from = opening.date
+  const to   = closing.date
+
+  const openingCount = opening.counts[id] ?? 0
+  const closingCount = closing.counts[id] ?? 0
+
+  const salesUsage = r1([...sales]
+    .filter(s => s.store === store && s.date > from && s.date <= to)
+    .reduce((sum, s) => sum + s.quantity * (config.recipes[s.product]?.[id] ?? 0), 0))
+
+  const wasteUsage = r1([...posWaste]
+    .filter(s => s.store === store && s.date > from && s.date <= to)
+    .reduce((sum, s) => sum + s.quantity * (config.recipes[s.product]?.[id] ?? 0), 0))
+
+  const directTxs = data.transactions.filter(t =>
+    t.store === store && Number(t.ingredientId) === id &&
+    t.type !== 'adjustment' && t.date > from && t.date <= to
+  )
+  const directUsage = r1(directTxs.reduce((sum, tx) => sum + tx.quantity, 0))
+
+  const posInWindow = data.purchaseOrders
+    .filter(po => po.store === store && po.status === 'received' &&
+      (po.receivedDate ?? '') > from && (po.receivedDate ?? '') <= to)
+    .map(po => ({ id: po.id, date: po.receivedDate, qty: po.lines.find(l => Number(l.ingredientId) === id)?.ordered ?? 0 }))
+    .filter(po => po.qty > 0)
+
+  const totalReceived  = r1(posInWindow.reduce((sum, po) => sum + po.qty, 0))
+  const totalUsage     = r1(salesUsage + wasteUsage + directUsage)
+  const actualConsumed = r1(openingCount + totalReceived - closingCount)
+  const unexplained    = r1(actualConsumed - totalUsage)
+  const pct            = totalUsage > 0 ? Math.round(unexplained / totalUsage * 1000) / 10 : (actualConsumed > 0 ? 100 : 0)
+
+  const Row = ({ label, sub, right, bold, accent, border }) => (
+    <div className={`flex items-start justify-between gap-4 py-1.5 ${border ? 'border-t border-gray-100 mt-1 pt-2' : ''}`}>
+      <div>
+        <p className={`text-sm ${bold ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{label}</p>
+        {sub && <p className="text-xs text-gray-400 font-mono mt-0.5">{sub}</p>}
+      </div>
+      <p className={`text-sm tabular-nums font-mono whitespace-nowrap ${bold ? 'font-semibold text-gray-900' : accent ? accent : 'text-gray-700'}`}>
+        {right}
+      </p>
+    </div>
+  )
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mt-1 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+        {/* Left column: stock movement */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Stock movement</p>
+          <Row label="Opening" sub={opening.date} right={`${openingCount} ${unit}`} />
+          {posInWindow.length > 0
+            ? posInWindow.map(po => (
+                <Row key={po.id} label={`+ Received (${po.id})`} sub={po.date} right={`+${po.qty} ${unit}`} accent="text-green-600" />
+              ))
+            : <Row label="+ Received" sub="—" right={`0 ${unit}`} accent="text-gray-400" />
+          }
+          <Row label="Closing" sub={closing.date} right={`${closingCount} ${unit}`} />
+          <Row label="= Actually consumed" right={`${actualConsumed} ${unit}`} bold border />
+        </div>
+
+        {/* Right column: expected usage */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            Expected usage &nbsp;
+            <span className="text-gray-300 font-normal font-mono normal-case">{from} → {to}</span>
+          </p>
+          <Row label="Sales × recipe"    right={`${salesUsage} ${unit}`}  accent={salesUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
+          <Row label="Non-Fiscal waste"  right={`${wasteUsage} ${unit}`}  accent={wasteUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
+          <Row label="Direct write-offs" right={`${directUsage} ${unit}`} accent={directUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
+          <Row label="= Should have used" right={`${totalUsage} ${unit}`} bold border />
+
+          <div className={`mt-3 pt-3 border-t border-gray-200 flex items-center justify-between`}>
+            <p className="text-sm font-semibold text-gray-700">Unexplained</p>
+            <div className="flex items-center gap-2">
+              <p className={`text-sm font-semibold tabular-nums font-mono ${unexplained > 0 ? 'text-red-600' : unexplained < 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                {unexplained > 0 ? '+' : ''}{unexplained} {unit}
+              </p>
+              {totalUsage > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge(pct, () => '').style}`}>
+                  {pct > 0 ? '+' : ''}{pct}%
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ─── Store section ────────────────────────────────────────────────────────────
+
+function StoreSection({ store, issuesOnly }) {
+  const { config, data, sales, posWaste } = useConfig()
+  const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance,
+          getVariancePct, getVarianceWindow, getIngredientVarianceWindow } = useCalcs()
+  const { t } = useLanguage()
+  const [expanded, setExpanded] = useState(null)
 
   const win = getVarianceWindow(store)
 
@@ -30,14 +137,14 @@ function StoreSection({ store, issuesOnly }) {
         id: p.id, name: p.name, unit: p.unit, expected, actual, lost, pct,
         openDate:  iwin?.opening.date ?? null,
         closeDate: iwin?.closing.date ?? null,
+        iwin,
       }
     })
     .filter(r => r.actual !== null && (r.expected > 0 || r.actual > 0))
     .sort((a, b) => b.pct - a.pct)
 
   const visibleRows = issuesOnly ? rows.filter(r => r.pct > 5) : rows
-
-  const hasIssues = rows.some(r => r.pct > 5)
+  const hasIssues   = rows.some(r => r.pct > 5)
 
   if (!win) {
     return (
@@ -64,56 +171,88 @@ function StoreSection({ store, issuesOnly }) {
         }
       </div>
       <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
-            <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
-            <th className="px-4 py-3 font-medium text-right">{t('variance.shouldHaveUsed')}</th>
-            <th className="px-4 py-3 font-medium text-right">{t('variance.actuallyUsed')}</th>
-            <th className="px-4 py-3 font-medium text-right">{t('variance.unexplainedLoss')}</th>
-            <th className="px-4 py-3 font-medium"></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {visibleRows.length === 0
-            ? <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-400 text-sm">
-                {rows.length === 0 ? t('variance.noData') : t('variance.noIssues')}
-              </td></tr>
-            : visibleRows.map(r => {
-                const b = badge(r.pct, t)
-                return (
-                  <tr key={r.id} className={r.pct > 10 ? 'bg-red-50/40' : r.pct > 5 ? 'bg-amber-50/30' : ''}>
-                    <td className="px-6 py-3">
-                      <p className="font-medium text-gray-900">{r.name}</p>
-                      {r.openDate && r.closeDate && (
-                        <p className="text-xs text-gray-400 mt-0.5 font-mono">{r.openDate} → {r.closeDate}</p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
+              <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
+              <th className="px-4 py-3 font-medium text-right">{t('variance.shouldHaveUsed')}</th>
+              <th className="px-4 py-3 font-medium text-right">{t('variance.actuallyUsed')}</th>
+              <th className="px-4 py-3 font-medium text-right">{t('variance.unexplainedLoss')}</th>
+              <th className="px-4 py-3 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.length === 0
+              ? <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-400 text-sm">
+                  {rows.length === 0 ? t('variance.noData') : t('variance.noIssues')}
+                </td></tr>
+              : visibleRows.map(r => {
+                  const b        = badge(r.pct, t)
+                  const isOpen   = expanded === r.id
+                  const rowBg    = isOpen ? 'bg-blue-50' : r.pct > 10 ? 'bg-red-50/40' : r.pct > 5 ? 'bg-amber-50/30' : ''
+                  return (
+                    <Fragment key={r.id}>
+                      <tr
+                        onClick={() => setExpanded(prev => prev === r.id ? null : r.id)}
+                        className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/50 transition-colors ${rowBg}`}>
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <svg className={`w-3 h-3 text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+                            </svg>
+                            <div>
+                              <p className="font-medium text-gray-900">{r.name}</p>
+                              {r.openDate && r.closeDate && (
+                                <p className="text-xs text-gray-400 mt-0.5 font-mono">{r.openDate} → {r.closeDate}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-500">
+                          {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">{t('variance.noRecipeSales')}</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-800 font-medium">{r.actual} {r.unit}</td>
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">
+                          {r.lost > 0 ? `+${r.lost} ${r.unit}` : r.lost < 0 ? `${r.lost} ${r.unit}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {r.expected === 0 && r.actual > 0
+                            ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{t('variance.noRecipeSales')}</span>
+                            : <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${b.style}`}>
+                                {r.pct !== 0 ? `${r.pct > 0 ? '+' : ''}${r.pct}% ${b.label}` : b.label}
+                              </span>
+                          }
+                        </td>
+                      </tr>
+
+                      {isOpen && (
+                        <tr className="bg-blue-50/30 border-b border-blue-100">
+                          <td colSpan={5} className="px-6 pb-5 pt-1">
+                            <DetailCard
+                              store={store}
+                              ingredient={{ id: r.id, name: r.name, unit: r.unit }}
+                              iwin={r.iwin}
+                              config={config}
+                              data={data}
+                              sales={sales}
+                              posWaste={posWaste}
+                            />
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-500">
-                      {r.expected > 0 ? `${r.expected} ${r.unit}` : <span className="text-gray-300">{t('variance.noRecipeSales')}</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-800 font-medium">{r.actual} {r.unit}</td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">
-                      {r.lost > 0 ? `+${r.lost} ${r.unit}` : r.lost < 0 ? `${r.lost} ${r.unit}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {r.expected === 0 && r.actual > 0
-                        ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{t('variance.noRecipeSales')}</span>
-                        : <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${b.style}`}>
-                            {r.pct !== 0 ? `${r.pct > 0 ? '+' : ''}${r.pct}% ${b.label}` : b.label}
-                          </span>
-                      }
-                    </td>
-                  </tr>
-                )
-              })
-          }
-        </tbody>
-      </table>
+                    </Fragment>
+                  )
+                })
+            }
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VarianceReport() {
   const [store,      setStore]      = useState('All')
@@ -126,9 +265,7 @@ export default function VarianceReport() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('variance.title')}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {t('variance.subtitle')}
-          </p>
+          <p className="text-sm text-gray-500 mt-0.5">{t('variance.subtitle')}</p>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none mt-1">
           <input type="checkbox" checked={issuesOnly} onChange={e => setIssuesOnly(e.target.checked)}
@@ -153,9 +290,7 @@ export default function VarianceReport() {
 
       {visibleStores.map(s => <StoreSection key={s} store={s} issuesOnly={issuesOnly} />)}
 
-      <p className="text-xs text-gray-400 mt-2">
-        {t('variance.footer')}
-      </p>
+      <p className="text-xs text-gray-400 mt-2">{t('variance.footer')}</p>
     </div>
   )
 }
