@@ -411,7 +411,7 @@ export function useCalcs() {
       // Use >= so a PO received on the same day as the audit is still counted
       const poSince = data.purchaseOrders
         .filter(po => po.store === store && po.status === 'received' && (po.receivedDate ?? '') >= cut)
-        .reduce((sum, po) => sum + (po.lines.find(l => l.ingredientId === ingredientId)?.ordered ?? 0), 0)
+        .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
       return r1(base - salesSince + txSince + poSince)
     }
 
@@ -447,7 +447,7 @@ export function useCalcs() {
         .filter(po => po.store === store && po.status === 'received'
           && (po.receivedDate ?? '') > win.opening.date
           && (po.receivedDate ?? '') <= win.closing.date)
-        .reduce((sum, po) => sum + (po.lines.find(l => l.ingredientId === ingredientId)?.ordered ?? 0), 0)
+        .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
       return r1(opening - closing + poInWindow)
     }
     const getUnexplainedVariance = (store, ingredientId) => {

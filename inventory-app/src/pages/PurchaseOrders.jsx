@@ -331,12 +331,15 @@ export default function PurchaseOrders() {
   const ingredientName = (id) => config.ingredients.find(p => p.id === id)?.name ?? '—'
   const ingredientUnit = (id) => config.ingredients.find(p => p.id === id)?.unit ?? ''
 
-  const [expanded,  setExpanded]  = useState(null)
-  const [creating,  setCreating]  = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [confirm,   setConfirm]   = useState(null) // { poId, action }
-  const [filter,    setFilter]    = useState('all')
-  const [search,    setSearch]    = useState('')
+  const [expanded,    setExpanded]    = useState(null)
+  const [creating,    setCreating]    = useState(false)
+  const [editingId,   setEditingId]   = useState(null)
+  const [confirm,     setConfirm]     = useState(null)
+  const [filter,      setFilter]      = useState('all')
+  const [search,      setSearch]      = useState('')
+  const [receiveId,   setReceiveId]   = useState(null)
+  const [receiveDate, setReceiveDate] = useState(TODAY)
+  const [receiveQtys, setReceiveQtys] = useState({})
 
   const pos    = data.purchaseOrders
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
@@ -351,10 +354,32 @@ export default function PurchaseOrders() {
   })
   const count    = (s) => s === 'all' ? pos.length : pos.filter(p => p.status === s).length
 
+  const cancelReceive = () => { setReceiveId(null); setReceiveQtys({}) }
+
+  const startReceive = (po, e) => {
+    e.stopPropagation()
+    const qtys = {}
+    po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(l.ordered) })
+    setReceiveId(po.id); setReceiveDate(TODAY); setReceiveQtys(qtys)
+    setExpanded(po.id); setConfirm(null)
+  }
+
+  const confirmReceive = (po) => {
+    const updatedLines = po.lines.map(l => ({
+      ...l,
+      received: receiveQtys[l.ingredientId] !== undefined
+        ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0)
+        : l.ordered,
+    }))
+    updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, lines: updatedLines })
+    cancelReceive()
+  }
+
   const toggle = (id) => {
     setExpanded(prev => prev === id ? null : id)
     setConfirm(null)
     if (editingId === id) setEditingId(null)
+    if (receiveId === id) cancelReceive()
   }
 
   const requestConfirm = (poId, action, e) => {
@@ -489,7 +514,7 @@ export default function PurchaseOrders() {
                             className="px-3 py-1.5 text-red-400 text-xs">{t('common.delete')}</button>
                         </>}
                         {po.status === 'sent' && <>
-                          <button onClick={e => requestConfirm(po.id, 'receive', e)}
+                          <button onClick={e => startReceive(po, e)}
                             className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg">{t('po.markReceived')}</button>
                           <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
                             className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.revertDraft')}</button>
@@ -613,7 +638,55 @@ export default function PurchaseOrders() {
                           <tr className="bg-blue-50 border-b border-blue-100">
                             <td colSpan={8} className="px-8 py-5">
                               <StatusStepper po={po} />
-                              {editingId === po.id && po.status === 'draft' ? (
+
+                              {/* Receive form */}
+                              {receiveId === po.id && (
+                                <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-4">
+                                  <div className="flex items-center gap-4 mb-4 flex-wrap">
+                                    <h3 className="font-semibold text-gray-900 flex-1">{t('po.confirmReceiptTitle', { id: po.id })}</h3>
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-xs font-medium text-gray-600">{t('po.receivedDate')}</label>
+                                      <input type="date" value={receiveDate} onChange={e => setReceiveDate(e.target.value)}
+                                        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                    </div>
+                                  </div>
+                                  <table className="w-full max-w-lg text-sm bg-white rounded-lg border border-green-100 overflow-hidden mb-4">
+                                    <thead>
+                                      <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
+                                        <th className="px-4 py-2 font-medium">{t('common.ingredient')}</th>
+                                        <th className="px-4 py-2 font-medium text-right">{t('po.orderedQty')}</th>
+                                        <th className="px-4 py-2 font-medium text-right">{t('po.actualQty')}</th>
+                                        <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                      {po.lines.filter(l => l.ordered > 0).map(l => (
+                                        <tr key={l.ingredientId}>
+                                          <td className="px-4 py-2.5 font-medium text-gray-900">{ingredientName(l.ingredientId)}</td>
+                                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{l.ordered}</td>
+                                          <td className="px-4 py-2.5 text-right">
+                                            <input type="number" min="0" step="0.1"
+                                              value={receiveQtys[l.ingredientId] ?? l.ordered}
+                                              onChange={e => setReceiveQtys(prev => ({ ...prev, [l.ingredientId]: e.target.value }))}
+                                              className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums" />
+                                          </td>
+                                          <td className="px-4 py-2.5 text-gray-400 text-xs">{ingredientUnit(l.ingredientId)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  <div className="flex justify-end gap-3">
+                                    <button onClick={cancelReceive} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">{t('common.cancel')}</button>
+                                    <button onClick={() => confirmReceive(po)}
+                                      className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors font-medium">
+                                      {t('po.confirmReceive')} ✓
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Line items view */}
+                              {!receiveId && (editingId === po.id && po.status === 'draft' ? (
                                 <DraftForm
                                   title={t('po.editTitle', { id: po.id })}
                                   initialLines={po.lines} initialStore={po.store}
@@ -623,25 +696,36 @@ export default function PurchaseOrders() {
                                   onCancel={() => setEditingId(null)}
                                 />
                               ) : (
-                                <table className="w-full max-w-md text-sm bg-white rounded-lg border border-blue-100 overflow-hidden">
+                                <table className="w-full max-w-lg text-sm bg-white rounded-lg border border-blue-100 overflow-hidden">
                                   <thead>
                                     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
                                       <th className="px-4 py-2 font-medium">{t('common.ingredient')}</th>
-                                      <th className="px-4 py-2 font-medium text-right">{t('po.received')}</th>
+                                      <th className="px-4 py-2 font-medium text-right">{t('po.orderedQty')}</th>
+                                      {po.status === 'received' && <th className="px-4 py-2 font-medium text-right">{t('po.actualQty')}</th>}
                                       <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-50">
-                                    {po.lines.filter(l => l.ordered > 0).map(l => (
-                                      <tr key={l.ingredientId}>
-                                        <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
-                                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-gray-900">{l.ordered}</td>
-                                        <td className="px-4 py-2 text-gray-400">{ingredientUnit(l.ingredientId)}</td>
-                                      </tr>
-                                    ))}
+                                    {po.lines.filter(l => l.ordered > 0).map(l => {
+                                      const received = l.received ?? l.ordered
+                                      const diff = received !== l.ordered
+                                      return (
+                                        <tr key={l.ingredientId}>
+                                          <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
+                                          <td className="px-4 py-2 text-right tabular-nums text-gray-500">{l.ordered}</td>
+                                          {po.status === 'received' && (
+                                            <td className={`px-4 py-2 text-right tabular-nums font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>
+                                              {received}
+                                              {diff && <span className="text-xs font-normal ml-1">({received > l.ordered ? '+' : ''}{Math.round((received - l.ordered) * 10) / 10})</span>}
+                                            </td>
+                                          )}
+                                          <td className="px-4 py-2 text-gray-400 text-xs">{ingredientUnit(l.ingredientId)}</td>
+                                        </tr>
+                                      )
+                                    })}
                                   </tbody>
                                 </table>
-                              )}
+                              ))}
                             </td>
                           </tr>
                         )}
