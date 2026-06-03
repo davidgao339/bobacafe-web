@@ -325,8 +325,19 @@ export function useCalcs() {
     const { ingredients, recipes } = config
     const r1 = n => Math.round(n * 10) / 10
 
+    // Store-level window: two most recent audits regardless of what was counted.
+    // Used only for display (header date range in Variance Report).
     const getVarianceWindow = (store) => {
       const sorted = [...data.audits].filter(a => a.store === store).sort((a, b) => b.date.localeCompare(a.date))
+      return sorted.length >= 2 ? { opening: sorted[1], closing: sorted[0] } : null
+    }
+
+    // Ingredient-level window: two most recent audits that BOTH counted this ingredient.
+    // A partial audit that left an ingredient blank is skipped for that ingredient.
+    const getIngredientVarianceWindow = (store, ingredientId) => {
+      const sorted = [...data.audits]
+        .filter(a => a.store === store && a.counts[ingredientId] != null)
+        .sort((a, b) => b.date.localeCompare(a.date))
       return sorted.length >= 2 ? { opening: sorted[1], closing: sorted[0] } : null
     }
 
@@ -334,14 +345,14 @@ export function useCalcs() {
       [...data.audits].filter(a => a.store === store).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
 
     const getSalesConsumption = (store, ingredientId) => {
-      const win = getVarianceWindow(store)
+      const win = getIngredientVarianceWindow(store, ingredientId)
       const from = win?.opening.date ?? ''; const to = win?.closing.date ?? '9999-12-31'
       return r1([...sales, ...posWaste].filter(s => s.store === store && s.date > from && s.date <= to)
         .reduce((sum, s) => sum + s.quantity * (recipes[s.product]?.[ingredientId] ?? 0), 0))
     }
 
     const getDirectConsumption = (store, ingredientId) => {
-      const win = getVarianceWindow(store)
+      const win = getIngredientVarianceWindow(store, ingredientId)
       const from = win?.opening.date ?? ''; const to = win?.closing.date ?? '9999-12-31'
       return r1(data.transactions
         .filter(t => t.store === store && t.ingredientId === ingredientId && t.type !== 'adjustment' && t.date > from && t.date <= to)
@@ -363,7 +374,7 @@ export function useCalcs() {
     }
 
     const getAdjDelta = (store, ingredientId) => {
-      const win = getVarianceWindow(store)
+      const win = getIngredientVarianceWindow(store, ingredientId)
       const from = win?.opening.date ?? ''; const to = win?.closing.date ?? '9999-12-31'
       return data.transactions
         .filter(t => t.store === store && t.ingredientId === ingredientId && t.type === 'adjustment' && t.date > from && t.date <= to)
@@ -418,15 +429,12 @@ export function useCalcs() {
       return ingredients.map(p => ({ ...p, consumed: r1(quantity * (recipe[p.id] ?? 0)) })).filter(p => p.consumed > 0)
     }
 
-    const getOpeningStock = (store, ingredientId) => { const win = getVarianceWindow(store); return win ? (win.opening.counts[ingredientId] ?? 0) : 0 }
-    const getClosingStock = (store, ingredientId) => { const win = getVarianceWindow(store); return win ? (win.closing.counts[ingredientId] ?? 0) : 0 }
+    const getOpeningStock = (store, ingredientId) => { const win = getIngredientVarianceWindow(store, ingredientId); return win ? (win.opening.counts[ingredientId] ?? 0) : 0 }
+    const getClosingStock = (store, ingredientId) => { const win = getIngredientVarianceWindow(store, ingredientId); return win ? (win.closing.counts[ingredientId] ?? 0) : 0 }
     const getActualConsumed = (store, ingredientId) => {
-      const win = getVarianceWindow(store)
+      const win = getIngredientVarianceWindow(store, ingredientId)
       if (!win) return null
-      // If the closing audit didn't count this ingredient, we have no closing stock —
-      // treating it as 0 would falsely show all opening stock as consumed.
-      if (win.closing.counts[ingredientId] == null) return null
-      const opening = win.opening.counts[ingredientId] ?? 0
+      const opening = win.opening.counts[ingredientId]
       const closing = win.closing.counts[ingredientId]
       const poInWindow = data.purchaseOrders
         .filter(po => po.store === store && po.status === 'received'
@@ -450,7 +458,7 @@ export function useCalcs() {
       getOrderQty, estimateCurrentStock, getDailyAvg, isLowStock, getLowStockAlerts,
       getSaleIngredientImpact, getOpeningStock, getClosingStock,
       getActualConsumed, getUnexplainedVariance, getVariancePct,
-      getVarianceWindow, getLastAudit,
+      getVarianceWindow, getIngredientVarianceWindow, getLastAudit,
     }
   }, [config, sales, data])
 }
