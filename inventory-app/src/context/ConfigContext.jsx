@@ -178,12 +178,12 @@ export function ConfigProvider({ children }) {
     const storesSql = STORES.map(s => `'${s}'`).join(', ')
     const statement = `
       SELECT CAST(date AS STRING) AS date, store_name AS store, product,
-             transaction_type, CAST(SUM(qty) AS DOUBLE) AS qty
+             transaction_type, is_topping, CAST(SUM(qty) AS DOUBLE) AS qty
       FROM ${SALES_TABLE}
       WHERE store_name IN (${storesSql})
         AND date >= '${fromDate}' AND date <= '${toDate}'
         AND is_return = false
-      GROUP BY date, store_name, product, transaction_type
+      GROUP BY date, store_name, product, transaction_type, is_topping
       ORDER BY date DESC
     `
 
@@ -210,8 +210,8 @@ export function ConfigProvider({ children }) {
       Object.fromEntries(cols.map((c, i) => [c, row[i]]))
     )
 
-    // Merge — deduplicate by date+store+product
-    const keyOf = r => `${r.date}|${r.store}|${r.product}|${r.transaction_type}`
+    // Merge — deduplicate by date+store+product+topping flag
+    const keyOf = r => `${r.date}|${r.store}|${r.product}|${r.transaction_type}|${r.is_topping}`
     const map = new Map(currentRows.map(r => [keyOf(r), r]))
     newRows.forEach(r => map.set(keyOf(r), r))
     const merged = [...map.values()].sort((a, b) => (b.date > a.date ? 1 : -1))
