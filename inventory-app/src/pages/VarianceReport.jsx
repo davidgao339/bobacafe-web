@@ -34,11 +34,6 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
     .filter(s => s.store === store && s.date > from && s.date <= to)
     .reduce((sum, s) => sum + s.quantity * (config.recipes[s.product]?.[id] ?? 0), 0))
 
-  const directUsage = r1(data.transactions
-    .filter(tx => tx.store === store && Number(tx.ingredientId) === id &&
-      tx.type !== 'adjustment' && tx.date > from && tx.date <= to)
-    .reduce((sum, tx) => sum + tx.quantity, 0))
-
   const posInWindow = data.purchaseOrders
     .filter(po => po.store === store && po.status === 'received' &&
       (po.receivedDate ?? '') > from && (po.receivedDate ?? '') <= to)
@@ -47,7 +42,7 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
 
   const totalReceived   = r1(posInWindow.reduce((sum, po) => sum + po.qty, 0))
   const totalAvailable  = r1(openingCount + totalReceived)
-  const totalExpected   = r1(salesUsage + wasteUsage + directUsage)
+  const totalExpected   = r1(salesUsage + wasteUsage)
   const expectedClosing = r1(totalAvailable - totalExpected)
 
   // Positive = surplus (have more than expected), negative = loss (have less)
@@ -93,7 +88,6 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
       {/* Expected consumption */}
       <Row label={t('variance.detailSales')}  right={`−${salesUsage} ${unit}`}   rightColor={salesUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
       <Row label={t('variance.detailWaste')}  right={`−${wasteUsage} ${unit}`}   rightColor={wasteUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
-      <Row label={t('variance.detailDirect')} right={`−${directUsage} ${unit}`}  rightColor={directUsage > 0 ? 'text-gray-700' : 'text-gray-400'} />
       <Row label={t('variance.detailExpClosing')} right={`${expectedClosing} ${unit}`} bold divider />
 
       {/* Actual vs expected */}

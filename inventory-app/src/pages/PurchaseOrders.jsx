@@ -308,7 +308,7 @@ td{padding:10px 12px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
 .col-unit{width:80px;color:#888;font-size:12px}
 .cb{display:inline-block;width:17px;height:17px;border:1.5px solid #aaa;border-radius:3px}
 .instr{font-style:italic;font-size:11px;color:#888;padding:14px 0;border-top:1px dashed #ccc;margin-top:8px}
-.sig-box{border:1px solid #ddd;border-radius:6px;padding:16px 20px;margin-top:14px}
+.sig-box{border:1px solid #ddd;border-radius:6px;padding:16px 20px;margin-bottom:14px}
 .sig-title{font-weight:700;font-size:13px;margin-bottom:20px}
 .sig-row{display:flex;gap:32px}
 .sig-field{flex:1}
@@ -321,8 +321,6 @@ td{padding:10px 12px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
 <div class="title">ЗАЯВКА НА ЗАКАЗ (СВЕРКА ПРИЕМКИ)</div>
 <div class="cat">Категория: Снабжение кафе / Контроль поставок</div>
 <hr>
-${sectionsHtml}
-<div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
 <div class="sig-box">
   <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
   <div class="sig-row">
@@ -331,6 +329,9 @@ ${sectionsHtml}
     <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
   </div>
 </div>
+<hr>
+${sectionsHtml}
+<div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
 <div class="pgnum">Страница 1</div>
 </body></html>`
 

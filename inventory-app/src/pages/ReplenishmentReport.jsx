@@ -23,17 +23,23 @@ export default function ReplenishmentReport() {
 
   const stores = selectedStore === 'All' ? STORES : [selectedStore]
 
+  const supplierMap = useMemo(() =>
+    Object.fromEntries((config.suppliers ?? []).map(s => [s.id, s.name])),
+    [config.suppliers]
+  )
+
   const reportRows = useMemo(() =>
     stores.map(store => ({
       store,
       rows: config.ingredients.map(p => ({
         ...p,
+        supplier: supplierMap[p.supplierId] ?? '—',
         consumed: getConsumed7d(store, p.id),
         currentStock: estimateCurrentStock(store, p.id),
         orderQty: getOrderQty(store, p.id),
       })),
     })),
-    [selectedStore, config.ingredients, getConsumed7d, estimateCurrentStock, getOrderQty]
+    [selectedStore, config.ingredients, supplierMap, getConsumed7d, estimateCurrentStock, getOrderQty]
   )
 
   const csvField = (v) => {
@@ -42,9 +48,9 @@ export default function ReplenishmentReport() {
   }
 
   const handleExportCSV = () => {
-    const lines = ['Store,Product,Unit,Consumed 7d,Current Stock,Order Qty']
+    const lines = ['Store,Supplier,Product,Unit,Consumed 7d,Current Stock,Order Qty']
     reportRows.forEach(({ store, rows }) =>
-      rows.forEach(r => lines.push([store, r.name, r.unit, r.consumed, r.currentStock, r.orderQty].map(csvField).join(',')))
+      rows.forEach(r => lines.push([store, r.supplier, r.name, r.unit, r.consumed, r.currentStock, r.orderQty].map(csvField).join(',')))
     )
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
     const url  = URL.createObjectURL(blob)
@@ -139,6 +145,7 @@ export default function ReplenishmentReport() {
                     <thead>
                       <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
                         <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('report.product')}{si('name')}</th>
+                        <th className="px-4 py-3 font-medium">{t('recipes.supplier')}</th>
                         <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('report.consumed7d')}</th>
                         <th className="px-4 py-3 font-medium text-right">× 1.05</th>
@@ -150,6 +157,7 @@ export default function ReplenishmentReport() {
                       {visibleRows.map(r => (
                         <tr key={r.id} className="hover:bg-gray-50">
                           <td className="px-6 py-3 font-medium text-gray-900">{r.name}</td>
+                          <td className="px-4 py-3 text-gray-500">{r.supplier}</td>
                           <td className="px-4 py-3 text-gray-500">{r.unit}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.consumed}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-500">{Math.ceil(r.consumed * 1.05)}</td>
@@ -163,7 +171,7 @@ export default function ReplenishmentReport() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-gray-200 bg-gray-50">
-                        <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">{t('report.itemsToOrder')}</td>
+                        <td colSpan={6} className="px-6 py-3 text-sm font-semibold text-gray-700">{t('report.itemsToOrder')}</td>
                         <td className="px-4 py-3 text-right bg-blue-100">
                           <span className="font-bold text-blue-800 tabular-nums text-base">{itemsToOrder}</span>
                           <span className="text-blue-500 text-xs ml-1">{t('report.ingredientsLabel')}</span>

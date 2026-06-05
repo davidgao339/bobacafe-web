@@ -63,14 +63,14 @@ export default function Dashboard({ onNavigate }) {
   if (depleted.length) tasks.push({
     urgency: 'critical', icon: '🚫',
     title: t('dash.depleted', { count: depleted.length, s: depleted.length > 1 ? 's' : '' }),
-    desc: depleted.map(a => `${a.product} · ${a.store}`).join(' / '),
+    desc: t('dash.acrossStores', { count: new Set(depleted.map(a => a.store)).size }),
     action: t('dash.orderNow'), nav: 'purchases',
   })
 
   if (low.length) tasks.push({
     urgency: 'warning', icon: '⚠️',
     title: t('dash.runningLow', { count: low.length, s: low.length > 1 ? 's' : '' }),
-    desc: low.map(a => `${a.product} · ${a.store} (${t('dash.daysLeft', { days: a.daysLeft })})`).join(' / '),
+    desc: t('dash.acrossStores', { count: new Set(low.map(a => a.store)).size }),
     action: t('dash.orderMore'), nav: 'purchases',
   })
 
