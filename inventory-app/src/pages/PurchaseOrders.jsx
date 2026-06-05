@@ -208,7 +208,7 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
       <table className="w-full text-sm">
         <thead>{colHead}</thead>
         <tbody className="divide-y divide-gray-50">
-          {(initialLines ? inOrder : lines).map(renderRow)}
+          {inOrder.map(renderRow)}
         </tbody>
       </table>
 
