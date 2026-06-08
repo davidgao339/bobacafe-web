@@ -107,11 +107,15 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
   })
 
   const q = search.toLowerCase()
+  const getSupplierName = (l) => suppliers?.find(s => s.id === l.supplierId)?.name ?? ''
   const applySort = arr => {
     const [withSugg, noSugg] = [arr.filter(l => l.suggested > 0), arr.filter(l => l.suggested === 0)]
     const sort = sortKey
       ? (a, b) => {
-          const cmp = sortKey === 'name' ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : a.suggested - b.suggested
+          let cmp
+          if (sortKey === 'name')     cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+          else if (sortKey === 'suggested') cmp = a.suggested - b.suggested
+          else cmp = getSupplierName(a).localeCompare(getSupplierName(b), undefined, { sensitivity: 'base' })
           return sortDir === 'asc' ? cmp : -cmp
         }
       : null
@@ -144,7 +148,7 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
       <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
       <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
-      {suppliers?.length > 0 && <th className="px-4 py-3 font-medium">{t('recipes.supplier')}</th>}
+      {suppliers?.length > 0 && <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('supplier')}>{t('recipes.supplier')}{si('supplier')}</th>}
       <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('suggested')} title={t('po.applySuggested')}>{t('po.suggested')}{si('suggested')}</th>
       <th className="px-4 py-3 font-medium text-right">{t('po.orderQty')}</th>
     </tr>
