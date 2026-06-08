@@ -74,7 +74,7 @@ function StatusStepper({ po }) {
 
 // ─── Create / Edit form ───────────────────────────────────────────────────────
 
-function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate }) {
+function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate }) {
   const { t } = useLanguage()
   const [store,       setStore]       = useState(initialStore ?? STORES[0])
   const [createdDate, setCreatedDate] = useState(initialCreatedDate ?? TODAY)
@@ -135,10 +135,16 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
     })
   }
 
+  const supplierName = (ing) => {
+    if (!ing.supplierId || !suppliers?.length) return null
+    return suppliers.find(s => s.id === ing.supplierId)?.name ?? null
+  }
+
   const colHead = (
     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
       <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
       <th className="px-4 py-3 font-medium">{t('common.unit')}</th>
+      {suppliers?.length > 0 && <th className="px-4 py-3 font-medium">{t('recipes.supplier')}</th>}
       <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('suggested')} title={t('po.applySuggested')}>{t('po.suggested')}{si('suggested')}</th>
       <th className="px-4 py-3 font-medium text-right">{t('po.orderQty')}</th>
     </tr>
@@ -148,6 +154,9 @@ function DraftForm({ title, initialLines, ingredients, getOrderQty, initialStore
     <tr key={l.id} className="hover:bg-gray-50">
       <td className="px-6 py-2.5 font-medium text-gray-900">{l.name}</td>
       <td className="px-4 py-2.5 text-gray-500">{l.unit}</td>
+      {suppliers?.length > 0 && (
+        <td className="px-4 py-2.5 text-gray-400 text-xs">{supplierName(l) ?? <span className="text-gray-300">—</span>}</td>
+      )}
       <td className="px-4 py-2.5 text-right tabular-nums">
         {l.suggested > 0
           ? <button onClick={() => setQty(l.id, l.suggested)}
@@ -458,6 +467,7 @@ export default function PurchaseOrders() {
         <DraftForm
           title={t('po.newPOTitle', { id: nextId })}
           ingredients={config.ingredients}
+          suppliers={config.suppliers}
           getOrderQty={getOrderQty}
           onSave={handleCreate}
           onCancel={() => setCreating(false)}
@@ -557,7 +567,7 @@ export default function PurchaseOrders() {
                             title={t('po.editTitle', { id: po.id })}
                             initialLines={po.lines} initialStore={po.store}
                             initialCreatedDate={po.createdDate} lockStore
-                            ingredients={config.ingredients} getOrderQty={getOrderQty}
+                            ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
                             onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
                             onCancel={() => setEditingId(null)}
                           />
@@ -710,7 +720,7 @@ export default function PurchaseOrders() {
                                   title={t('po.editTitle', { id: po.id })}
                                   initialLines={po.lines} initialStore={po.store}
                                   initialCreatedDate={po.createdDate} lockStore
-                                  ingredients={config.ingredients} getOrderQty={getOrderQty}
+                                  ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
                                   onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
                                   onCancel={() => setEditingId(null)}
                                 />
