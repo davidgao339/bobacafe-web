@@ -415,7 +415,7 @@ function HistoryTab() {
 
 // ─── Import tab ───────────────────────────────────────────────────────────────
 
-function parseCSVLine(line) {
+function parseCSVLine(line, delim = ',') {
   const result = []
   let current = '', inQuotes = false
   for (let i = 0; i < line.length; i++) {
@@ -423,7 +423,7 @@ function parseCSVLine(line) {
     if (ch === '"') {
       if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
       else inQuotes = !inQuotes
-    } else if (ch === ',' && !inQuotes) {
+    } else if (ch === delim && !inQuotes) {
       result.push(current); current = ''
     } else {
       current += ch
@@ -431,6 +431,15 @@ function parseCSVLine(line) {
   }
   result.push(current)
   return result
+}
+
+const RUSSIAN_LABEL_CELLS = new Set(['кафе', 'дата', 'ингредиент', 'ед.измерения', 'количество'])
+
+function normalizeDate(raw) {
+  // Accept DD.MM.YYYY in addition to YYYY-MM-DD
+  const ddmmyyyy = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`
+  return raw
 }
 
 function ImportTab() {
@@ -465,15 +474,18 @@ function ImportTab() {
   const parseFile = (text) => {
     const clean = text.replace(/^﻿/, '')
     const lines = clean.split(/\r?\n/).filter(l => l.trim())
-    if (lines.length < 2) return { audits: [], rowErrors: [] }
+    if (lines.length < 2) return { audits: [], rowErrors: [], unknownIngredients: [] }
 
-    const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase())
+    // Auto-detect delimiter: whichever of , or ; appears more in the header line
+    const delim = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ','
+
+    const headers = parseCSVLine(lines[0], delim).map(h => h.trim().toLowerCase())
     const iStore = headers.indexOf('store')
     const iDate  = headers.indexOf('date')
     const iIng   = headers.indexOf('ingredient')
     const iQty   = headers.indexOf('qty')
     if (iStore < 0 || iDate < 0 || iIng < 0 || iQty < 0)
-      return { audits: [], rowErrors: [{ rowNum: 1, msg: t('audit.importBadHeader') }] }
+      return { audits: [], rowErrors: [{ rowNum: 1, msg: t('audit.importBadHeader') }], unknownIngredients: [] }
 
     const ingByName = {}
     config.ingredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
@@ -481,21 +493,29 @@ function ImportTab() {
     // collect raw row errors and valid counts grouped by store+date
     const groups = {}   // key "store||date" -> { store, date, counts: {} }
     const rowErrors = []
+    const unknownIngredients = new Set()
 
-    for (let i = 1; i < lines.length; i++) {
-      const cells = parseCSVLine(lines[i])
+    // Determine first data row — skip a Russian label row if present
+    const firstDataRow = (() => {
+      const cells = parseCSVLine(lines[1], delim).map(c => c.trim().toLowerCase())
+      const isLabel = cells.some(c => RUSSIAN_LABEL_CELLS.has(c))
+      return isLabel ? 2 : 1
+    })()
+
+    for (let i = firstDataRow; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i], delim)
       if (cells.every(c => !c.trim())) continue
       const rowNum = i + 1
       const store  = cells[iStore]?.trim() ?? ''
-      const date   = cells[iDate]?.trim()  ?? ''
+      const date   = normalizeDate(cells[iDate]?.trim() ?? '')
       const ingRaw = cells[iIng]?.trim()   ?? ''
       const qtyRaw = cells[iQty]?.trim()   ?? ''
       const errors = []
 
       if (!STORES.includes(store)) errors.push(`unknown store "${store}"`)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${date}"`)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${cells[iDate]?.trim()}"`)
       const ing = ingByName[ingRaw.toLowerCase()]
-      if (!ing) errors.push(`unknown ingredient "${ingRaw}"`)
+      if (!ing) { unknownIngredients.add(ingRaw); continue }
       const qty = parseFloat(qtyRaw)
       if (qtyRaw && isNaN(qty)) errors.push(`invalid qty "${qtyRaw}"`)
 
@@ -508,7 +528,7 @@ function ImportTab() {
     }
 
     const audits = Object.values(groups)
-    return { audits, rowErrors }
+    return { audits, rowErrors, unknownIngredients: [...unknownIngredients].sort() }
   }
 
   const handleFile = (e) => {
@@ -556,6 +576,17 @@ function ImportTab() {
 
       {parsed && (
         <>
+          {parsed.unknownIngredients.length > 0 && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <p className="text-xs font-medium text-amber-800 mb-1.5">
+                {parsed.unknownIngredients.length} ingredient(s) not found in system — rows skipped:
+              </p>
+              <ul className="text-xs text-amber-700 space-y-0.5">
+                {parsed.unknownIngredients.map(name => <li key={name}>"{name}"</li>)}
+              </ul>
+            </div>
+          )}
+
           {parsed.rowErrors.length > 0 && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
               <p className="text-xs font-medium text-red-700 mb-1.5">{parsed.rowErrors.length} row error(s) — these rows were skipped:</p>
