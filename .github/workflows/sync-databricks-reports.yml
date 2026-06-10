@@ -1,0 +1,45 @@
+name: Sync Weekly Reports from Databricks
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC (after typical analysis completion)
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-reports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download reports from Databricks
+        env:
+          DATABRICKS_WORKSPACE: https://dbc-d5bd17fc-eaf4.cloud.databricks.com
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: python3 .github/scripts/sync-reports.py
+
+      - name: Generate index.html
+        run: python3 .github/scripts/generate-index.py
+
+      - name: Commit and push reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Only commit if there are changes
+          if ! git diff --quiet internal/reports/; then
+            git add internal/reports/
+            git commit -m "sync: update weekly reports from Databricks" -m "Downloaded latest analysis reports and updated index.html" -m "Co-Authored-By: Databricks Analysis <noreply@databricks.com>"
+            git push
+          else
+            echo "No changes to commit"
+          fi
