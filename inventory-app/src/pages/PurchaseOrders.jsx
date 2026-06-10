@@ -577,12 +577,20 @@ export default function PurchaseOrders() {
                           />
                         ) : (
                           <div className="divide-y divide-gray-100 bg-white rounded-lg border border-blue-100 overflow-hidden">
-                            {po.lines.filter(l => l.ordered > 0).map(l => (
-                              <div key={l.ingredientId} className="px-4 py-2 flex items-center justify-between text-sm">
-                                <span className="font-medium text-gray-800">{ingredientName(l.ingredientId)}</span>
-                                <span className="tabular-nums font-semibold text-gray-900">{l.ordered} <span className="text-gray-400 font-normal text-xs">{ingredientUnit(l.ingredientId)}</span></span>
-                              </div>
-                            ))}
+                            {po.lines.filter(l => l.ordered > 0).map(l => {
+                              const received = l.received ?? l.ordered
+                              const diff = po.status === 'received' && received !== l.ordered
+                              return (
+                                <div key={l.ingredientId} className="px-4 py-2 flex items-center justify-between text-sm">
+                                  <span className="font-medium text-gray-800">{ingredientName(l.ingredientId)}</span>
+                                  <span className="tabular-nums text-right">
+                                    {diff && <span className="text-gray-400 line-through mr-1.5">{l.ordered}</span>}
+                                    <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{po.status === 'received' ? received : l.ordered}</span>
+                                    <span className="text-gray-400 font-normal text-xs ml-1">{ingredientUnit(l.ingredientId)}</span>
+                                  </span>
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
