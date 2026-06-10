@@ -39,17 +39,11 @@ Once pushed to `main`, the workflow will:
   2. Generate `internal/reports/index.html` with sorted report links
   3. Commit and push changes (auto-triggers GitHub Pages deploy)
 
-## Step 4: Optional — Schedule Databricks Notebook
+## Step 4: Databricks Schedule (Already Configured)
 
-The workflow assumes your analysis notebook runs separately. If you want to automate that too:
+✅ Your Databricks job is already scheduled to run **every Monday at 0:39 AM ET** (4:39 AM UTC).
 
-1. In Databricks, go to **Workflows → Jobs**
-2. Click **Create job**
-3. **Task:** Select notebook `/Users/davidgao734@gmail.com/boba-cafe/weekly-analysis/weekly_report`
-4. **Schedule:** Weekly, Monday 8:00 AM (UTC) 
-5. **Click Create**
-
-This ensures the analysis completes before the GitHub Actions sync runs at 09:00 UTC.
+The GitHub Actions workflow syncs reports at **9:00 AM UTC**, giving a 4.5-hour buffer for analysis to complete.
 
 ---
 
