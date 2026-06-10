@@ -37,7 +37,7 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
   const posInWindow = data.purchaseOrders
     .filter(po => po.store === store && po.status === 'received' &&
       (po.receivedDate ?? '') > from && (po.receivedDate ?? '') <= to)
-    .map(po => ({ id: po.id, date: po.receivedDate, qty: po.lines.find(l => Number(l.ingredientId) === id)?.ordered ?? 0 }))
+    .map(po => { const line = po.lines.find(l => Number(l.ingredientId) === id); return { id: po.id, date: po.receivedDate, qty: line?.received ?? line?.ordered ?? 0 } })
     .filter(po => po.qty > 0)
 
   const totalReceived   = r1(posInWindow.reduce((sum, po) => sum + po.qty, 0))
