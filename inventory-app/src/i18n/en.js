@@ -255,6 +255,8 @@ const en = {
   'po.exportPDF':            'PDF',
   'po.daysToFill':           'Days to fill',
   'po.days':                 'days',
+  'po.from':                 'From',
+  'po.to':                   'To',
 
   // Replenishment Report
   'report.title':            'Replenishment Report',

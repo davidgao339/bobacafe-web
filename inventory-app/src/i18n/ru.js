@@ -255,6 +255,8 @@ const ru = {
   'po.exportPDF':            'PDF',
   'po.daysToFill':           'Дней запаса',
   'po.days':                 'дн.',
+  'po.from':                 'Откуда',
+  'po.to':                   'Куда',
 
   // Replenishment Report
   'report.title':            'Отчёт по закупкам',

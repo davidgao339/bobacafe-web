@@ -74,14 +74,16 @@ function StatusStepper({ po }) {
 
 // ─── Create / Edit form ───────────────────────────────────────────────────────
 
-function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate }) {
+function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate, initialFromLocation, initialToLocation }) {
   const { t } = useLanguage()
-  const [store,       setStore]       = useState(initialStore ?? STORES[0])
-  const [createdDate, setCreatedDate] = useState(initialCreatedDate ?? TODAY)
-  const [days,        setDays]        = useState(7)
-  const [search,      setSearch]      = useState('')
-  const [sortKey,     setSortKey]     = useState(null)
-  const [sortDir,     setSortDir]     = useState('asc')
+  const [store,          setStore]          = useState(initialStore ?? STORES[0])
+  const [createdDate,    setCreatedDate]    = useState(initialCreatedDate ?? TODAY)
+  const [days,           setDays]           = useState(7)
+  const [fromLocation,   setFromLocation]   = useState(initialFromLocation ?? null)
+  const [toLocation,     setToLocation]     = useState(initialToLocation ?? null)
+  const [search,         setSearch]         = useState('')
+  const [sortKey,        setSortKey]        = useState(null)
+  const [sortDir,        setSortDir]        = useState('asc')
   const handleSort = key => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
@@ -135,6 +137,8 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
     onSave({
       store,
       createdDate,
+      fromLocation: fromLocation || null,
+      toLocation: toLocation || null,
       lines: lines.map(l => ({ ingredientId: l.id, ordered: Math.max(0, Number(l.qty) || 0) })),
     })
   }
@@ -205,6 +209,22 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
               onChange={e => setDays(Math.max(1, parseInt(e.target.value) || 7))}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-right" />
             <span className="text-xs text-gray-400">{t('po.days')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600">{t('po.from')}</label>
+            <select value={fromLocation ?? ''} onChange={e => setFromLocation(e.target.value || null)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">—</option>
+              {STORES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600">{t('po.to')}</label>
+            <select value={toLocation ?? ''} onChange={e => setToLocation(e.target.value || null)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">—</option>
+              {STORES.map(s => <option key={s}>{s}</option>)}
+            </select>
           </div>
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -356,7 +376,7 @@ ${sectionsHtml}
 }
 
 export default function PurchaseOrders() {
-  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder } = useConfig()
+  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, addTransaction } = useConfig()
   const { getOrderQty } = useCalcs()
   const { t } = useLanguage()
 
@@ -404,6 +424,31 @@ export default function PurchaseOrders() {
         : l.ordered,
     }))
     updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, lines: updatedLines })
+
+    // Handle transfer if both locations are set
+    if (po.fromLocation && po.toLocation) {
+      updatedLines.forEach(l => {
+        const qty = l.received ?? l.ordered
+        if (qty > 0) {
+          // Deduct from source location
+          addTransaction({
+            ingredientId: l.ingredientId,
+            store: po.fromLocation,
+            date: receiveDate,
+            type: 'adjustment',
+            quantity: -qty,
+          })
+          // Add to destination location
+          addTransaction({
+            ingredientId: l.ingredientId,
+            store: po.toLocation,
+            date: receiveDate,
+            type: 'adjustment',
+            quantity: qty,
+          })
+        }
+      })
+    }
     cancelReceive()
   }
 
@@ -433,14 +478,14 @@ export default function PurchaseOrders() {
     setConfirm(null)
   }
 
-  const handleCreate = ({ store, lines, createdDate }) => {
-    addPurchaseOrder({ store, lines, id: nextId, status: 'draft', createdDate, sentDate: null, receivedDate: null })
+  const handleCreate = ({ store, lines, createdDate, fromLocation, toLocation }) => {
+    addPurchaseOrder({ store, lines, id: nextId, status: 'draft', createdDate, sentDate: null, receivedDate: null, fromLocation, toLocation })
     setCreating(false)
     setExpanded(nextId)
   }
 
-  const handleEditSave = (poId, { lines, createdDate }) => {
-    updatePurchaseOrder(poId, { lines, createdDate })
+  const handleEditSave = (poId, { lines, createdDate, fromLocation, toLocation }) => {
+    updatePurchaseOrder(poId, { lines, createdDate, fromLocation, toLocation })
     setEditingId(null)
   }
 
@@ -570,9 +615,12 @@ export default function PurchaseOrders() {
                           <DraftForm
                             title={t('po.editTitle', { id: po.id })}
                             initialLines={po.lines} initialStore={po.store}
-                            initialCreatedDate={po.createdDate} lockStore
+                            initialCreatedDate={po.createdDate}
+                            initialFromLocation={po.fromLocation}
+                            initialToLocation={po.toLocation}
+                            lockStore
                             ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
-                            onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
+                            onSave={({ lines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, createdDate, fromLocation, toLocation })}
                             onCancel={() => setEditingId(null)}
                           />
                         ) : (
@@ -731,9 +779,12 @@ export default function PurchaseOrders() {
                                 <DraftForm
                                   title={t('po.editTitle', { id: po.id })}
                                   initialLines={po.lines} initialStore={po.store}
-                                  initialCreatedDate={po.createdDate} lockStore
+                                  initialCreatedDate={po.createdDate}
+                                  initialFromLocation={po.fromLocation}
+                                  initialToLocation={po.toLocation}
+                                  lockStore
                                   ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
-                                  onSave={({ lines, createdDate }) => handleEditSave(po.id, { lines, createdDate })}
+                                  onSave={({ lines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, createdDate, fromLocation, toLocation })}
                                   onCancel={() => setEditingId(null)}
                                 />
                               ) : (
