@@ -4,16 +4,13 @@ Run: streamlit run streamlit_app.py
 """
 import streamlit as st
 import pandas as pd
-import numpy as np
 import math
 from databricks import sql
 import os
-from datetime import datetime
 
 st.set_page_config(
     page_title="Tapioca Cooking Plan",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
 # Databricks credentials from environment
@@ -24,39 +21,54 @@ DATABRICKS_HTTP_PATH = os.getenv("DATABRICKS_HTTP_PATH")
 SLOT_ORDER = ["9:30 AM", "2:00 PM", "6:00 PM"]
 PERCENTILES = {"Avg": None, "p75": 75, "p90": 90, "p95": 95, "Max": 100}
 
-@st.cache_data(ttl=3600)
 def fetch_data():
     """Fetch tapioca sales data from Databricks."""
     try:
-        with sql.connect(
+        st.write("🔗 Connecting to Databricks warehouse...")
+        connection = sql.connect(
             server_hostname=DATABRICKS_HOST,
             http_path=DATABRICKS_HTTP_PATH,
             auth_type="pat",
             token=DATABRICKS_TOKEN,
-            session_configuration={"sql_session_max_idle_timeout": "30m"}
-        ) as connection:
-            cursor = connection.cursor()
-            # Try to fetch from tapioca_sales, fallback to other names
-            # Query transactions table - adjust WHERE clause as needed
-            cursor.execute("""
-                SELECT
-                    datetime, date, store_name, qty, transaction_type, is_return
-                FROM workspace.default.transactions
-                ORDER BY datetime DESC
-                LIMIT 50000
-            """)
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            df = pd.DataFrame(rows, columns=columns)
-            return df
+        )
+        st.write("✅ Connected!")
+
+        cursor = connection.cursor()
+        st.write("📊 Fetching transactions...")
+
+        cursor.execute("""
+            SELECT
+                datetime, date, store_name, qty, transaction_type, is_return
+            FROM workspace.default.transactions
+            LIMIT 10000
+        """)
+
+        st.write("✅ Query executed. Processing rows...")
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        st.write(f"✅ Got {len(rows)} rows")
+
+        connection.close()
+
+        df = pd.DataFrame(rows, columns=columns)
+        return df
+
     except Exception as e:
-        st.error(f"Connection error: {str(e)}")
-        st.info("**Troubleshooting:**\n"
-                "1. Check DATABRICKS_TOKEN is set in Streamlit secrets\n"
-                "2. Check DATABRICKS_HOST is correct\n"
-                "3. Check DATABRICKS_HTTP_PATH is correct\n"
-                "4. Verify the table name is 'tapioca_sales'\n"
-                "5. Make sure your SQL warehouse is running")
+        st.error(f"❌ Error: {str(e)}")
+        st.error(f"Error type: {type(e).__name__}")
+        st.info("""
+        **Troubleshooting checklist:**
+        1. ✅ DATABRICKS_TOKEN set in Streamlit Secrets?
+        2. ✅ DATABRICKS_HOST correct?
+        3. ✅ DATABRICKS_HTTP_PATH correct?
+        4. ✅ SQL warehouse is RUNNING (not paused)?
+        5. ✅ Table `workspace.default.transactions` exists?
+
+        **In Databricks, run:**
+        ```sql
+        SELECT COUNT(*) FROM workspace.default.transactions;
+        ```
+        """)
         raise
 
 def process_data(df, rolling_days):
@@ -141,7 +153,8 @@ def process_data(df, rolling_days):
         "min_date": min_date,
     }
 
-# UI
+# ─────────────────── UI ───────────────────────
+
 st.title("🧋 Tapioca Cooking Plan")
 
 # Sidebar controls
@@ -154,16 +167,13 @@ with st.sidebar:
         max_value=180,
         value=90,
         step=1,
-        help="Use the last N days of sales data to compute recommendations"
     )
 
     percentile = st.radio(
         "Percentile standard",
-        ["Avg", "p75", "p90", "p90 (recommended)", "p95", "Max"],
+        ["Avg", "p75", "p90", "p95", "Max"],
         index=2,
-        help="Choose risk tolerance for stockouts vs waste"
     )
-    percentile_key = percentile.split()[0]  # Remove "(recommended)" suffix
 
     grams_per_portion = st.number_input(
         "Grams per portion",
@@ -171,7 +181,6 @@ with st.sidebar:
         max_value=200,
         value=50,
         step=1,
-        help="Weight of dry tapioca pearls per drink"
     )
 
     if st.button("🔄 Refresh Data", type="primary", use_container_width=True):
@@ -180,7 +189,7 @@ with st.sidebar:
 
 # Load data
 try:
-    with st.spinner("Fetching data from Databricks..."):
+    with st.spinner("Fetching data..."):
         raw_df = fetch_data()
         processed = process_data(raw_df, rolling_days)
 
@@ -199,25 +208,21 @@ try:
 
     # Cooking plan
     st.header("Cooking Plan")
-    st.caption(f"Recommendations based on {percentile_key} percentile, last {rolling_days} days")
 
-    recs_df = processed["recs"][percentile_key].copy()
+    recs_df = processed["recs"][percentile].copy()
 
-    # Display by store
     for store in processed["stores"]:
         with st.expander(f"📍 {store}", expanded=True):
             store_recs = recs_df[recs_df["store_name"] == store]
 
             plan_data = []
             for _, row in store_recs.iterrows():
-                slot = row["slot"]
-                day_type = row["day_type"]
                 portions = row["recommended"]
                 grams = int(portions * grams_per_portion)
 
                 plan_data.append({
-                    "Slot": slot,
-                    "Day Type": day_type,
+                    "Slot": row["slot"],
+                    "Day Type": row["day_type"],
                     "Portions": portions,
                     "Grams": f"{grams} g"
                 })
@@ -225,29 +230,5 @@ try:
             plan_display = pd.DataFrame(plan_data)
             st.dataframe(plan_display, use_container_width=True, hide_index=True)
 
-    st.divider()
-
-    # Backtest
-    st.header("Backtest — Days the recommendation falls short")
-    st.caption(f"How often did {percentile_key} fall short on actual demand?")
-
-    backtest_df = processed["backtests"][percentile_key].copy()
-
-    # Color code severity
-    def severity_color(pct):
-        if pct >= 30:
-            return "🔴"
-        elif pct >= 15:
-            return "🟡"
-        else:
-            return "🟢"
-
-    backtest_df["Severity"] = backtest_df["pct_under"].apply(severity_color)
-    backtest_df = backtest_df[["store_name", "slot", "day_type", "recommended", "total_days", "days_under", "pct_under", "avg_shortfall", "max_shortfall"]]
-    backtest_df.columns = ["Store", "Slot", "Day Type", "Recommended", "Total Days", "Days Short", "% Short", "Avg Shortfall", "Max Shortfall"]
-
-    st.dataframe(backtest_df, use_container_width=True, hide_index=True)
-
 except Exception as e:
-    st.error(f"Error: {e}")
-    st.info("Make sure DATABRICKS_TOKEN, DATABRICKS_HOST, and DATABRICKS_HTTP_PATH are set.")
+    st.stop()
