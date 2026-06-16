@@ -36,11 +36,14 @@ def fetch_data():
         cursor = connection.cursor()
         st.write("📊 Fetching transactions...")
 
+        # Query tapioca transactions from past 90 days
+        # Adjust WHERE clause if needed based on actual column names
         cursor.execute("""
             SELECT
                 datetime, date, store_name, qty, transaction_type, is_return
             FROM workspace.default.transactions
-            LIMIT 10000
+            WHERE date >= CURRENT_DATE() - 90
+            ORDER BY datetime DESC
         """)
 
         st.write("✅ Query executed. Processing rows...")
@@ -56,20 +59,17 @@ def fetch_data():
     except Exception as e:
         st.error(f"❌ Error: {str(e)}")
         st.error(f"Error type: {type(e).__name__}")
-        st.info("""
-        **Troubleshooting checklist:**
-        1. ✅ DATABRICKS_TOKEN set in Streamlit Secrets?
-        2. ✅ DATABRICKS_HOST correct?
-        3. ✅ DATABRICKS_HTTP_PATH correct?
-        4. ✅ SQL warehouse is RUNNING (not paused)?
-        5. ✅ Table `workspace.default.transactions` exists?
-
-        **In Databricks, run:**
+        st.warning("""
+        **Try these steps:**
+        1. In Streamlit Cloud settings → Secrets, verify all 3 are set
+        2. Check your SQL warehouse is RUNNING (not paused)
+        3. Run this in Databricks to test:
         ```sql
-        SELECT COUNT(*) FROM workspace.default.transactions;
+        SELECT COUNT(*) FROM workspace.default.transactions LIMIT 1;
         ```
+        4. If table doesn't exist, check the schema and catalog name
         """)
-        raise
+        st.stop()
 
 def process_data(df, rolling_days):
     """Process raw data and compute recommendations."""
