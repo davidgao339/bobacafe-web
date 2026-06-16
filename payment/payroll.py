@@ -303,10 +303,21 @@ def calculate_verification(enriched_shifts, employee_summaries):
             continue
         sched_map[s['store']] = sched_map.get(s['store'], 0.0) + s['basePay'] + s['residualPay']
 
+    emp_shifts_by_store = {}
+    for s in enriched_shifts:
+        if not s['matched']:
+            continue
+        emp_shifts_by_store.setdefault(s['name'], {})[s['store']] = emp_shifts_by_store.get(s['name'], {}).get(s['store'], 0.0) + s['basePay'] + s['residualPay']
+
     emp_map = {}
     for e in employee_summaries:
-        store = e['preferableStore'] or '—'
-        emp_map[store] = emp_map.get(store, 0.0) + e['monthlyTotal']
+        emp_shifts = emp_shifts_by_store.get(e['name'], {})
+        ratio_by_store = {store: cost / e['monthlyEarned'] if e['monthlyEarned'] else 0 for store, cost in emp_shifts.items()}
+        for store, ratio in ratio_by_store.items():
+            emp_map[store] = emp_map.get(store, 0.0) + e['monthlyTotal'] * ratio
+        if not emp_shifts:
+            store = '—'
+            emp_map[store] = emp_map.get(store, 0.0) + e['monthlyTotal']
 
     stores = sorted(set(list(sched_map) + list(emp_map)))
     rows = [{
@@ -351,3 +362,99 @@ def build_verification_rows(verification):
     rows    = [[r['store'], r['scheduleCost'], r['employeeCost'], r['diff']] for r in verification['rows']]
     totals  = ['ИТОГО', verification['totals']['scheduleCost'], verification['totals']['employeeCost'], verification['totals']['diff']]
     return [headers] + rows + [totals]
+
+
+# ── Breakdown analysis functions ──────────────────────────────────────────────
+
+def build_difference_waterfall(enriched_shifts, employee_summaries, bonuses, unmatched_shifts):
+    schedule_cost = sum(s['basePay'] + s['residualPay'] for s in enriched_shifts if s['matched'])
+    total_bonuses = sum(e['bonusTotal'] for e in employee_summaries)
+    total_penalties = sum(e['penaltyTotal'] for e in employee_summaries)
+    unmatched_cost = sum(s.get('basePay', 0) + s.get('residualPay', 0) for s in unmatched_shifts)
+    employee_cost = sum(e['monthlyTotal'] for e in employee_summaries)
+
+    return {
+        'schedule_cost': schedule_cost,
+        'bonuses': total_bonuses,
+        'penalties': total_penalties,
+        'unmatched_cost': unmatched_cost,
+        'employee_cost': employee_cost,
+    }
+
+
+def build_store_audit(enriched_shifts, employee_summaries):
+    emp_shifts_by_store = {}
+    for s in enriched_shifts:
+        if not s['matched']:
+            continue
+        emp_shifts_by_store.setdefault(s['name'], {})[s['store']] = emp_shifts_by_store.get(s['name'], {}).get(s['store'], 0.0) + s['basePay'] + s['residualPay']
+
+    store_employees = {}
+    for e in employee_summaries:
+        emp_shifts = emp_shifts_by_store.get(e['name'], {})
+        for store, shift_cost in emp_shifts.items():
+            if store not in store_employees:
+                store_employees[store] = []
+            ratio = (shift_cost / e['monthlyEarned']) if e['monthlyEarned'] else 0
+            scheduled = shift_cost
+            bonus = e['bonusTotal'] * ratio
+            employee_total = e['monthlyTotal'] * ratio
+            store_employees[store].append({
+                'name': e['name'],
+                'scheduled': scheduled,
+                'bonus': bonus,
+                'scheduled_plus_bonus': scheduled + bonus,
+                'employee_total': employee_total,
+                'difference': employee_total - (scheduled + bonus),
+            })
+
+    result = []
+    for store in sorted(store_employees.keys()):
+        employees = sorted(store_employees[store], key=lambda x: x['employee_total'], reverse=True)
+        result.append({'store': store, 'employees': employees})
+
+    return result
+
+
+def build_employee_audit(enriched_shifts, employee_summaries):
+    emp_shifts_by_store = {}
+    for s in enriched_shifts:
+        if not s['matched']:
+            continue
+        if s['name'] not in emp_shifts_by_store:
+            emp_shifts_by_store[s['name']] = {}
+        emp_shifts_by_store[s['name']][s['store']] = emp_shifts_by_store[s['name']].get(s['store'], [])
+        emp_shifts_by_store[s['name']][s['store']].append({
+            'date': s['dateStr'],
+            'store': s['store'],
+            'type': s['shiftType'],
+            'base': s['basePay'],
+            'residual': s['residualPay'],
+        })
+
+    result = []
+    for e in employee_summaries:
+        shifts = []
+        emp_shifts = emp_shifts_by_store.get(e['name'], {})
+        for store, store_shifts in emp_shifts.items():
+            shifts.extend(store_shifts)
+
+        shift_cost_by_store = {store: sum(s['base'] + s['residual'] for s in shifts_list)
+                               for store, shifts_list in emp_shifts.items()}
+        total_shift_cost = sum(shift_cost_by_store.values())
+        scheduled_plus_bonus = total_shift_cost + e['bonusTotal'] - e['penaltyTotal']
+
+        result.append({
+            'name': e['name'],
+            'role': e['role'],
+            'shifts': sorted(shifts, key=lambda x: x['date']),
+            'shift_cost_by_store': shift_cost_by_store,
+            'scheduled': total_shift_cost,
+            'bonus': e['bonusTotal'],
+            'penalty': e['penaltyTotal'],
+            'scheduled_plus_bonus': scheduled_plus_bonus,
+            'employee_total': e['monthlyTotal'],
+            'difference': e['monthlyTotal'] - scheduled_plus_bonus,
+        })
+
+    return result

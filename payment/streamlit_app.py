@@ -9,7 +9,8 @@ from data_access import (read_bonuses_raw, read_employees_raw, read_paid_raw,
 from payroll import (build_payment_rows, build_verification_rows,
                      calculate_payroll, calculate_verification,
                      enrich_shifts, parse_bonus_data, parse_paid_data,
-                     parse_schedule_data, build_employee_map, build_salary_map)
+                     parse_schedule_data, build_employee_map, build_salary_map,
+                     build_difference_waterfall, build_store_audit, build_employee_audit)
 from tests import run_all_tests
 
 st.set_page_config(page_title='Boba Rabbit — Payroll', layout='wide')
@@ -89,6 +90,9 @@ if calc_btn:
             paid             = parse_paid_data(raw_paid, int(month))
             summaries        = calculate_payroll(enriched, bonuses, paid)
             verification     = calculate_verification(enriched, summaries)
+            waterfall        = build_difference_waterfall(enriched, summaries, bonuses, unmatched)
+            store_audit      = build_store_audit(enriched, summaries)
+            employee_audit   = build_employee_audit(enriched, summaries)
 
             st.session_state['calc'] = {
                 'shifts': shifts, 'warnings': warnings,
@@ -96,6 +100,7 @@ if calc_btn:
                 'enriched': enriched, 'unmatched': unmatched,
                 'bonuses': bonuses, 'paid': paid,
                 'summaries': summaries, 'verification': verification,
+                'waterfall': waterfall, 'store_audit': store_audit, 'employee_audit': employee_audit,
                 'month': int(month), 'year': int(year),
             }
         except Exception as e:
@@ -177,6 +182,113 @@ with st.expander(v_label, expanded=has_diff):
     col1.metric('By Schedule', f"{t['scheduleCost']:,.0f}")
     col2.metric('By Employee', f"{t['employeeCost']:,.0f}")
     col3.metric('Adjustment', f"{t['diff']:,.0f}", delta_color='inverse' if t['diff'] != 0 else 'off')
+
+# Panel 6 — Difference Waterfall
+w = c['waterfall']
+with st.expander("6 · Difference Breakdown"):
+    st.write("**Where the difference comes from:**")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric('Schedule Cost', f"{w['schedule_cost']:,.0f}")
+        st.metric('+ Bonuses', f"{w['bonuses']:,.0f}")
+        st.metric('- Penalties', f"{w['penalties']:,.0f}")
+    with col2:
+        subtotal = w['schedule_cost'] + w['bonuses'] - w['penalties']
+        st.metric('= Subtotal', f"{subtotal:,.0f}")
+        st.metric('+ Unmatched', f"{w['unmatched_cost']:,.0f}")
+
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric('Schedule + Bonuses', f"{subtotal:,.0f}")
+    with col2:
+        st.metric('Employee Cost', f"{w['employee_cost']:,.0f}")
+
+    if abs(subtotal - w['employee_cost']) < 0.01:
+        st.success('✓ Calculations match perfectly')
+    else:
+        diff = w['employee_cost'] - subtotal
+        st.warning(f"Difference: {diff:,.0f}")
+
+# Panel 7 — Detailed Verification
+with st.expander("7 · Detailed Verification by Store"):
+    audit_data = []
+    for store_info in c['store_audit']:
+        store = store_info['store']
+        v_row = next((r for r in c['verification']['rows'] if r['store'] == store), None)
+        if v_row:
+            scheduled = v_row['scheduleCost']
+            employee_total = v_row['employeeCost']
+            bonus_total = sum(e['bonus'] for e in store_info['employees'])
+            scheduled_plus_bonus = scheduled + bonus_total
+            audit_data.append({
+                'Store': store,
+                'Scheduled': f"{scheduled:,.0f}",
+                'Bonus': f"{bonus_total:,.0f}",
+                'Scheduled+Bonus': f"{scheduled_plus_bonus:,.0f}",
+                'Employee Total': f"{employee_total:,.0f}",
+                'Difference': f"{employee_total - scheduled_plus_bonus:,.0f}",
+            })
+    if audit_data:
+        st.dataframe(audit_data, use_container_width=True)
+
+# Panel 8 — Per-Store Audit
+with st.expander("8 · Store Breakdown (Employees by Store)"):
+    store_select = st.selectbox('Select Store', [s['store'] for s in c['store_audit']], key='store_select')
+    store_info = next((s for s in c['store_audit'] if s['store'] == store_select), None)
+    if store_info:
+        st.write(f"**{store_select}** — {len(store_info['employees'])} employees")
+        emp_data = [{
+            'Name': e['name'],
+            'Scheduled': f"{e['scheduled']:,.0f}",
+            'Bonus': f"{e['bonus']:,.0f}",
+            'Scheduled+Bonus': f"{e['scheduled_plus_bonus']:,.0f}",
+            'Employee Total': f"{e['employee_total']:,.0f}",
+            'Difference': f"{e['difference']:,.0f}",
+        } for e in store_info['employees']]
+        st.dataframe(emp_data, use_container_width=True)
+
+# Panel 9 — Employee Detail
+with st.expander("9 · Employee Detail"):
+    emp_select = st.selectbox('Select Employee', [e['name'] for e in c['employee_audit']], key='emp_select')
+    emp_info = next((e for e in c['employee_audit'] if e['name'] == emp_select), None)
+    if emp_info:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric('Role', emp_info['role'])
+            col_a, col_b = st.columns(2)
+            col_a.metric('Scheduled', f"{emp_info['scheduled']:,.0f}")
+            col_b.metric('Bonus', f"{emp_info['bonus']:,.0f}")
+        with col2:
+            col_c, col_d = st.columns(2)
+            col_c.metric('Scheduled+Bonus', f"{emp_info['scheduled_plus_bonus']:,.0f}")
+            col_d.metric('Employee Total', f"{emp_info['employee_total']:,.0f}")
+
+        if abs(emp_info['difference']) > 0.01:
+            st.warning(f"Difference: {emp_info['difference']:,.0f}")
+        else:
+            st.success("✓ Matches")
+
+        st.subheader('Shifts by Store')
+        store_breakdown = []
+        for store, cost in sorted(emp_info['shift_cost_by_store'].items(), key=lambda x: x[1], reverse=True):
+            store_breakdown.append({
+                'Store': store,
+                'Scheduled': f"{cost:,.0f}",
+                '% of Total': f"{(cost/emp_info['scheduled']*100) if emp_info['scheduled'] else 0:.1f}%",
+            })
+        if store_breakdown:
+            st.dataframe(store_breakdown, use_container_width=True)
+
+        st.subheader('Individual Shifts')
+        if emp_info['shifts']:
+            st.dataframe([{
+                'Date': s['date'],
+                'Store': s['store'],
+                'Type': s['type'],
+                'Base': f"{s['base']:,.0f}",
+                'Residual': f"{s['residual']:,.0f}",
+            } for s in emp_info['shifts']], use_container_width=True)
 
 # ── Downloads ─────────────────────────────────────────────────────────────────
 
