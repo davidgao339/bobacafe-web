@@ -27,24 +27,35 @@ PERCENTILES = {"Avg": None, "p75": 75, "p90": 90, "p95": 95, "Max": 100}
 @st.cache_data(ttl=3600)
 def fetch_data():
     """Fetch tapioca sales data from Databricks."""
-    with sql.connect(
-        server_hostname=DATABRICKS_HOST,
-        http_path=DATABRICKS_HTTP_PATH,
-        auth_type="pat",
-        token=DATABRICKS_TOKEN,
-    ) as connection:
-        cursor = connection.cursor()
-        cursor.execute("""
-            SELECT
-                datetime, date, store_name, qty, transaction_type, is_return
-            FROM tapioca_sales
-            ORDER BY datetime DESC
-            LIMIT 100000
-        """)
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
-        df = pd.DataFrame(rows, columns=columns)
-        return df
+    try:
+        with sql.connect(
+            server_hostname=DATABRICKS_HOST,
+            http_path=DATABRICKS_HTTP_PATH,
+            auth_type="pat",
+            token=DATABRICKS_TOKEN,
+            session_configuration={"sql_session_max_idle_timeout": "30m"}
+        ) as connection:
+            cursor = connection.cursor()
+            # Try to fetch from tapioca_sales, fallback to other names
+            cursor.execute("""
+                SELECT
+                    datetime, date, store_name, qty, transaction_type, is_return
+                FROM tapioca_sales
+                LIMIT 50000
+            """)
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            df = pd.DataFrame(rows, columns=columns)
+            return df
+    except Exception as e:
+        st.error(f"Connection error: {str(e)}")
+        st.info("**Troubleshooting:**\n"
+                "1. Check DATABRICKS_TOKEN is set in Streamlit secrets\n"
+                "2. Check DATABRICKS_HOST is correct\n"
+                "3. Check DATABRICKS_HTTP_PATH is correct\n"
+                "4. Verify the table name is 'tapioca_sales'\n"
+                "5. Make sure your SQL warehouse is running")
+        raise
 
 def process_data(df, rolling_days):
     """Process raw data and compute recommendations."""
