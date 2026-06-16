@@ -1,72 +1,74 @@
 # Tapioca Cooking Plan
 
-Dynamic tapioca cooking plan with Databricks integration and live refresh.
+Dynamic tapioca cooking plan with Databricks integration and adjustable parameters.
+
+Built with **Streamlit** for instant interactive updates.
 
 ## Features
 
-- **Real-time data**: Fetches sales data from Databricks SQL warehouse
-- **Rolling window**: Configurable (default 90 days) to emphasize recent trends
-- **Percentile selection**: Choose between Avg, p75, p90, p95, or Max
-- **Grams calculator**: Automatic grams per portion calculation
-- **Bilingual**: English and Russian UI
-- **Refresh button**: Fetch fresh data on demand
+✨ **User-adjustable rolling window** — Slider from 7 to 180 days  
+📊 **Real-time Databricks data** — Live SQL warehouse queries  
+🎚️ **Percentile selection** — Avg, p75, p90, p95, Max with tooltips  
+📐 **Dynamic grams calculator** — Portion sizing updates instantly  
+🔄 **Refresh button** — Force data reload on demand  
+🎨 **Color-coded severity** — Visual risk assessment (🟢 green, 🟡 yellow, 🔴 red)  
 
 ## Local Development
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-streamlit.txt
 
-# Set environment variables
-export DATABRICKS_TOKEN="your-token"
-export DATABRICKS_HOST="your-host"
-export DATABRICKS_HTTP_PATH="your-path"
+# Create .streamlit/secrets.toml
+mkdir -p .streamlit
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# Edit secrets.toml with your Databricks credentials
 
-# Run Flask app
-python app.py
+# Run Streamlit app
+streamlit run streamlit_app.py
 ```
 
-Visit `http://localhost:5000`
+Visit `http://localhost:8501`
 
 ## Deployment
 
-### Option 1: Heroku
+### **Streamlit Cloud** (recommended - free tier)
 
-```bash
-heroku create your-app-name
-heroku config:set DATABRICKS_TOKEN="..."
-heroku config:set DATABRICKS_HOST="..."
-heroku config:set DATABRICKS_HTTP_PATH="..."
-git push heroku main
-```
+1. Push to GitHub
+2. Go to [share.streamlit.io](https://share.streamlit.io)
+3. Deploy from repo
+4. Add secrets in Streamlit Cloud UI
 
-### Option 2: Google Cloud Run
+### **Google Cloud Run**
 
 ```bash
 gcloud run deploy tapioca-plan \
-  --source . \
-  --platform managed \
-  --region us-central1 \
+  --source internal/boba \
+  --entry-point streamlit_app.py \
   --set-env-vars DATABRICKS_TOKEN="...",DATABRICKS_HOST="...",DATABRICKS_HTTP_PATH="..."
 ```
 
-### Option 3: Railway.app
+### **Heroku**
 
-1. Connect repo to Railway
-2. Add environment variables
-3. Deploy
+```bash
+heroku create tapioca-plan
+heroku config:set DATABRICKS_TOKEN="..." DATABRICKS_HOST="..." DATABRICKS_HTTP_PATH="..."
+heroku config:add BUILDPACK_URL=https://github.com/heroku/heroku-buildpack-python.git
+git push heroku main
+```
 
 ## Environment Variables
 
-- `DATABRICKS_TOKEN`: PAT token for Databricks
-- `DATABRICKS_HOST`: Databricks workspace host
+Required:
+- `DATABRICKS_TOKEN`: PAT token for Databricks SQL
+- `DATABRICKS_HOST`: Databricks workspace host  
 - `DATABRICKS_HTTP_PATH`: SQL warehouse HTTP path
-
-Defaults (from `boba-cafe-databricks/POS/pipeline/secrets.py`) are used if not set.
 
 ## Configuration
 
-Edit `app.py` to change:
-- `ROLLING_DAYS_DEFAULT`: Historical window (line ~30)
-- `SLOT_ORDER`: Cooking time slots
-- `PERCENTILES`: Available percentile options
+Edit `streamlit_app.py`:
+- Line 20: `SLOT_ORDER` — Cooking time slots
+- Line 21: `PERCENTILES` — Available percentile options
+- Sidebar default values in UI code
+
+The rolling days window is **user-selectable** (7-180 range) with no code changes needed.
