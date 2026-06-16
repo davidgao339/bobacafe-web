@@ -28,7 +28,7 @@ PERCENTILES = {"Avg": None, "p75": 75, "p90": 90, "p95": 95, "Max": 100}
 def fetch_data():
     """Fetch tapioca sales data from Databricks."""
     with sql.connect(
-        host=DATABRICKS_HOST,
+        server_hostname=DATABRICKS_HOST,
         http_path=DATABRICKS_HTTP_PATH,
         auth_type="pat",
         token=DATABRICKS_TOKEN,
