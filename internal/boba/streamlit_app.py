@@ -37,10 +37,12 @@ def fetch_data():
         ) as connection:
             cursor = connection.cursor()
             # Try to fetch from tapioca_sales, fallback to other names
+            # Query transactions table - adjust WHERE clause as needed
             cursor.execute("""
                 SELECT
                     datetime, date, store_name, qty, transaction_type, is_return
-                FROM tapioca_sales
+                FROM workspace.default.transactions
+                ORDER BY datetime DESC
                 LIMIT 50000
             """)
             columns = [desc[0] for desc in cursor.description]
