@@ -76,6 +76,7 @@ export function ConfigProvider({ children }) {
   const [data,       setDataState]       = useState(() => loadFromStorage(DATA_KEY)        ?? DEFAULT_DATA)
   const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
   const [settings,   setSettingsState]   = useState(() => loadFromStorage(SETTINGS_KEY)   ?? { token: '', warehouseId: '' })
+  const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
 
   const setConfig = useCallback((updater) => {
     setConfigState(prev => {
@@ -175,13 +176,12 @@ export function ConfigProvider({ children }) {
 
     if (!fromDate || !toDate) return { upToDate: true, throughDate: null }
 
-    const storesSql = STORES.map(s => `'${s}'`).join(', ')
+    // Query sales data (no hardcoded store filter — get all stores)
     const statement = `
       SELECT CAST(date AS STRING) AS date, store_name AS store, product,
              transaction_type, is_topping, CAST(SUM(qty) AS DOUBLE) AS qty
       FROM ${SALES_TABLE}
-      WHERE store_name IN (${storesSql})
-        AND date >= '${fromDate}' AND date <= '${toDate}'
+      WHERE date >= '${fromDate}' AND date <= '${toDate}'
         AND is_return = false
       GROUP BY date, store_name, product, transaction_type, is_topping
       ORDER BY date DESC
@@ -209,6 +209,12 @@ export function ConfigProvider({ children }) {
     const newRows = (result.result?.data_array ?? []).map(row =>
       Object.fromEntries(cols.map((c, i) => [c, row[i]]))
     )
+
+    // Extract and update distinct stores from data
+    const uniqueStores = [...new Set(newRows.map(r => r.store))].sort()
+    if (uniqueStores.length > 0) {
+      setStoresState(uniqueStores)
+    }
 
     // Merge — deduplicate by date+store+product+topping flag
     const keyOf = r => `${r.date}|${r.store}|${r.product}|${r.transaction_type}|${r.is_topping}`
@@ -308,6 +314,7 @@ export function ConfigProvider({ children }) {
       addAudit, deleteAudit, updateAudit, addTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
+      stores,
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,
