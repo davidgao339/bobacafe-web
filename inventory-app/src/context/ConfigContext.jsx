@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState, useCallback } from 'react'
-import { STORES } from '../data/fakeData'
+import { stores as STORES } from '../data/fakeData'
 
 const STORAGE_KEY     = 'bobacafe_inventory_config'
 const DATA_KEY        = 'bobacafe_inventory_data'
