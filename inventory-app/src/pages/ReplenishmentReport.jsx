@@ -21,7 +21,7 @@ export default function ReplenishmentReport() {
     return sortDir === 'asc' ? cmp : -cmp
   }) : rows
 
-  const stores = selectedStore === 'All' ? stores : [selectedStore]
+  const filteredStores = selectedStore === 'All' ? stores : [selectedStore]
 
   const supplierMap = useMemo(() =>
     Object.fromEntries((config.suppliers ?? []).map(s => [s.id, s.name])),
@@ -29,7 +29,7 @@ export default function ReplenishmentReport() {
   )
 
   const reportRows = useMemo(() =>
-    stores.map(store => ({
+    filteredStores.map(store => ({
       store,
       rows: config.ingredients.map(p => ({
         ...p,
@@ -39,7 +39,7 @@ export default function ReplenishmentReport() {
         orderQty: getOrderQty(store, p.id),
       })),
     })),
-    [selectedStore, config.ingredients, supplierMap, getConsumed7d, estimateCurrentStock, getOrderQty]
+    [selectedStore, stores, config.ingredients, supplierMap, getConsumed7d, estimateCurrentStock, getOrderQty]
   )
 
   const csvField = (v) => {
