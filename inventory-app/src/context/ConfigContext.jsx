@@ -331,7 +331,7 @@ export function ConfigProvider({ children }) {
       addAudit, deleteAudit, updateAudit, addTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
-      stores, visibleStores, toggleStoreVisibility,
+      stores, visibleStores, suppressedStores, toggleStoreVisibility,
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,
@@ -350,7 +350,7 @@ export function useConfig() {
 // ─── Calculation functions ────────────────────────────────────────────────────
 
 export function useCalcs() {
-  const { config, sales, posWaste, data } = useConfig()
+  const { config, sales, posWaste, data, stores } = useConfig()
 
   return useMemo(() => {
     const { ingredients, recipes } = config
