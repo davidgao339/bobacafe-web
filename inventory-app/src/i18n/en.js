@@ -4,6 +4,7 @@ const en = {
   'nav.countStock':    'Count Stock',
   'nav.inventory':     'Inventory',
   'nav.transactions':  'Transactions',
+  'nav.tapioca':       'Tapioca Plan',
   'nav.recipes':       'Recipes',
   'nav.losses':        'Unexplained Losses',
   'nav.purchases':     'Purchase Orders',

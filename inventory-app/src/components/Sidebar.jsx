@@ -17,6 +17,7 @@ const MANAGER_NAV = [
     { id: 'sales',  labelKey: 'tx.tabSales' },
     { id: 'waste',  labelKey: 'tx.tabWaste' },
   ]},
+  { id: 'tapioca',  labelKey: 'nav.tapioca', icon: TapiocaIcon },
   { id: 'recipes', labelKey: 'nav.recipes', icon: RecipeIcon, children: [
     { id: 'ingredients', labelKey: 'recipes.tabIngredients' },
     { id: 'recipes',     labelKey: 'recipes.tabRecipes' },
@@ -257,3 +258,4 @@ function VarianceIcon() { return <svg className="w-4 h-4" fill="none" stroke="cu
 function POIcon()       { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h.01M12 16h.01M8 12h.01M8 16h.01"/></svg> }
 function ReportIcon()   { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> }
 function UsageIcon()    { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg> }
+function TapiocaIcon()  { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20H4v-6m10-6h6m0 0v6m0-6l-5 5m5-11h4m-4 0V7m0 0h-2a2 2 0 00-2 2v2m8 0a5 5 0 10-10 0 5 5 0 0010 0z"/></svg> }

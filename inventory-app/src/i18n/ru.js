@@ -4,6 +4,7 @@ const ru = {
   'nav.countStock':    'Пересчёт остатков',
   'nav.inventory':     'Остатки',
   'nav.transactions':  'Транзакции',
+  'nav.tapioca':       'План варки тапиоки',
   'nav.recipes':       'Рецептура',
   'nav.losses':        'Необъяснимые потери',
   'nav.purchases':     'Заказы',

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import InventoryAudit from './pages/InventoryAudit'
 import Transactions from './pages/Transactions'
 import ReplenishmentReport from './pages/ReplenishmentReport'
+import TapiocaCookingPlan from './pages/TapiocaCookingPlan'
 import Recipes from './pages/Recipes'
 import VarianceReport from './pages/VarianceReport'
 import PurchaseOrders from './pages/PurchaseOrders'
@@ -63,6 +64,7 @@ function AppContent() {
           {page === 'dashboard'    && <Dashboard onNavigate={navigate} />}
           {page === 'audit'        && <InventoryAudit activeTab={subTab ?? 'count'} onTabChange={t => setSubTab(t)} />}
           {page === 'transactions' && <Transactions   activeTab={subTab ?? 'sales'} onTabChange={t => setSubTab(t)} />}
+          {page === 'tapioca'      && <TapiocaCookingPlan />}
           {page === 'report'       && <ReplenishmentReport />}
           {page === 'recipes'      && <Recipes         activeTab={subTab ?? 'ingredients'} onTabChange={t => setSubTab(t)} />}
           {page === 'variance'     && <VarianceReport />}
