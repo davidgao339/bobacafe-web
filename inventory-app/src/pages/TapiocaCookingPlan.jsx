@@ -11,17 +11,12 @@ import {
 } from '../utils/tapiocaCalculations'
 
 export default function TapiocaCookingPlan() {
-  const { sales, salesCache, settings, saveSettings, refreshSales } = useConfig()
+  const { sales, salesCache } = useConfig()
   const { t } = useLanguage()
 
   const [rollingDays, setRollingDays] = useState(90)
   const [percentile, setPercentile] = useState('p90')
   const [gramsPerPortion, setGramsPerPortion] = useState(50)
-  const [refreshing, setRefreshing] = useState(false)
-  const [refreshMsg, setRefreshMsg] = useState(null)
-  const [showSettings, setShowSettings] = useState(false)
-  const [localToken, setLocalToken] = useState(settings.token ?? '')
-  const [localWarehouse, setLocalWarehouse] = useState(settings.warehouseId ?? '')
 
   const lastSync = salesCache?.lastRefreshDate ?? null
 
@@ -30,42 +25,6 @@ export default function TapiocaCookingPlan() {
   const daily = useMemo(() => dailyBySlot(tapiocaSales), [tapiocaSales])
   const recommendations = useMemo(() => computeRecommendations(daily, rollingDays), [daily, rollingDays])
   const backtest = useMemo(() => computeBacktest(daily, recommendations), [daily, recommendations])
-
-  const handleRefresh = async () => {
-    const token = (showSettings ? localToken : settings.token)?.trim()
-    const warehouseId = (showSettings ? localWarehouse : settings.warehouseId)?.trim()
-
-    if (!token) {
-      setShowSettings(true)
-      setRefreshMsg({ type: 'error', text: 'Enter a Databricks PAT token first.' })
-      return
-    }
-
-    setRefreshing(true)
-    setRefreshMsg(null)
-
-    try {
-      const today = new Date().toISOString().slice(0, 10)
-      const fromDate = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10)
-      const result = await refreshSales(token, warehouseId, fromDate, today)
-
-      if (result.upToDate) {
-        setRefreshMsg({ type: 'ok', text: `Already up to date through ${result.throughDate}.` })
-      } else {
-        setRefreshMsg({ type: 'ok', text: `Fetched ${result.newRows} rows.` })
-      }
-    } catch (err) {
-      setRefreshMsg({ type: 'error', text: err.message })
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const saveCredentials = () => {
-    saveSettings({ token: localToken.trim(), warehouseId: localWarehouse.trim() })
-    setShowSettings(false)
-    setRefreshMsg(null)
-  }
 
   const severityColor = {
     high: 'bg-red-50 border-red-200',
@@ -88,7 +47,10 @@ export default function TapiocaCookingPlan() {
         <h1 className="text-2xl font-bold text-gray-800">🧋 Tapioca Cooking Plan</h1>
         <p className="text-gray-500 text-sm mt-1">
           Based on {tapiocaSales.length} tapioca transactions
-          {lastSync && ` • Last sync: ${lastSync}`}
+          {lastSync && ` • Data as of: ${lastSync}`}
+        </p>
+        <p className="text-gray-400 text-xs mt-1">
+          💡 Refresh data in the <strong>Transactions</strong> tab to update this view
         </p>
       </div>
 
@@ -143,86 +105,16 @@ export default function TapiocaCookingPlan() {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-20"
             />
           </div>
-
-          <div className="flex-1" />
-
-          {/* Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {refreshing ? '⏳ Refreshing...' : '🔄 Refresh Data'}
-          </button>
         </div>
-
-        {/* Messages */}
-        {refreshMsg && (
-          <div
-            className={`p-3 rounded-lg text-sm ${
-              refreshMsg.type === 'ok'
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-red-50 text-red-700 border border-red-200'
-            }`}
-          >
-            {refreshMsg.text}
-          </div>
-        )}
-
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Databricks PAT Token</label>
-              <input
-                type="password"
-                value={localToken}
-                onChange={e => setLocalToken(e.target.value)}
-                placeholder="dapi..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Warehouse ID</label>
-              <input
-                type="text"
-                value={localWarehouse}
-                onChange={e => setLocalWarehouse(e.target.value)}
-                placeholder="9xxxx..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={saveCredentials}
-                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* No Data State */}
       {tapiocaSales.length === 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-          <p className="text-blue-700 font-medium mb-2">No tapioca sales data</p>
-          <p className="text-blue-600 text-sm mb-4">
-            Click "Refresh Data" to fetch transactions from Databricks
+          <p className="text-blue-700 font-medium mb-2">No tapioca sales data loaded</p>
+          <p className="text-blue-600 text-sm">
+            Go to <strong>Transactions</strong> tab and click "🔄 Refresh Data" to fetch from Databricks
           </p>
-          <button
-            onClick={handleRefresh}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            Fetch Data
-          </button>
         </div>
       )}
 
