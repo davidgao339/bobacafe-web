@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext'
 
 
 export default function ReplenishmentReport() {
-  const { config, reportFrom, reportTo, stores } = useConfig()
+  const { config, reportFrom, reportTo, stores, visibleStores } = useConfig()
   const { getConsumed7d, estimateCurrentStock, getOrderQty } = useCalcs()
   const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
@@ -21,7 +21,7 @@ export default function ReplenishmentReport() {
     return sortDir === 'asc' ? cmp : -cmp
   }) : rows
 
-  const filteredStores = selectedStore === 'All' ? stores : [selectedStore]
+  const filteredStores = selectedStore === 'All' ? visibleStores : [selectedStore]
 
   const supplierMap = useMemo(() =>
     Object.fromEntries((config.suppliers ?? []).map(s => [s.id, s.name])),
@@ -39,7 +39,7 @@ export default function ReplenishmentReport() {
         orderQty: getOrderQty(store, p.id),
       })),
     })),
-    [selectedStore, stores, config.ingredients, supplierMap, getConsumed7d, estimateCurrentStock, getOrderQty]
+    [selectedStore, visibleStores, config.ingredients, supplierMap, getConsumed7d, estimateCurrentStock, getOrderQty]
   )
 
   const csvField = (v) => {
@@ -79,7 +79,7 @@ export default function ReplenishmentReport() {
           <select value={selectedStore} onChange={e => setSelectedStore(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option>{t('common.all')}</option>
-            {stores.map(s => <option key={s}>{s}</option>)}
+            {visibleStores.map(s => <option key={s}>{s}</option>)}
           </select>
           <button onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors">

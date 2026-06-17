@@ -68,7 +68,7 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
 }
 
 export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose }) {
-  const { listCloudBackups, saveCloudBackup, restoreCloudBackup } = useConfig()
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores } = useConfig()
   const { lang, setLang, t } = useLanguage()
 
   const [saving,        setSaving]        = useState(false)
@@ -77,6 +77,7 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
   const [loading,       setLoading]       = useState(false)
   const [confirmId,     setConfirmId]     = useState(null)
   const [restoring,     setRestoring]     = useState(false)
+  const [storesOpen,    setStoresOpen]    = useState(false)
   const [msg,           setMsg]           = useState(null)  // { type: 'ok'|'err', text }
 
   const flash = (type, text) => {
@@ -184,6 +185,31 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
             </button>
           ))}
         </div>
+
+        {/* Store visibility toggle */}
+        <button onClick={() => setStoresOpen(!storesOpen)}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs transition-colors ${
+            storesOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+          }`}>
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg>
+          Stores
+        </button>
+
+        {storesOpen && stores && (
+          <div className="mb-2 bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+            {stores.map(store => (
+              <label key={store} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0">
+                <input
+                  type="checkbox"
+                  checked={!suppressedStores.includes(store)}
+                  onChange={() => toggleStoreVisibility(store)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs text-slate-200">{store}</span>
+              </label>
+            ))}
+          </div>
+        )}
 
         {/* Restore panel */}
         {restoreOpen && (

@@ -1,10 +1,11 @@
 import { createContext, useContext, useMemo, useState, useCallback } from 'react'
 import { stores as STORES } from '../data/fakeData'
 
-const STORAGE_KEY     = 'bobacafe_inventory_config'
-const DATA_KEY        = 'bobacafe_inventory_data'
-const SALES_CACHE_KEY = 'bobacafe_sales_cache'
-const SETTINGS_KEY    = 'bobacafe_settings'
+const STORAGE_KEY           = 'bobacafe_inventory_config'
+const DATA_KEY              = 'bobacafe_inventory_data'
+const SALES_CACHE_KEY       = 'bobacafe_sales_cache'
+const SETTINGS_KEY          = 'bobacafe_settings'
+const SUPPRESSED_STORES_KEY = 'bobacafe_suppressed_stores'
 
 const WORKSPACE = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com'
 const SALES_TABLE = 'workspace.default.transactions'
@@ -77,6 +78,7 @@ export function ConfigProvider({ children }) {
   const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
   const [settings,   setSettingsState]   = useState(() => loadFromStorage(SETTINGS_KEY)   ?? { token: '', warehouseId: '' })
   const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
+  const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
 
   const setConfig = useCallback((updater) => {
     setConfigState(prev => {
@@ -103,6 +105,21 @@ export function ConfigProvider({ children }) {
     setSalesCacheState(null)
     localStorage.removeItem(SALES_CACHE_KEY)
   }, [])
+
+  const toggleStoreVisibility = useCallback((store) => {
+    setSuppressedStores(prev => {
+      const next = prev.includes(store)
+        ? prev.filter(s => s !== store)
+        : [...prev, store]
+      saveToStorage(SUPPRESSED_STORES_KEY, next)
+      return next
+    })
+  }, [])
+
+  const visibleStores = useMemo(() => {
+    if (!stores || !suppressedStores) return stores || []
+    return stores.filter(s => !suppressedStores.includes(s))
+  }, [stores, suppressedStores])
 
   // ─── Operational data mutations ─────────────────────────────────────────────
 
@@ -314,7 +331,7 @@ export function ConfigProvider({ children }) {
       addAudit, deleteAudit, updateAudit, addTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
-      stores,
+      stores, visibleStores, toggleStoreVisibility,
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,
