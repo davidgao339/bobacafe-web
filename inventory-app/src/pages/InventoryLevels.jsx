@@ -20,7 +20,7 @@ export default function InventoryLevels() {
   }
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
-  const stores = selectedStore === 'All' ? stores : [selectedStore]
+  const filteredStores = selectedStore === 'All' ? stores : [selectedStore]
   const { ingredients } = config
 
   if (ingredients.length === 0) {
@@ -57,8 +57,8 @@ export default function InventoryLevels() {
   }
 
   // Single-store: list view with more detail
-  if (stores.length === 1) {
-    const store      = stores[0]
+  if (filteredStores.length === 1) {
+    const store      = filteredStores[0]
     const lastAudit  = getLastAudit(store)
     const auditLabel = lastAudit ? t('levels.lastAudit', { date: lastAudit.date }) : t('levels.noAudit')
 
@@ -213,7 +213,7 @@ export default function InventoryLevels() {
   const matrixRows = ingredients
     .filter(ing => !q || ing.name.toLowerCase().includes(q))
     .map(ing => {
-      const cells = stores.map(s => ({ store: s, ...stockLevel(s, ing) }))
+      const cells = filteredStores.map(s => ({ store: s, ...stockLevel(s, ing) }))
       const worstRank = Math.min(...cells.map(c => STATUS_RANK[c.status]))
       return { ing, cells, worstRank }
     })
@@ -251,11 +251,11 @@ export default function InventoryLevels() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <table className="text-sm" style={{ minWidth: `${220 + stores.length * 110}px` }}>
+        <table className="text-sm" style={{ minWidth: `${220 + filteredStores.length * 110}px` }}>
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
               <th className="px-5 py-3 font-medium sticky left-0 bg-gray-50 z-10 w-32 sm:w-48 max-w-[128px] sm:max-w-none cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
-              {stores.map(s => (
+              {filteredStores.map(s => (
                 <th key={s} className="px-3 py-3 font-medium text-center whitespace-nowrap">
                   <button onClick={() => setSelectedStore(s)}
                     className="hover:text-blue-600 hover:underline transition-colors">
@@ -292,7 +292,7 @@ export default function InventoryLevels() {
           <tfoot>
             <tr className="border-t border-gray-200 bg-gray-50 text-xs text-gray-400">
               <td className="px-5 py-2 sticky left-0 bg-gray-50">{t('levels.lastAuditRow')}</td>
-              {stores.map(store => {
+              {filteredStores.map(store => {
                 const a = getLastAudit(store)
                 return <td key={store} className="px-3 py-2 text-center">{a ? a.date : '—'}</td>
               })}
