@@ -427,7 +427,7 @@ export function useCalcs() {
 
     const getLowStockAlerts = () => {
       const alerts = []
-      for (const store of STORES)
+      for (const store of stores)
         for (const p of ingredients)
           if (isLowStock(store, p.id)) {
             const current = Math.max(0, estimateCurrentStock(store, p.id))

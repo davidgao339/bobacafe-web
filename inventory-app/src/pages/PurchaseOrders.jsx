@@ -1,7 +1,7 @@
 import { useState, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { STORES } from '../data/fakeData'
+
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
@@ -76,7 +76,7 @@ function StatusStepper({ po }) {
 
 function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate, initialFromLocation, initialToLocation }) {
   const { t } = useLanguage()
-  const [store,          setStore]          = useState(initialStore ?? STORES[0])
+  const [store,          setStore]          = useState(initialStore ?? stores[0])
   const [createdDate,    setCreatedDate]    = useState(initialCreatedDate ?? TODAY)
   const [days,           setDays]           = useState(7)
   const [fromLocation,   setFromLocation]   = useState(initialFromLocation ?? null)
@@ -193,7 +193,7 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
               <label className="text-xs font-medium text-gray-600">{t('common.store')}</label>
               <select value={store} onChange={e => handleStoreChange(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                {STORES.map(s => <option key={s}>{s}</option>)}
+                {stores.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
           )}
@@ -215,7 +215,7 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
             <select value={fromLocation ?? ''} onChange={e => setFromLocation(e.target.value || null)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">—</option>
-              {STORES.map(s => <option key={s}>{s}</option>)}
+              {stores.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
             <select value={toLocation ?? ''} onChange={e => setToLocation(e.target.value || null)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">—</option>
-              {STORES.map(s => <option key={s}>{s}</option>)}
+              {stores.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="relative">
@@ -376,7 +376,7 @@ ${sectionsHtml}
 }
 
 export default function PurchaseOrders() {
-  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, addTransaction } = useConfig()
+  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, addTransaction, stores } = useConfig()
   const { getOrderQty } = useCalcs()
   const { t } = useLanguage()
 

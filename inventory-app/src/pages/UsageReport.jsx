@@ -1,12 +1,12 @@
 import { useState, useMemo, Fragment } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { STORES } from '../data/fakeData'
+
 
 const r1 = n => Math.round(n * 10) / 10
 
 export default function UsageReport() {
-  const { config, sales, posWaste, data, reportFrom, reportTo } = useConfig()
+  const { config, sales, posWaste, data, reportFrom, reportTo, stores } = useConfig()
   const { t } = useLanguage()
   const { recipes } = config
 
@@ -114,7 +114,7 @@ export default function UsageReport() {
           <select value={store} onChange={e => { setStore(e.target.value); setExpandedDate(null) }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option value="All">{t('common.allStores')}</option>
-            {STORES.map(s => <option key={s}>{s}</option>)}
+            {stores.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>

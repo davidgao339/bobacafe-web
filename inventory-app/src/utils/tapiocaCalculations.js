@@ -1,4 +1,3 @@
-import { STORES } from '../data/fakeData'
 import { DEFAULT_DATA } from '../context/ConfigContext'
 
 /**

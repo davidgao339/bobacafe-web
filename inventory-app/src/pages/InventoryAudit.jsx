@@ -1,12 +1,12 @@
 import { useState, useRef, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { STORES } from '../data/fakeData'
+
 
 // ─── Count tab ────────────────────────────────────────────────────────────────
 
 function CountTab({ store, setStore, date, setDate }) {
-  const { config, data, addAudit } = useConfig()
+  const { config, data, addAudit, stores } = useConfig()
   const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
 
@@ -70,7 +70,7 @@ function CountTab({ store, setStore, date, setDate }) {
           <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
           <select value={store} onChange={e => { setStore(e.target.value); setSaved(false) }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            {STORES.map(s => <option key={s}>{s}</option>)}
+            {stores.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
         <div>
@@ -209,7 +209,7 @@ function CountTab({ store, setStore, date, setDate }) {
 // ─── History tab ──────────────────────────────────────────────────────────────
 
 function HistoryTab() {
-  const { config, data, deleteAudit, updateAudit } = useConfig()
+  const { config, data, deleteAudit, updateAudit, stores } = useConfig()
   const { t } = useLanguage()
   const [historyStore,  setHistoryStore]  = useState('All')
   const [expanded,      setExpanded]      = useState(null)
@@ -257,7 +257,7 @@ function HistoryTab() {
             onChange={e => { setHistoryStore(e.target.value); setExpanded(null); setPendingDelete(null); cancelEdit() }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option value="All">{t('common.allStores')}</option>
-            {STORES.map(s => <option key={s}>{s}</option>)}
+            {stores.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
         <p className="text-sm text-gray-500 mt-5">
@@ -443,7 +443,7 @@ function normalizeDate(raw) {
 }
 
 function ImportTab() {
-  const { config, addAudit } = useConfig()
+  const { config, addAudit, stores } = useConfig()
   const { t } = useLanguage()
   const [parsed,  setParsed]  = useState(null)
   const [result,  setResult]  = useState(null)
@@ -462,7 +462,7 @@ function ImportTab() {
           if (sa !== sb) return sa.localeCompare(sb)
           return a.name.localeCompare(b.name)
         })
-        .map(i => [STORES[0], today, i.name, i.unit, suppName(i), '']),
+        .map(i => [stores[0], today, i.name, i.unit, suppName(i), '']),
     ]
     const csv = rows.map(r => r.map(csvEsc).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -512,7 +512,7 @@ function ImportTab() {
       const qtyRaw = cells[iQty]?.trim()   ?? ''
       const errors = []
 
-      if (!STORES.includes(store)) errors.push(`unknown store "${store}"`)
+      if (!stores.includes(store)) errors.push(`unknown store "${store}"`)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${cells[iDate]?.trim()}"`)
       const ing = ingByName[ingRaw.toLowerCase()]
       if (!ing) { unknownIngredients.add(ingRaw); continue }
@@ -645,7 +645,7 @@ function ImportTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InventoryAudit({ activeTab = 'count', onTabChange }) {
-  const [store, setStore] = useState(STORES[0])
+  const [store, setStore] = useState(stores[0])
   const [date,  setDate]  = useState(new Date().toISOString().slice(0, 10))
   const { t } = useLanguage()
 

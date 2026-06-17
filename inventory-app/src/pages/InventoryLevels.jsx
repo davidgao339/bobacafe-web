@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { STORES } from '../data/fakeData'
+
 
 const STATUS_RANK = { depleted: 0, critical: 1, low: 2, ok: 3, unknown: 4 }
 
 export default function InventoryLevels() {
-  const { config, data } = useConfig()
+  const { config, data, stores } = useConfig()
   const { estimateCurrentStock, getDailyAvg, getLastAudit } = useCalcs()
   const { t } = useLanguage()
   const [selectedStore, setSelectedStore] = useState('All')
@@ -20,7 +20,7 @@ export default function InventoryLevels() {
   }
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
-  const stores = selectedStore === 'All' ? STORES : [selectedStore]
+  const stores = selectedStore === 'All' ? stores : [selectedStore]
   const { ingredients } = config
 
   if (ingredients.length === 0) {
@@ -97,7 +97,7 @@ export default function InventoryLevels() {
             <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false); setSearch('') }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="All">{t('common.allStores')}</option>
-              {STORES.map(s => <option key={s}>{s}</option>)}
+              {stores.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
         </div>
@@ -245,7 +245,7 @@ export default function InventoryLevels() {
           <select value={selectedStore} onChange={e => { setSelectedStore(e.target.value); setIssuesOnly(false); setSearch('') }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
             <option value="All">{t('common.allStores')}</option>
-            {STORES.map(s => <option key={s}>{s}</option>)}
+            {stores.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>

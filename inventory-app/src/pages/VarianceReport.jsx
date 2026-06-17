@@ -1,7 +1,7 @@
 import { useState, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { STORES } from '../data/fakeData'
+
 
 const r1 = n => Math.round(n * 10) / 10
 
@@ -119,7 +119,7 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
 // ─── Store section ────────────────────────────────────────────────────────────
 
 function StoreSection({ store, issuesOnly }) {
-  const { config, data, sales, posWaste } = useConfig()
+  const { config, data, sales, posWaste, stores } = useConfig()
   const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance,
           getVariancePct, getVarianceWindow, getIngredientVarianceWindow } = useCalcs()
   const { t } = useLanguage()
@@ -265,7 +265,7 @@ export default function VarianceReport() {
   const [store,      setStore]      = useState('All')
   const [issuesOnly, setIssuesOnly] = useState(false)
   const { t } = useLanguage()
-  const visibleStores = store === 'All' ? STORES : [store]
+  const visibleStores = store === 'All' ? stores : [store]
 
   return (
     <div className="p-4 md:p-8">
@@ -282,7 +282,7 @@ export default function VarianceReport() {
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6 flex-wrap">
-        {[t('common.all'), ...STORES].map((s, i) => {
+        {[t('common.all'), ...stores].map((s, i) => {
           const storeKey = i === 0 ? 'All' : s
           return (
             <button key={storeKey} onClick={() => setStore(storeKey)}

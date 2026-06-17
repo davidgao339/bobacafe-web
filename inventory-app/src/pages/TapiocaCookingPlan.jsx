@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { STORES } from '../data/fakeData'
 import {
   filterTapiocaSales,
   dailyBySlot,
@@ -11,7 +10,7 @@ import {
 } from '../utils/tapiocaCalculations'
 
 export default function TapiocaCookingPlan() {
-  const { sales, salesCache } = useConfig()
+  const { sales, salesCache, stores } = useConfig()
   const { t } = useLanguage()
 
   const [rollingDays, setRollingDays] = useState(90)
@@ -125,7 +124,7 @@ export default function TapiocaCookingPlan() {
           <div>
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Cooking Plan</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {STORES.map(store => {
+              {stores.map(store => {
                 const storeStats = Object.entries(recommendations)
                   .filter(([key]) => key.startsWith(store + '|'))
                   .map(([key, stats]) => ({
