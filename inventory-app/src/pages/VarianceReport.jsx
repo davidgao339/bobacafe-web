@@ -265,6 +265,7 @@ export default function VarianceReport() {
   const [store,      setStore]      = useState('All')
   const [issuesOnly, setIssuesOnly] = useState(false)
   const { t } = useLanguage()
+  const { stores } = useConfig()
   const visibleStores = store === 'All' ? stores : [store]
 
   return (

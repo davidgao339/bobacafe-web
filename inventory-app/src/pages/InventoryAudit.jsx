@@ -645,7 +645,8 @@ function ImportTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InventoryAudit({ activeTab = 'count', onTabChange }) {
-  const [store, setStore] = useState(stores[0])
+  const { stores } = useConfig()
+  const [store, setStore] = useState(stores?.[0] ?? '')
   const [date,  setDate]  = useState(new Date().toISOString().slice(0, 10))
   const { t } = useLanguage()
 

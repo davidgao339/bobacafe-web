@@ -270,7 +270,7 @@ function SalesTab() {
 // ─── Waste tab (Non-Fiscal POS transactions) ─────────────────────────────────
 
 function WasteTab() {
-  const { posWaste, salesCache, reportFrom, reportTo } = useConfig()
+  const { posWaste, salesCache, reportFrom, reportTo, stores } = useConfig()
   const { getSaleIngredientImpact } = useCalcs()
   const { t } = useLanguage()
   const today = new Date().toISOString().slice(0, 10)
