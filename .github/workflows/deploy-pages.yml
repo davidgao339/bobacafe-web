@@ -132,6 +132,9 @@ jobs:
           # 6. Prevent Jekyll from ignoring underscore files
           touch deploy/.nojekyll
 
+          # 7. Preserve custom domain
+          cp CNAME deploy/CNAME
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3.0.1
         with:
