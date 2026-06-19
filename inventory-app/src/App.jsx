@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ConfigProvider, useConfig } from './context/ConfigContext'
-import { LanguageProvider } from './context/LanguageContext'
+import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import InventoryAudit from './pages/InventoryAudit'
@@ -61,10 +61,10 @@ function LoginScreen({ pins, onLogin }) {
 }
 
 function AppRoot() {
-  const { settings } = useConfig()
+  const { config } = useConfig()
   const [role, setRole] = useState(() => sessionStorage.getItem('invRole') ?? null)
 
-  const pins     = settings?.pins ?? { admin: '', logistics: '' }
+  const pins     = config?.pins ?? { admin: '', logistics: '' }
   const hasAuth  = !!(pins.admin || pins.logistics)
 
   const handleLogin  = (newRole) => { sessionStorage.setItem('invRole', newRole); setRole(newRole) }
@@ -85,6 +85,8 @@ function AppContent({ role, onLogout, hasAuth }) {
   const [page,          setPage]          = useState('dashboard')
   const [subTab,        setSubTab]        = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const { setLang } = useLanguage()
+  useEffect(() => { if (role === 'logistics') setLang('ru') }, [role])
 
   const navigate = (pageId, tabId = null) => {
     setPage(pageId)
@@ -97,12 +99,12 @@ function AppContent({ role, onLogout, hasAuth }) {
       <div className="flex flex-col h-screen bg-gray-50">
         <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
           <div>
-            <p className="font-semibold text-gray-800 text-sm">BOBA · Inventory</p>
-            <p className="text-xs text-gray-400">Logistics view</p>
+            <p className="font-semibold text-gray-800 text-sm">Боба Кролик · Склад</p>
+            <p className="text-xs text-gray-400">Логистика</p>
           </div>
           <button onClick={onLogout}
             className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors">
-            Sign out
+            Выйти
           </button>
         </header>
         <div className="flex-1 overflow-auto">

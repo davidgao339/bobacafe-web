@@ -61,6 +61,7 @@ function migrateConfig(raw) {
     ingredients,
     recipes:          raw.recipes          ?? DEFAULT_RECIPES,
     suppliers,
+    pins:             { admin: '', logistics: '', ...(raw.pins ?? {}) },
     _nextIngId:       raw._nextIngId       ?? maxIngId  + 1,
     _nextSupplierId:  raw._nextSupplierId  ?? maxSuppId + 1,
   }
@@ -78,7 +79,7 @@ export function ConfigProvider({ children }) {
   const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
   const [settings,   setSettingsState]   = useState(() => {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
-    return { token: '', warehouseId: '', ...stored, pins: { admin: '', logistics: '', ...(stored.pins ?? {}) } }
+    return { token: '', warehouseId: '', ...stored }
   })
   const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
   const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])

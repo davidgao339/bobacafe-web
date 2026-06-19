@@ -69,7 +69,7 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
 }
 
 export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose, onLogout }) {
-  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, settings, saveSettings } = useConfig()
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, setConfig, data, salesCache } = useConfig()
 
   const handleDownloadJson = () => {
     const payload = { exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
@@ -98,14 +98,14 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
 
   const handleOpenAccess = () => {
     if (!accessOpen) {
-      setAdminPin(settings?.pins?.admin ?? '')
-      setLogisticsPin(settings?.pins?.logistics ?? '')
+      setAdminPin(config?.pins?.admin ?? '')
+      setLogisticsPin(config?.pins?.logistics ?? '')
     }
     setAccessOpen(v => !v)
   }
 
   const handleSavePins = () => {
-    saveSettings({ ...settings, pins: { admin: adminPin, logistics: logisticsPin } })
+    setConfig(prev => ({ ...prev, pins: { admin: adminPin, logistics: logisticsPin } }))
     setPinSaved(true)
     setTimeout(() => setPinSaved(false), 2000)
   }
