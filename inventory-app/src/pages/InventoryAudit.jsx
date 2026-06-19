@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext'
 
 function CountTab({ store, setStore, date, setDate }) {
   const { config, data, addAudit, stores } = useConfig()
-  const { getLastAudit, estimateCurrentStock } = useCalcs()
+  const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
 
   const [counts,  setCounts]  = useState({})
@@ -102,7 +102,7 @@ function CountTab({ store, setStore, date, setDate }) {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto mb-6">
        <div className="min-w-[480px]">
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-6 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-5 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
           <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
             {t('common.ingredient')}{si('name')}
           </span>
@@ -115,7 +115,6 @@ function CountTab({ store, setStore, date, setDate }) {
               {lastAuditDate ? `(${lastAuditDate})` : '(none)'}
             </span>
           </span>
-          <span className="text-blue-500">{t('audit.estimated')}</span>
           <span>{t('audit.newCount')}</span>
         </div>
         {config.ingredients
@@ -147,7 +146,7 @@ function CountTab({ store, setStore, date, setDate }) {
 
           return (
             <div key={product.id}
-              className={`px-6 py-4 grid grid-cols-6 gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
+              className={`px-6 py-4 grid grid-cols-5 gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
               <div className="col-span-2">
                 <p className="font-medium text-gray-900 text-sm">{product.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
@@ -157,9 +156,6 @@ function CountTab({ store, setStore, date, setDate }) {
               </div>
               <div className="text-sm text-gray-700 tabular-nums">
                 {prev} <span className="text-gray-400 text-xs">{prev !== '—' ? product.unit : ''}</span>
-              </div>
-              <div className="text-sm text-blue-600 tabular-nums font-medium">
-                {(() => { const est = estimateCurrentStock(store, product.id); return est !== 0 || prev !== '—' ? <>{est} <span className="text-blue-300 text-xs font-normal">{product.unit}</span></> : <span className="text-gray-300">—</span> })()}
               </div>
               <div className="flex items-center gap-3">
                 <input type="number" min="0" step="0.1" placeholder="0" value={val}

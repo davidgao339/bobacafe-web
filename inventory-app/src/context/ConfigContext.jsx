@@ -432,10 +432,9 @@ export function useCalcs() {
             .filter(t => t.store === store && t.ingredientId === ingredientId && t.date > cut)
             .reduce((sum, t) => t.type === 'adjustment' ? sum + t.quantity : sum - t.quantity, 0)
         : 0
-      // Use > (strictly after) so a PO received on the same day as the audit isn't
-      // double-counted — the auditor's physical count already includes stock received that day.
+      // Use >= so a PO received on the same day as the audit is still counted
       const poSince = data.purchaseOrders
-        .filter(po => po.store === store && po.status === 'received' && (po.receivedDate ?? '') > cut)
+        .filter(po => po.store === store && po.status === 'received' && (po.receivedDate ?? '') >= cut)
         .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
       return r1(base - salesSince + txSince + poSince)
     }
