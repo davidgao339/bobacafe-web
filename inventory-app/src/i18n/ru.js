@@ -91,6 +91,7 @@ const ru = {
   'audit.auditDate':         'Дата пересчёта',
   'audit.filterPlaceholder': 'Поиск ингредиентов…',
   'audit.prevCount':         'Прошлый остаток',
+  'audit.estimated':         'Расчётный остаток',
   'audit.newCount':          'Новый остаток',
   'audit.clearAll':          'Очистить всё',
   'audit.fillFromLast':      'Из прошлой инвентаризации',

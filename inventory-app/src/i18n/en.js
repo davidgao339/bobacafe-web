@@ -91,6 +91,7 @@ const en = {
   'audit.auditDate':         'Audit Date',
   'audit.filterPlaceholder': 'Filter ingredients…',
   'audit.prevCount':         'Previous Count',
+  'audit.estimated':         'Estimated Current',
   'audit.newCount':          'New Count',
   'audit.clearAll':          'Clear all',
   'audit.fillFromLast':      'Fill from last audit',
