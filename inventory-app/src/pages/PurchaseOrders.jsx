@@ -306,14 +306,16 @@ function exportPO(po, config) {
       <div class="section-header">${i + 1}. ${esc(g.name)}</div>
       <table>
         <thead><tr>
-          <th class="col-fact">ФАКТ</th>
+          <th class="col-cb">СКЛАД</th>
+          <th class="col-cb">МАГАЗИН</th>
           <th class="col-name">НАИМЕНОВАНИЕ</th>
           <th class="col-qty">ЗАКАЗ</th>
           <th class="col-unit">ЕД. ИЗМ.</th>
         </tr></thead>
         <tbody>${g.lines.map(l => `
           <tr>
-            <td class="col-fact"><span class="cb"></span></td>
+            <td class="col-cb"><span class="cb"></span></td>
+            <td class="col-cb"><span class="cb"></span></td>
             <td class="col-name">${esc(l.name)}</td>
             <td class="col-qty">${l.ordered}</td>
             <td class="col-unit">${esc(l.unit)}</td>
@@ -336,10 +338,10 @@ hr{border:none;border-top:1.5px solid #ddd;margin:18px 0}
 table{width:100%;border-collapse:collapse}
 th{text-transform:uppercase;font-size:10px;letter-spacing:.4px;font-weight:700;color:#666;padding:8px 12px;border-bottom:1.5px solid #e8e8e8;background:#fafafa;text-align:left}
 td{padding:10px 12px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
-.col-fact{width:56px}
+.col-cb{width:52px;text-align:center}
 .col-qty{width:90px;text-align:right;font-weight:700}
 .col-unit{width:80px;color:#888;font-size:12px}
-.cb{display:inline-block;width:17px;height:17px;border:1.5px solid #aaa;border-radius:3px}
+.cb{display:inline-block;width:18px;height:18px;border:1.5px solid #aaa;border-radius:3px}
 .instr{font-style:italic;font-size:11px;color:#888;padding:14px 0;border-top:1px dashed #ccc;margin-top:8px}
 .sig-box{border:1px solid #ddd;border-radius:6px;padding:16px 20px;margin-bottom:14px}
 .sig-title{font-weight:700;font-size:13px;margin-bottom:20px}

@@ -11,7 +11,9 @@
       "mcp__Claude_in_Chrome__read_console_messages",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(node -e ' *)",
+      "PowerShell(Stop-Process -Id 41324 -Force -ErrorAction SilentlyContinue)"
     ]
   }
 }

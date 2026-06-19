@@ -68,8 +68,8 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
   )
 }
 
-export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose }) {
-  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache } = useConfig()
+export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose, onLogout }) {
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, settings, saveSettings } = useConfig()
 
   const handleDownloadJson = () => {
     const payload = { exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
@@ -90,7 +90,25 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
   const [confirmId,     setConfirmId]     = useState(null)
   const [restoring,     setRestoring]     = useState(false)
   const [storesOpen,    setStoresOpen]    = useState(false)
+  const [accessOpen,    setAccessOpen]    = useState(false)
+  const [adminPin,      setAdminPin]      = useState('')
+  const [logisticsPin,  setLogisticsPin]  = useState('')
+  const [pinSaved,      setPinSaved]      = useState(false)
   const [msg,           setMsg]           = useState(null)  // { type: 'ok'|'err', text }
+
+  const handleOpenAccess = () => {
+    if (!accessOpen) {
+      setAdminPin(settings?.pins?.admin ?? '')
+      setLogisticsPin(settings?.pins?.logistics ?? '')
+    }
+    setAccessOpen(v => !v)
+  }
+
+  const handleSavePins = () => {
+    saveSettings({ ...settings, pins: { admin: adminPin, logistics: logisticsPin } })
+    setPinSaved(true)
+    setTimeout(() => setPinSaved(false), 2000)
+  }
 
   const flash = (type, text) => {
     setMsg({ type, text })
@@ -223,6 +241,36 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
           </div>
         )}
 
+        {/* Access / PIN management */}
+        <button onClick={handleOpenAccess}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs transition-colors ${
+            accessOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+          }`}>
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          Access
+        </button>
+
+        {accessOpen && (
+          <div className="mb-1 bg-slate-900 rounded-lg p-3 border border-slate-700 space-y-2.5">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Admin PIN</label>
+              <input type="password" value={adminPin} onChange={e => setAdminPin(e.target.value)}
+                placeholder="leave blank = no login"
+                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Logistics PIN</label>
+              <input type="password" value={logisticsPin} onChange={e => setLogisticsPin(e.target.value)}
+                placeholder="logistics worker"
+                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <button onClick={handleSavePins}
+              className="w-full py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors font-medium">
+              {pinSaved ? 'Saved ✓' : 'Save PINs'}
+            </button>
+          </div>
+        )}
+
         {/* Restore panel */}
         {restoreOpen && (
           <div className="mb-2 bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
@@ -284,6 +332,14 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
           <p className={`px-3 text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
             {msg.text}
           </p>
+        )}
+
+        {onLogout && (
+          <button onClick={onLogout}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            Sign out
+          </button>
         )}
 
         <p className="px-3 pt-1 text-slate-600 text-xs">Boba Кролик · Inventory</p>

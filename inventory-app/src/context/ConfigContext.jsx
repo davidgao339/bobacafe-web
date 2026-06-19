@@ -76,7 +76,10 @@ export function ConfigProvider({ children }) {
   )
   const [data,       setDataState]       = useState(() => loadFromStorage(DATA_KEY)        ?? DEFAULT_DATA)
   const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
-  const [settings,   setSettingsState]   = useState(() => loadFromStorage(SETTINGS_KEY)   ?? { token: '', warehouseId: '' })
+  const [settings,   setSettingsState]   = useState(() => {
+    const stored = loadFromStorage(SETTINGS_KEY) ?? {}
+    return { token: '', warehouseId: '', ...stored, pins: { admin: '', logistics: '', ...(stored.pins ?? {}) } }
+  })
   const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
   const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
 
