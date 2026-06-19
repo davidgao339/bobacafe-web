@@ -15,6 +15,7 @@ function CountTab({ store, setStore, date, setDate }) {
   const [search,  setSearch]  = useState('')
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
+  const [time,    setTime]    = useState(() => new Date().toTimeString().slice(0, 5))
   const handleSort = key => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
@@ -53,7 +54,7 @@ function CountTab({ store, setStore, date, setDate }) {
       const val = getValue(product.id)
       if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
     }
-    addAudit(store, date, auditCounts)
+    addAudit(store, date, auditCounts, `${date}T${time}:00`)
     setSaved(true)
     setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
     setTimeout(() => setSaved(false), 3500)
@@ -76,6 +77,11 @@ function CountTab({ store, setStore, date, setDate }) {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t('audit.auditDate')}</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div className="flex-1 min-w-48">

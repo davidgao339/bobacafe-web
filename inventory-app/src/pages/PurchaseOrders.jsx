@@ -391,6 +391,7 @@ export default function PurchaseOrders() {
   const [search,      setSearch]      = useState('')
   const [receiveId,   setReceiveId]   = useState(null)
   const [receiveDate, setReceiveDate] = useState(TODAY)
+  const [receiveTime, setReceiveTime] = useState(() => new Date().toTimeString().slice(0, 5))
   const [receiveQtys, setReceiveQtys] = useState({})
 
   const pos    = data.purchaseOrders
@@ -412,7 +413,7 @@ export default function PurchaseOrders() {
     e.stopPropagation()
     const qtys = {}
     po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(l.ordered) })
-    setReceiveId(po.id); setReceiveDate(TODAY); setReceiveQtys(qtys)
+    setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys)
     setExpanded(po.id); setConfirm(null)
   }
 
@@ -423,7 +424,7 @@ export default function PurchaseOrders() {
         ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0)
         : l.ordered,
     }))
-    updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, lines: updatedLines })
+    updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, receivedAt: `${receiveDate}T${receiveTime}:00`, lines: updatedLines })
 
     // Handle transfer if both locations are set
     if (po.fromLocation && po.toLocation) {
@@ -735,9 +736,11 @@ export default function PurchaseOrders() {
                                 <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-4">
                                   <div className="flex items-center gap-4 mb-4 flex-wrap">
                                     <h3 className="font-semibold text-gray-900 flex-1">{t('po.confirmReceiptTitle', { id: po.id })}</h3>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <label className="text-xs font-medium text-gray-600">{t('po.receivedDate')}</label>
                                       <input type="date" value={receiveDate} onChange={e => setReceiveDate(e.target.value)}
+                                        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                      <input type="time" value={receiveTime} onChange={e => setReceiveTime(e.target.value)}
                                         className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
                                     </div>
                                   </div>

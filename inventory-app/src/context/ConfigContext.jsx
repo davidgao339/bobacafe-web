@@ -123,19 +123,19 @@ export function ConfigProvider({ children }) {
 
   // ─── Operational data mutations ─────────────────────────────────────────────
 
-  const addAudit = useCallback((store, date, counts) => {
+  const addAudit = useCallback((store, date, counts, timestamp) => {
     setData(prev => {
       const existing = prev.audits.find(a => a.store === store && a.date === date)
       if (existing) {
         return {
           ...prev,
           audits: prev.audits.map(a =>
-            a.id === existing.id ? { ...a, counts: { ...a.counts, ...counts } } : a
+            a.id === existing.id ? { ...a, counts: { ...a.counts, ...counts }, ...(timestamp && { timestamp }) } : a
           ),
         }
       }
       const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
-      return { ...prev, audits: [...prev.audits, { id, store, date, counts }], _nextAuditId: prev._nextAuditId + 1 }
+      return { ...prev, audits: [...prev.audits, { id, store, date, counts, ...(timestamp && { timestamp }) }], _nextAuditId: prev._nextAuditId + 1 }
     })
   }, [setData])
 
@@ -432,9 +432,10 @@ export function useCalcs() {
             .filter(t => t.store === store && t.ingredientId === ingredientId && t.date > cut)
             .reduce((sum, t) => t.type === 'adjustment' ? sum + t.quantity : sum - t.quantity, 0)
         : 0
-      // Use >= so a PO received on the same day as the audit is still counted
+      // Compare by receivedAt timestamp when available; fall back to date-only with strict >
+      const cutTime = lastAudit?.timestamp ?? cut
       const poSince = data.purchaseOrders
-        .filter(po => po.store === store && po.status === 'received' && (po.receivedDate ?? '') >= cut)
+        .filter(po => po.store === store && po.status === 'received' && (po.receivedAt ?? po.receivedDate ?? '') > cutTime)
         .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
       return r1(base - salesSince + txSince + poSince)
     }
