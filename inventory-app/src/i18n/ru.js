@@ -69,7 +69,7 @@ const ru = {
   'dash.countNow':           'Провести инвентаризацию',
   'dash.orderNow':           'Заказать сейчас',
   'dash.orderMore':          'Дозаказать',
-  'dash.acrossStores':       'Затронуто магазинов: {count}',
+  'dash.acrossStores':       'Затронуто магазинов: {{count}}',
   'dash.confirmReceipt':     'Подтвердить получение',
   'dash.ingredientsTracked': 'Ингредиентов',
   'dash.daysSinceAudit':     'Дней с инвентаризации',

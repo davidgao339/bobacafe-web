@@ -69,7 +69,7 @@ const en = {
   'dash.countNow':           'Count Stock Now',
   'dash.orderNow':           'Order Now',
   'dash.orderMore':          'Order More',
-  'dash.acrossStores':       '{count} store(s) affected',
+  'dash.acrossStores':       '{{count}} store(s) affected',
   'dash.confirmReceipt':     'Confirm Receipt',
   'dash.ingredientsTracked': 'Ingredients tracked',
   'dash.daysSinceAudit':     'Days since audit',
