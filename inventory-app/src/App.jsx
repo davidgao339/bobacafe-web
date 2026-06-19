@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ConfigProvider, useConfig } from './context/ConfigContext'
+import { ConfigProvider } from './context/ConfigContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
@@ -60,19 +60,17 @@ function LoginScreen({ pins, onLogin }) {
   )
 }
 
-function AppRoot() {
-  const { config } = useConfig()
-  const [role, setRole] = useState(() => sessionStorage.getItem('invRole') ?? null)
+const PINS = { admin: '7530', logistics: '9876' }
 
-  const pins     = config?.pins ?? { admin: '', logistics: '' }
-  const hasAuth  = !!(pins.admin || pins.logistics)
+function AppRoot() {
+  const [role, setRole] = useState(() => sessionStorage.getItem('invRole') ?? null)
 
   const handleLogin  = (newRole) => { sessionStorage.setItem('invRole', newRole); setRole(newRole) }
   const handleLogout = ()        => { sessionStorage.removeItem('invRole');        setRole(null) }
 
-  if (!role && hasAuth) return <LoginScreen pins={pins} onLogin={handleLogin} />
+  if (!role) return <LoginScreen pins={PINS} onLogin={handleLogin} />
 
-  return <AppContent role={role ?? 'admin'} onLogout={handleLogout} hasAuth={hasAuth} />
+  return <AppContent role={role} onLogout={handleLogout} />
 }
 
 const DEFAULT_TABS = {
@@ -81,7 +79,7 @@ const DEFAULT_TABS = {
   recipes:      'ingredients',
 }
 
-function AppContent({ role, onLogout, hasAuth }) {
+function AppContent({ role, onLogout }) {
   const [page,          setPage]          = useState('dashboard')
   const [subTab,        setSubTab]        = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -120,7 +118,7 @@ function AppContent({ role, onLogout, hasAuth }) {
         <Sidebar
           currentPage={page} currentTab={subTab} onNavigate={navigate}
           mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)}
-          onLogout={hasAuth ? onLogout : null}
+          onLogout={onLogout}
         />
       </div>
       <main className="flex-1 overflow-auto flex flex-col">

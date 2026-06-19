@@ -61,7 +61,6 @@ function migrateConfig(raw) {
     ingredients,
     recipes:          raw.recipes          ?? DEFAULT_RECIPES,
     suppliers,
-    pins:             { admin: '', logistics: '', ...(raw.pins ?? {}) },
     _nextIngId:       raw._nextIngId       ?? maxIngId  + 1,
     _nextSupplierId:  raw._nextSupplierId  ?? maxSuppId + 1,
   }

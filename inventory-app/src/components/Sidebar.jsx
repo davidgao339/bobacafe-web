@@ -69,7 +69,7 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
 }
 
 export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose, onLogout }) {
-  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, setConfig, data, salesCache } = useConfig()
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache } = useConfig()
 
   const handleDownloadJson = () => {
     const payload = { exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
@@ -90,25 +90,7 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
   const [confirmId,     setConfirmId]     = useState(null)
   const [restoring,     setRestoring]     = useState(false)
   const [storesOpen,    setStoresOpen]    = useState(false)
-  const [accessOpen,    setAccessOpen]    = useState(false)
-  const [adminPin,      setAdminPin]      = useState('')
-  const [logisticsPin,  setLogisticsPin]  = useState('')
-  const [pinSaved,      setPinSaved]      = useState(false)
   const [msg,           setMsg]           = useState(null)  // { type: 'ok'|'err', text }
-
-  const handleOpenAccess = () => {
-    if (!accessOpen) {
-      setAdminPin(config?.pins?.admin ?? '')
-      setLogisticsPin(config?.pins?.logistics ?? '')
-    }
-    setAccessOpen(v => !v)
-  }
-
-  const handleSavePins = () => {
-    setConfig(prev => ({ ...prev, pins: { admin: adminPin, logistics: logisticsPin } }))
-    setPinSaved(true)
-    setTimeout(() => setPinSaved(false), 2000)
-  }
 
   const flash = (type, text) => {
     setMsg({ type, text })
@@ -238,36 +220,6 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
                 <span className="text-xs text-slate-200">{store}</span>
               </label>
             ))}
-          </div>
-        )}
-
-        {/* Access / PIN management */}
-        <button onClick={handleOpenAccess}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs transition-colors ${
-            accessOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-          }`}>
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          Access
-        </button>
-
-        {accessOpen && (
-          <div className="mb-1 bg-slate-900 rounded-lg p-3 border border-slate-700 space-y-2.5">
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">Admin PIN</label>
-              <input type="password" value={adminPin} onChange={e => setAdminPin(e.target.value)}
-                placeholder="leave blank = no login"
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">Logistics PIN</label>
-              <input type="password" value={logisticsPin} onChange={e => setLogisticsPin(e.target.value)}
-                placeholder="logistics worker"
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <button onClick={handleSavePins}
-              className="w-full py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors font-medium">
-              {pinSaved ? 'Saved ✓' : 'Save PINs'}
-            </button>
           </div>
         )}
 
