@@ -9,20 +9,28 @@ const en = {
   'nav.losses':        'Unexplained Losses',
   'nav.purchases':     'Purchase Orders',
   'nav.replenishment': 'Replenishment',
-  'nav.usage':         'Usage',
+  'nav.usage':         'Daily Ledger',
   'nav.manager':       'Manager',
 
-  // Usage Report
-  'usage.title':     'Ingredient Usage',
-  'usage.subtitle':  'Total consumption from sales, waste and direct write-offs for the selected period',
-  'usage.colSales':  'Sales + Waste',
-  'usage.colDirect': 'Direct',
-  'usage.colTotal':  'Total',
-  'usage.noData':    'No sales data — refresh transactions to load from Databricks',
-  'usage.noUsage':          'No usage recorded for this period and store',
-  'usage.note':             'Sales + Waste = recipe-based consumption (fiscal + non-fiscal). Direct = manually logged write-offs.',
+  // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Select an ingredient from the list',
-  'usage.total':            'Total',
+
+  // Daily Ledger
+  'ledger.title':            'Daily Ledger',
+  'ledger.subtitle':         'Day-by-day inventory movement — usage, receipts, and running balance',
+  'ledger.colCurrent':       'Current',
+  'ledger.colUsage':         'Usage',
+  'ledger.colReceived':      'Received',
+  'ledger.colEnding':        'Ending Balance',
+  'ledger.today':            'today',
+  'ledger.auditBase':        'Audit {{date}} · base {{base}}',
+  'ledger.noAudit':          'No audit on record for this store — do a stock count first',
+  'ledger.noActivity':       'No activity in this date range',
+  'ledger.selectStorePrompt':'Select a specific store to see the daily ledger',
+  'ledger.selectStoreHint':  'Ending balance requires a single store (each store has its own audit)',
+  'ledger.kindSale':         'Sale',
+  'ledger.kindWaste':        'Waste',
+  'ledger.kindAdj':          'Adj',
 
   // Common
   'common.all':         'All',

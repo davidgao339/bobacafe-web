@@ -9,20 +9,28 @@ const ru = {
   'nav.losses':        'Необъяснимые потери',
   'nav.purchases':     'Заказы',
   'nav.replenishment': 'Закупка',
-  'nav.usage':         'Расход',
+  'nav.usage':         'Дневной журнал',
   'nav.manager':       'Менеджер',
 
-  // Usage Report
-  'usage.title':     'Расход ингредиентов',
-  'usage.subtitle':  'Суммарный расход из продаж, списаний и прямых операций за выбранный период',
-  'usage.colSales':  'Продажи + Списания',
-  'usage.colDirect': 'Прямые',
-  'usage.colTotal':  'Итого',
-  'usage.noData':    'Нет данных о продажах — обновите транзакции',
-  'usage.noUsage':          'За этот период расход не зафиксирован',
-  'usage.note':             'Продажи + Списания = расход по рецептуре (фискальные + нефискальные). Прямые = вручную введённые списания.',
+  // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Выберите ингредиент из списка',
-  'usage.total':            'Итого',
+
+  // Daily Ledger
+  'ledger.title':            'Дневной журнал',
+  'ledger.subtitle':         'Ежедневные изменения запасов — расход, поступления и текущий остаток',
+  'ledger.colCurrent':       'Текущий',
+  'ledger.colUsage':         'Расход',
+  'ledger.colReceived':      'Поступило',
+  'ledger.colEnding':        'Остаток на конец дня',
+  'ledger.today':            'сегодня',
+  'ledger.auditBase':        'Инвентаризация {{date}} · база {{base}}',
+  'ledger.noAudit':          'Нет записей инвентаризации для этого магазина — сначала выполните подсчёт',
+  'ledger.noActivity':       'Нет активности за выбранный период',
+  'ledger.selectStorePrompt':'Выберите конкретный магазин для просмотра журнала',
+  'ledger.selectStoreHint':  'Остаток на конец дня рассчитывается по инвентаризации одного магазина',
+  'ledger.kindSale':         'Продажа',
+  'ledger.kindWaste':        'Списание',
+  'ledger.kindAdj':          'Коррект.',
 
   // Common
   'common.all':         'Все',

@@ -61,12 +61,35 @@ function LoginScreen({ pins, onLogin }) {
 }
 
 const PINS = { admin: '7530', logistics: '9876' }
+const ADMIN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function AppRoot() {
-  const [role, setRole] = useState(() => sessionStorage.getItem('invRole') ?? null)
+  const [role, setRole] = useState(() => {
+    try {
+      const stored = localStorage.getItem('invRole')
+      if (stored) {
+        const { role, expires } = JSON.parse(stored)
+        if (expires > Date.now()) return role
+        localStorage.removeItem('invRole')
+      }
+    } catch { localStorage.removeItem('invRole') }
+    return sessionStorage.getItem('invRole') ?? null
+  })
 
-  const handleLogin  = (newRole) => { sessionStorage.setItem('invRole', newRole); setRole(newRole) }
-  const handleLogout = ()        => { sessionStorage.removeItem('invRole');        setRole(null) }
+  const handleLogin = (newRole) => {
+    if (newRole === 'admin') {
+      localStorage.setItem('invRole', JSON.stringify({ role: newRole, expires: Date.now() + ADMIN_TTL }))
+    } else {
+      sessionStorage.setItem('invRole', newRole)
+    }
+    setRole(newRole)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('invRole')
+    sessionStorage.removeItem('invRole')
+    setRole(null)
+  }
 
   if (!role) return <LoginScreen pins={PINS} onLogin={handleLogin} />
 
