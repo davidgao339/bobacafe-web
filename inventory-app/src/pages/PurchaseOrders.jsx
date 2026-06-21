@@ -433,22 +433,8 @@ export default function PurchaseOrders() {
       updatedLines.forEach(l => {
         const qty = l.received ?? l.ordered
         if (qty > 0) {
-          // Deduct from source location
-          addTransaction({
-            ingredientId: l.ingredientId,
-            store: po.fromLocation,
-            date: receiveDate,
-            type: 'adjustment',
-            quantity: -qty,
-          })
-          // Add to destination location
-          addTransaction({
-            ingredientId: l.ingredientId,
-            store: po.toLocation,
-            date: receiveDate,
-            type: 'adjustment',
-            quantity: qty,
-          })
+          addTransaction({ ingredientId: l.ingredientId, store: po.fromLocation, date: receiveDate, type: 'adjustment', quantity: -qty,  poId: po.id })
+          addTransaction({ ingredientId: l.ingredientId, store: po.toLocation,   date: receiveDate, type: 'adjustment', quantity:  qty,  poId: po.id })
         }
       })
     }

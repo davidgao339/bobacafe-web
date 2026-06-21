@@ -172,7 +172,11 @@ export function ConfigProvider({ children }) {
   }, [setData])
 
   const deletePurchaseOrder = useCallback((id) => {
-    setData(prev => ({ ...prev, purchaseOrders: prev.purchaseOrders.filter(po => po.id !== id) }))
+    setData(prev => ({
+      ...prev,
+      purchaseOrders: prev.purchaseOrders.filter(po => po.id !== id),
+      transactions:   prev.transactions.filter(t => t.poId !== id),
+    }))
   }, [setData])
 
   // ─── Sales — reactive to cache (set by refresh) ──────────────────────────────
