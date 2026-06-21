@@ -49,8 +49,8 @@ const App = () => {
     e.preventDefault();
     setPasswordError("");
 
-    const correctPassword = "2233";
-    if (passwordInput === correctPassword) {
+    const validPasswords = ["2233", "7530"];
+    if (validPasswords.includes(passwordInput)) {
       setIsAuthenticated(true);
       sessionStorage.setItem("bobaScheduleAuth", "true");
       setPasswordInput("");
