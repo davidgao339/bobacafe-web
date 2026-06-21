@@ -49,7 +49,8 @@ const App = () => {
     e.preventDefault();
     setPasswordError("");
 
-    const validPasswords = ["2233", "7530"];
+    const _P = window.BC_PINS || {};
+    const validPasswords = [_P.schedule || "2233", _P.master || "7530"];
     if (validPasswords.includes(passwordInput)) {
       setIsAuthenticated(true);
       sessionStorage.setItem("bobaScheduleAuth", "true");

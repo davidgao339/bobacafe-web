@@ -458,29 +458,31 @@
 </div>
 
 <footer>
-    <a href="/">← Главный сайт</a> &nbsp;·&nbsp; Боба Кролик &copy; 2024 — Только для сотрудников
+    <a href="/">← Главный сайт</a> &nbsp;·&nbsp; <a href="/internal/admin.html">🔑 Управление паролями</a> &nbsp;·&nbsp; Боба Кролик &copy; 2024 — Только для сотрудников
 </footer>
 
+<script src="/internal/pins.js"></script>
 <script>
-    // ── PIN config — edit values in config.js then copy here ─────────────────
-    const MASTER_PIN = '7530';
+    // ── PIN config — edit internal/pins.js to change passwords ───────────────
+    const _P = window.BC_PINS || {};
+    const MASTER_PIN = _P.master || '7530';
     const APPS = {
         'reports': {
             url:    '/internal/reports/',
-            pin:    '2244',
+            pin:    _P.reports || '2244',
             label:  'Отчёты',
             icon:   '📊',
         },
         'bank-statement': {
             url:    'https://bobacafe-web-bank-statement.streamlit.app/',
-            pin:    '9999',
+            pin:    _P.bank || '9999',
             label:  'Банковские выписки',
             icon:   '🏦',
             target: '_blank',
         },
         'boba': {
             url:    'https://davidgao339.github.io/boba-cafe-databricks/internal/boba/',
-            pin:    '1023',
+            pin:    _P.boba || '1023',
             label:  'План варки тапиоки',
             icon:   '🧋',
             target: '_blank',

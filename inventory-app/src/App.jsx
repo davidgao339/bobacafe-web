@@ -60,7 +60,11 @@ function LoginScreen({ pins, onLogin }) {
   )
 }
 
-const PINS = { admin: '7530', logistics: '9876' }
+const _P = window.BC_PINS || {};
+const PINS = {
+  admin:     _P.inv_admin     || '7530',
+  logistics: _P.inv_logistics || '9876',
+}
 const ADMIN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function AppRoot() {

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пароли — Боба Кролик</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:      #f8f9fa;
+            --surface: #ffffff;
+            --border:  #dadce0;
+            --text-1:  #202124;
+            --text-2:  #5f6368;
+            --text-3:  #80868b;
+            --accent:  #8d6e63;
+            --accent-bg: #f4ede9;
+            --shadow-sm: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px rgba(60,64,67,.15);
+            --shadow-md: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px rgba(60,64,67,.15);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text-1);
+            min-height: 100vh;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        /* ── PIN overlay ── */
+        #pin-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.54);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        #pin-overlay.hidden { display: none; }
+        .auth-card {
+            background: var(--surface); border-radius: 28px; padding: 40px 40px 32px;
+            width: 360px; text-align: center;
+            box-shadow: 0 11px 15px rgba(0,0,0,0.2), 0 9px 46px rgba(0,0,0,0.12);
+        }
+        .auth-logo { font-size: 40px; margin-bottom: 12px; }
+        .auth-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+        .auth-card p { font-size: 15px; color: var(--text-2); margin-bottom: 28px; }
+        .pin-dots { display: flex; gap: 14px; justify-content: center; margin-bottom: 24px; }
+        .pin-dots span {
+            width: 13px; height: 13px; border-radius: 50%;
+            border: 2px solid var(--border); transition: background 0.12s, border-color 0.12s;
+        }
+        .pin-dots span.filled { background: var(--accent); border-color: var(--accent); }
+        .pin-dots.error span { background: #d93025; border-color: #d93025; }
+        @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            60% { transform: translateX(8px); }
+        }
+        .pin-dots.shake { animation: shake 0.3s ease; }
+        .auth-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+        .key {
+            height: 56px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; font-size: 20px; font-weight: 500;
+            font-family: 'Roboto', Arial, sans-serif; color: var(--text-1);
+            cursor: pointer; transition: background 0.1s;
+        }
+        .key:hover { background: #f1f3f4; }
+        .key:active { background: #e8eaed; }
+        .key.del { font-size: 16px; color: var(--text-2); }
+        .key.empty { background: transparent; border-color: transparent; pointer-events: none; }
+        .auth-error { font-size: 13px; color: #d93025; min-height: 18px; }
+
+        /* ── Nav ── */
+        nav {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            height: 64px; padding: 0 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .nav-brand { font-size: 18px; font-weight: 700; }
+        .nav-right { display: flex; align-items: center; gap: 8px; }
+        .nav-tag { font-size: 12px; font-weight: 500; color: var(--text-3); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; }
+        .nav-back { font-size: 14px; font-weight: 500; color: var(--accent); text-decoration: none; padding: 6px 12px; border-radius: 6px; }
+        .nav-back:hover { background: var(--accent-bg); }
+
+        /* ── Page ── */
+        .page { max-width: 680px; margin: 0 auto; padding: 48px 24px 80px; }
+        .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+        .page-sub { font-size: 15px; color: var(--text-2); margin-bottom: 32px; }
+
+        /* ── Info box ── */
+        .info-box {
+            background: #e8f0fe; border: 1px solid #c5d4f6; border-radius: 10px;
+            padding: 14px 18px; font-size: 13px; color: #1a55a8; margin-bottom: 32px; line-height: 1.6;
+        }
+        .info-box code {
+            background: rgba(26,85,168,0.12); border-radius: 4px;
+            padding: 1px 5px; font-family: monospace; font-size: 12px;
+        }
+
+        /* ── Section ── */
+        .section { margin-bottom: 28px; }
+        .section-label {
+            font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--text-3); margin-bottom: 12px;
+        }
+
+        /* ── Config card ── */
+        .config-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .config-row {
+            display: grid; grid-template-columns: 1fr auto;
+            align-items: center; gap: 16px; padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .config-row:last-child { border-bottom: none; }
+        .config-label { font-size: 14px; font-weight: 500; }
+        .config-hint { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+        .pin-display {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .pin-value {
+            font-family: monospace; font-size: 18px; letter-spacing: 0.15em;
+            color: var(--text-1); background: var(--bg);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 6px 14px; min-width: 80px; text-align: center;
+            filter: blur(4px); transition: filter 0.2s; user-select: none;
+        }
+        .pin-value.revealed { filter: none; user-select: text; }
+        .eye-btn {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            width: 32px; height: 32px; cursor: pointer; font-size: 14px;
+            color: var(--text-3); transition: background 0.1s;
+        }
+        .eye-btn:hover { background: var(--bg); color: var(--text-1); }
+
+        @media (max-width: 600px) {
+            .page { padding: 32px 16px 60px; }
+            .config-row { grid-template-columns: 1fr; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<script src="/internal/pins.js"></script>
+
+<!-- PIN overlay -->
+<div id="pin-overlay">
+    <div class="auth-card">
+        <div class="auth-logo">🔑</div>
+        <h2>Просмотр паролей</h2>
+        <p>Введите мастер-PIN</p>
+        <div class="pin-dots" id="pin-dots">
+            <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="auth-keypad" id="keypad">
+            <button class="key" data-d="1">1</button>
+            <button class="key" data-d="2">2</button>
+            <button class="key" data-d="3">3</button>
+            <button class="key" data-d="4">4</button>
+            <button class="key" data-d="5">5</button>
+            <button class="key" data-d="6">6</button>
+            <button class="key" data-d="7">7</button>
+            <button class="key" data-d="8">8</button>
+            <button class="key" data-d="9">9</button>
+            <button class="key empty"></button>
+            <button class="key" data-d="0">0</button>
+            <button class="key del" id="key-del">⌫</button>
+        </div>
+        <div class="auth-error" id="auth-error"></div>
+    </div>
+</div>
+
+<nav>
+    <div class="nav-brand">🐰 Боба Кролик</div>
+    <div class="nav-right">
+        <a href="/internal/" class="nav-back">← Портал</a>
+        <span class="nav-tag">Пароли</span>
+    </div>
+</nav>
+
+<div class="page" id="main-page" style="display:none">
+    <h1 class="page-title">Текущие пароли</h1>
+    <p class="page-sub">Только чтение. Чтобы изменить — отредактируйте <code>internal/pins.js</code> и сделайте push.</p>
+
+    <div class="info-box">
+        Значения загружены из <code>internal/pins.js</code>. Нажмите 👁 чтобы показать пароль.
+    </div>
+
+    <div class="section">
+        <div class="section-label">Мастер-ключ</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">🔑 Мастер-PIN</div>
+                    <div class="config-hint">Открывает любое приложение; вход на эту страницу</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_master"></span>
+                    <button class="eye-btn" data-target="v_master">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-label">Портал — PIN по приложениям</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">📊 Отчёты</div>
+                    <div class="config-hint">Еженедельные и ежемесячные бизнес-отчёты</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_reports"></span>
+                    <button class="eye-btn" data-target="v_reports">👁</button>
+                </div>
+            </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">🏦 Банковские выписки</div>
+                    <div class="config-hint">Обработка выписок Сбербанк и Ozon</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_bank"></span>
+                    <button class="eye-btn" data-target="v_bank">👁</button>
+                </div>
+            </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">🧋 План варки тапиоки</div>
+                    <div class="config-hint">Рекомендации по количеству тапиоки</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_boba"></span>
+                    <button class="eye-btn" data-target="v_boba">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-label">График работы</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">📅 Пароль входа</div>
+                    <div class="config-hint">Мастер-PIN также принимается</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_schedule"></span>
+                    <button class="eye-btn" data-target="v_schedule">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-label">Учёт запасов</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">📦 Администратор</div>
+                    <div class="config-hint">Полный доступ; сессия 30 дней</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_inv_admin"></span>
+                    <button class="eye-btn" data-target="v_inv_admin">👁</button>
+                </div>
+            </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">📦 Логистика</div>
+                    <div class="config-hint">Ограниченный доступ; до закрытия вкладки</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_inv_logistics"></span>
+                    <button class="eye-btn" data-target="v_inv_logistics">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const P = window.BC_PINS || {};
+
+    // ── PIN gate ──────────────────────────────────────────────────────────────
+    const overlay = document.getElementById('pin-overlay');
+    const dotsEl  = document.getElementById('pin-dots');
+    const dots    = dotsEl.querySelectorAll('span');
+    const errEl   = document.getElementById('auth-error');
+    let pin = '';
+
+    function updateDots() {
+        dots.forEach((d, i) => d.classList.toggle('filled', i < pin.length));
+    }
+
+    function attempt() {
+        if (pin === (P.master || '7530')) {
+            overlay.classList.add('hidden');
+            showPage();
+        } else {
+            dotsEl.classList.add('error', 'shake');
+            errEl.textContent = 'Неверный PIN.';
+            setTimeout(() => {
+                dotsEl.classList.remove('error', 'shake');
+                errEl.textContent = '';
+                pin = ''; updateDots();
+            }, 700);
+        }
+    }
+
+    document.getElementById('keypad').addEventListener('click', e => {
+        const key = e.target.closest('.key');
+        if (!key) return;
+        if (key.id === 'key-del') { pin = pin.slice(0, -1); }
+        else if (key.dataset.d !== undefined && pin.length < 4) {
+            pin += key.dataset.d;
+            if (pin.length === 4) setTimeout(attempt, 80);
+        }
+        updateDots();
+    });
+
+    document.addEventListener('keydown', e => {
+        if (overlay.classList.contains('hidden')) return;
+        if (e.key >= '0' && e.key <= '9' && pin.length < 4) {
+            pin += e.key; updateDots();
+            if (pin.length === 4) setTimeout(attempt, 80);
+        } else if (e.key === 'Backspace') { pin = pin.slice(0, -1); updateDots(); }
+    });
+
+    // ── Populate values ───────────────────────────────────────────────────────
+    function showPage() {
+        const MAP = {
+            v_master:        P.master        || '7530',
+            v_reports:       P.reports       || '2244',
+            v_bank:          P.bank          || '9999',
+            v_boba:          P.boba          || '1023',
+            v_schedule:      P.schedule      || '2233',
+            v_inv_admin:     P.inv_admin     || '7530',
+            v_inv_logistics: P.inv_logistics || '9876',
+        };
+        Object.entries(MAP).forEach(([id, val]) => {
+            document.getElementById(id).textContent = val;
+        });
+        document.getElementById('main-page').style.display = '';
+    }
+
+    // ── Eye toggles ───────────────────────────────────────────────────────────
+    document.querySelectorAll('.eye-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const el = document.getElementById(btn.dataset.target);
+            el.classList.toggle('revealed');
+            btn.textContent = el.classList.contains('revealed') ? '🙈' : '👁';
+        });
+    });
+</script>
+</body>
+</html>
