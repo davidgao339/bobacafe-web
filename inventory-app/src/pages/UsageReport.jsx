@@ -38,26 +38,33 @@ export default function DailyLedger() {
   const { auditInfo, ledgerRows } = useMemo(() => {
     if (!selectedId || !singleStore) return { auditInfo: null, ledgerRows: [] }
 
-    // Most recent audit that actually counted this ingredient for this store
-    const lastAudit = [...data.audits]
+    // All audits for this ingredient at this store, oldest first
+    const storeAudits = [...data.audits]
       .filter(a => a.store === selectedStore && a.counts[selectedId] != null)
-      .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
+      .sort((a, b) => a.date.localeCompare(b.date))
 
-    if (!lastAudit) return { auditInfo: null, ledgerRows: [] }
+    if (storeAudits.length === 0) return { auditInfo: null, ledgerRows: [] }
 
-    const cut     = lastAudit.date
-    const cutTime = lastAudit.timestamp ?? cut
-    const base    = lastAudit.counts[selectedId] ?? 0
+    // Baseline: last audit at or before `from`, else the earliest audit we have
+    const baseAudit = [...storeAudits].filter(a => a.date <= from).pop()
+      ?? storeAudits[0]
 
-    // Build per-day activity map
+    const startDate = baseAudit.date
+    const base      = baseAudit.counts[selectedId] ?? 0
+
+    // Subsequent audits (after baseline) become adjustment anchors
+    const auditByDate = new Map(
+      storeAudits
+        .filter(a => a.date > startDate)
+        .map(a => [a.date, a.counts[selectedId] ?? 0])
+    )
+
+    // Build per-day activity map from day after baseline
     const byDate = {}
-    const ensure = d => {
-      if (!byDate[d]) byDate[d] = { usage: 0, received: 0, details: [] }
-    }
+    const ensure = d => { if (!byDate[d]) byDate[d] = { usage: 0, received: 0, details: [] } }
 
-    // Fiscal sales → usage
     sales
-      .filter(s => s.store === selectedStore && s.date > cut)
+      .filter(s => s.store === selectedStore && s.date > startDate)
       .forEach(s => {
         const consumed = s.quantity * (recipes[s.product]?.[selectedId] ?? 0)
         if (!consumed) return
@@ -66,9 +73,8 @@ export default function DailyLedger() {
         byDate[s.date].details.push({ kind: 'sale', product: s.product, soldQty: s.quantity, consumed: r1(consumed) })
       })
 
-    // Non-fiscal waste → usage
     posWaste
-      .filter(s => s.store === selectedStore && s.date > cut)
+      .filter(s => s.store === selectedStore && s.date > startDate)
       .forEach(s => {
         const consumed = s.quantity * (recipes[s.product]?.[selectedId] ?? 0)
         if (!consumed) return
@@ -77,9 +83,8 @@ export default function DailyLedger() {
         byDate[s.date].details.push({ kind: 'waste', product: s.product, soldQty: s.quantity, consumed: r1(consumed) })
       })
 
-    // Direct transactions: adjustments add stock, everything else reduces it
     data.transactions
-      .filter(t => t.ingredientId === selectedId && t.store === selectedStore && t.date > cut)
+      .filter(t => t.ingredientId === selectedId && t.store === selectedStore && t.date > startDate)
       .forEach(t => {
         ensure(t.date)
         if (t.type === 'adjustment') {
@@ -91,12 +96,11 @@ export default function DailyLedger() {
         }
       })
 
-    // PO receipts — bucket by received date, filter by cutTime
     data.purchaseOrders
       .filter(po =>
         po.store === selectedStore &&
         po.status === 'received' &&
-        (po.receivedAt ?? po.receivedDate ?? '') > cutTime
+        (po.receivedAt ?? po.receivedDate ?? '') > (baseAudit.timestamp ?? startDate)
       )
       .forEach(po => {
         const line = po.lines.find(l => l.ingredientId === selectedId)
@@ -109,33 +113,38 @@ export default function DailyLedger() {
         byDate[d].details.push({ kind: 'po', poId: po.id, qty })
       })
 
-    // Compute running balance across every date from cutDate to today
-    // Include cutDate itself (same-day POs after audit timestamp land here)
-    const allDates = [...new Set([cut, ...Object.keys(byDate), today])].sort()
+    // Walk every date from startDate to today; audits snap the running balance
+    const allDates = [
+      ...new Set([startDate, ...Object.keys(byDate), ...[...auditByDate.keys()], today])
+    ].sort()
 
     let running = base
     const allRows = []
     for (const d of allDates) {
-      if (d < cut) continue
+      if (d <= startDate) continue
       const { usage = 0, received = 0, details = [] } = byDate[d] ?? {}
-      if (d === cut) {
-        // On audit day: no sales/tx (filtered with > cut), only same-day POs after timestamp
-        running = r1(running + received)
+      const computed = r1(running - usage + received)
+      let auditAdj = null
+      if (auditByDate.has(d)) {
+        const auditCount = auditByDate.get(d)
+        auditAdj = r1(auditCount - computed)
+        running = auditCount
+        details.push({ kind: 'audit', count: auditCount, adj: auditAdj })
       } else {
-        running = r1(running - usage + received)
+        running = computed
       }
-      // Skip audit day row unless something happened there
-      if (d === cut && usage === 0 && received === 0) continue
-      allRows.push({ date: d, usage: d === cut ? 0 : usage, received, ending: running, details })
+      allRows.push({ date: d, usage, received, auditAdj, ending: running, details })
     }
 
-    // Display: rows within date range; today shown only if within range
     const displayRows = allRows
-      .filter(r => r.date >= from && r.date <= to && (r.usage > 0 || r.received > 0 || r.date === today))
+      .filter(r =>
+        r.date >= from && r.date <= to &&
+        (r.usage > 0 || r.received > 0 || r.auditAdj !== null || r.date === today)
+      )
       .reverse()
 
     return {
-      auditInfo: { date: cut, base },
+      auditInfo: { date: startDate, base },
       ledgerRows: displayRows,
     }
   }, [selectedId, selectedStore, singleStore, data, sales, posWaste, recipes, from, to, today])
@@ -251,6 +260,7 @@ export default function DailyLedger() {
                         <th className="px-5 py-3 font-medium">{t('common.date')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colUsage')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colReceived')}</th>
+                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colAuditAdj')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colEnding')}</th>
                       </tr>
                     </thead>
@@ -263,6 +273,7 @@ export default function DailyLedger() {
                               row.details.length > 0 ? 'cursor-pointer' : ''
                             } ${
                               expandedDate === row.date ? 'bg-blue-50' :
+                              row.auditAdj !== null    ? 'bg-purple-50/40' :
                               row.date === today       ? 'bg-amber-50/50' :
                                                         'hover:bg-gray-50'
                             }`}>
@@ -282,6 +293,11 @@ export default function DailyLedger() {
                                     {t('ledger.today')}
                                   </span>
                                 )}
+                                {row.auditAdj !== null && (
+                                  <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium">
+                                    {t('ledger.auditTag')}
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums text-red-600">
@@ -294,6 +310,14 @@ export default function DailyLedger() {
                                 ? <span>+{row.received} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
                                 : <span className="text-gray-300">—</span>}
                             </td>
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              {row.auditAdj !== null
+                                ? <span className={row.auditAdj >= 0 ? 'text-green-600' : 'text-red-500'}>
+                                    {row.auditAdj >= 0 ? '+' : ''}{row.auditAdj}{' '}
+                                    <span className="text-gray-400 text-xs">{selectedIng?.unit}</span>
+                                  </span>
+                                : <span className="text-gray-300">—</span>}
+                            </td>
                             <td className={`px-4 py-3 text-right tabular-nums font-semibold ${
                               i === 0 ? 'text-blue-700' : 'text-gray-800'
                             }`}>
@@ -303,7 +327,7 @@ export default function DailyLedger() {
 
                           {expandedDate === row.date && (
                             <tr className="bg-blue-50/60 border-b border-blue-100">
-                              <td colSpan={4} className="px-8 py-3">
+                              <td colSpan={5} className="px-8 py-3">
                                 <div className="space-y-1.5">
                                   {row.details.map((d, j) => (
                                     <div key={j} className="flex items-center gap-3 text-xs">
@@ -312,12 +336,14 @@ export default function DailyLedger() {
                                         d.kind === 'waste'      ? 'bg-amber-100 text-amber-700' :
                                         d.kind === 'po'         ? 'bg-green-100 text-green-700' :
                                         d.kind === 'adjustment' ? 'bg-purple-100 text-purple-700' :
+                                        d.kind === 'audit'      ? 'bg-purple-100 text-purple-700' :
                                                                   'bg-gray-100 text-gray-600'
                                       }`}>
                                         {d.kind === 'sale'       ? t('ledger.kindSale') :
                                          d.kind === 'waste'      ? t('ledger.kindWaste') :
                                          d.kind === 'po'         ? `PO-${d.poId}` :
                                          d.kind === 'adjustment' ? t('ledger.kindAdj') :
+                                         d.kind === 'audit'      ? t('ledger.kindAudit') :
                                                                    d.kind}
                                       </span>
                                       {d.product && (
@@ -326,12 +352,22 @@ export default function DailyLedger() {
                                       {d.soldQty != null && (
                                         <span className="text-gray-400 flex-shrink-0">×{d.soldQty}</span>
                                       )}
-                                      <span className={`font-semibold flex-shrink-0 ${
-                                        d.kind === 'po' || d.kind === 'adjustment' ? 'text-green-700' : 'text-red-600'
-                                      }`}>
-                                        {d.kind === 'po' || d.kind === 'adjustment' ? '+' : '−'}
-                                        {d.consumed ?? d.qty} {selectedIng?.unit}
-                                      </span>
+                                      {d.kind === 'audit'
+                                        ? <span className="text-purple-700 font-semibold flex-shrink-0">
+                                            {t('ledger.auditCounted', { count: d.count, unit: selectedIng?.unit })}
+                                            {d.adj !== 0 && (
+                                              <span className={`ml-1.5 ${d.adj > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                ({d.adj > 0 ? '+' : ''}{d.adj})
+                                              </span>
+                                            )}
+                                          </span>
+                                        : <span className={`font-semibold flex-shrink-0 ${
+                                            d.kind === 'po' || d.kind === 'adjustment' ? 'text-green-700' : 'text-red-600'
+                                          }`}>
+                                            {d.kind === 'po' || d.kind === 'adjustment' ? '+' : '−'}
+                                            {d.consumed ?? d.qty} {selectedIng?.unit}
+                                          </span>
+                                      }
                                     </div>
                                   ))}
                                 </div>
