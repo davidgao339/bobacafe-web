@@ -513,6 +513,7 @@ function TransfersTab() {
   const txns = [...data.transactions].sort((a, b) => b.date.localeCompare(a.date))
   const ingName = (id) => config.ingredients.find(i => i.id === id)?.name ?? `#${id}`
   const ingUnit = (id) => config.ingredients.find(i => i.id === id)?.unit ?? ''
+  const poExists = (poId) => data.purchaseOrders.some(po => po.id === poId)
 
   if (txns.length === 0) {
     return (
@@ -547,7 +548,14 @@ function TransfersTab() {
                   <span className="text-gray-400 text-xs font-normal">{ingUnit(tx.ingredientId)}</span>
                 </span>
               </td>
-              <td className="px-4 py-2.5 text-xs text-gray-400">{tx.poId ?? '—'}</td>
+              <td className="px-4 py-2.5 text-xs">
+                {tx.poId == null
+                  ? <span className="text-gray-300">no link</span>
+                  : poExists(tx.poId)
+                    ? <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium">{tx.poId}</span>
+                    : <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-medium">{tx.poId} · orphaned</span>
+                }
+              </td>
               <td className="px-4 py-2.5 text-right">
                 {pendingDelete === tx.id
                   ? <div className="flex gap-2 items-center justify-end">
