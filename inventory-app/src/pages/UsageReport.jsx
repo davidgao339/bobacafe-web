@@ -129,9 +129,9 @@ export default function DailyLedger() {
       allRows.push({ date: d, usage: d === cut ? 0 : usage, received, ending: running, details })
     }
 
-    // Display: rows within date range that have activity, always include today
+    // Display: rows within date range; today shown only if within range
     const displayRows = allRows
-      .filter(r => (r.date >= from && r.date <= to && (r.usage > 0 || r.received > 0)) || r.date === today)
+      .filter(r => r.date >= from && r.date <= to && (r.usage > 0 || r.received > 0 || r.date === today))
       .reverse()
 
     return {
