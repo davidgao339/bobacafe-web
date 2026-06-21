@@ -2,6 +2,8 @@ import { useState, useMemo, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
+const PAGE_SIZE = 100
+
 // ─── Sales tab ────────────────────────────────────────────────────────────────
 
 function SalesTab() {
@@ -15,6 +17,7 @@ function SalesTab() {
   const [filterFrom,     setFilterFrom]     = useState(reportFrom !== todayStr ? reportFrom : sevenDaysAgo)
   const [filterTo,       setFilterTo]       = useState(reportTo)
   const [expanded,       setExpanded]       = useState(null)
+  const [page,           setPage]           = useState(0)
   const [refreshing,     setRefreshing]     = useState(false)
   const [refreshMsg,     setRefreshMsg]     = useState(null)
   const [showSettings,   setShowSettings]   = useState(false)
@@ -58,14 +61,18 @@ function SalesTab() {
     setRefreshMsg(null)
   }
 
-  const filtered = useMemo(() =>
-    sales.filter(s => {
+  const filtered = useMemo(() => {
+    setPage(0)
+    setExpanded(null)
+    return sales.filter(s => {
       if (filterStore !== 'All' && s.store !== filterStore) return false
       if (s.date < filterFrom || s.date > filterTo)         return false
       return true
-    }),
-    [sales, filterStore, filterFrom, filterTo]
-  )
+    })
+  }, [sales, filterStore, filterFrom, filterTo])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows   = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const toggle = (id) => setExpanded(prev => prev === id ? null : id)
 
@@ -151,7 +158,7 @@ function SalesTab() {
         {filtered.length === 0
           ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</p>
           : <div className="md:hidden divide-y divide-gray-100">
-              {filtered.map(s => {
+              {pageRows.map(s => {
                 const impact = getSaleIngredientImpact(s.product, s.quantity)
                 const isOpen = expanded === s.id
                 return (
@@ -213,7 +220,7 @@ function SalesTab() {
             <tbody>
               {filtered.length === 0
                 ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
-                : filtered.map(s => {
+                : pageRows.map(s => {
                     const impact = getSaleIngredientImpact(s.product, s.quantity)
                     const isOpen = expanded === s.id
                     return (
@@ -262,7 +269,24 @@ function SalesTab() {
           </table>
         </div>
       </div>
-      <p className="text-xs text-gray-400 mt-3 text-center hidden md:block">{t('tx.clickRow')}</p>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-gray-400 hidden md:block">{t('tx.clickRow')}</p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 mx-auto md:mx-0">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              ←
+            </button>
+            <span className="text-xs text-gray-500 tabular-nums">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} / {filtered.length}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              →
+            </button>
+          </div>
+        )}
+      </div>
     </>
   )
 }
@@ -279,9 +303,12 @@ function WasteTab() {
   const [filterFrom,  setFilterFrom]  = useState(posWaste.length > 0 ? reportFrom : thirtyDaysAgo)
   const [filterTo,    setFilterTo]    = useState(posWaste.length > 0 ? reportTo   : today)
   const [expanded,    setExpanded]    = useState(null)
+  const [page,        setPage]        = useState(0)
   const [sortAsc,     setSortAsc]     = useState(false)
 
   const filtered = useMemo(() => {
+    setPage(0)
+    setExpanded(null)
     const rows = posWaste.filter(r => {
       if (filterStore !== 'All' && r.store !== filterStore) return false
       if (r.date < filterFrom || r.date > filterTo)         return false
@@ -291,6 +318,9 @@ function WasteTab() {
       ? [...rows].sort((a, b) => a.date.localeCompare(b.date))
       : rows
   }, [posWaste, filterStore, filterFrom, filterTo, sortAsc])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows   = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const toggle = (id) => setExpanded(prev => prev === id ? null : id)
 
@@ -330,7 +360,7 @@ function WasteTab() {
         {filtered.length === 0
           ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}</p>
           : <div className="md:hidden divide-y divide-gray-100">
-              {filtered.map(r => {
+              {pageRows.map(r => {
                 const impact = getSaleIngredientImpact(r.product, r.quantity)
                 const isOpen = expanded === r.id
                 return (
@@ -401,7 +431,7 @@ function WasteTab() {
                 ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">
                     {posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}
                   </td></tr>
-                : filtered.map(r => {
+                : pageRows.map(r => {
                     const impact = getSaleIngredientImpact(r.product, r.quantity)
                     const isOpen = expanded === r.id
                     return (
@@ -451,7 +481,24 @@ function WasteTab() {
           </table>
         </div>
       </div>
-      <p className="text-xs text-gray-400 mt-3 text-center hidden md:block">{t('tx.clickRow')}</p>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-gray-400 hidden md:block">{t('tx.clickRow')}</p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 mx-auto md:mx-0">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              ←
+            </button>
+            <span className="text-xs text-gray-500 tabular-nums">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} / {filtered.length}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              →
+            </button>
+          </div>
+        )}
+      </div>
     </>
   )
 }
