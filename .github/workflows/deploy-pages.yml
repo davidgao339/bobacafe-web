@@ -120,6 +120,8 @@ jobs:
           cp internal/index.html       deploy/internal/index.html
           cp internal/faq.html         deploy/internal/faq.html
           cp internal/dashboard.html   deploy/internal/dashboard.html
+          cp internal/admin.html       deploy/internal/admin.html
+          cp internal/pins.js          deploy/internal/pins.js
           sed -i "s|YOUR_DATABRICKS_TOKEN_HERE|${DATABRICKS_TOKEN}|g" deploy/internal/dashboard.html
 
           # 4. Fresh React builds
