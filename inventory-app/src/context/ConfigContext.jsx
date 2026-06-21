@@ -160,6 +160,10 @@ export function ConfigProvider({ children }) {
     })
   }, [setData])
 
+  const deleteTransaction = useCallback((id) => {
+    setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }))
+  }, [setData])
+
   const addPurchaseOrder = useCallback((po) => {
     setData(prev => ({ ...prev, purchaseOrders: [po, ...prev.purchaseOrders], _nextPoId: prev._nextPoId + 1 }))
   }, [setData])
@@ -303,13 +307,26 @@ export function ConfigProvider({ children }) {
       reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target.result)
-          if (parsed.ingredients && parsed.recipes) { setConfig(migrateConfig(parsed)); resolve() }
-          else reject(new Error('Invalid config file'))
+          if (parsed.config && parsed.data) {
+            // Full debug export — restore everything
+            setConfig(migrateConfig(parsed.config))
+            setData({ ...DEFAULT_DATA, ...parsed.data })
+            if (parsed.salesCache) {
+              setSalesCacheState(parsed.salesCache)
+              saveToStorage(SALES_CACHE_KEY, parsed.salesCache)
+            }
+            resolve()
+          } else if (parsed.ingredients && parsed.recipes) {
+            setConfig(migrateConfig(parsed))
+            resolve()
+          } else {
+            reject(new Error('Invalid config file'))
+          }
         } catch (err) { reject(err) }
       }
       reader.readAsText(file)
     })
-  , [setConfig])
+  , [setConfig, setData, setSalesCacheState])
 
   const addSupplier = useCallback((name) => {
     setConfig(prev => ({
@@ -335,7 +352,7 @@ export function ConfigProvider({ children }) {
     <ConfigContext.Provider value={{
       config, setConfig,
       data, setData,
-      addAudit, deleteAudit, updateAudit, addTransaction,
+      addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility,

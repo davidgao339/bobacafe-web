@@ -503,6 +503,72 @@ function WasteTab() {
   )
 }
 
+// ─── Transfers tab ────────────────────────────────────────────────────────────
+
+function TransfersTab() {
+  const { data, config, deleteTransaction } = useConfig()
+  const { t } = useLanguage()
+  const [pendingDelete, setPendingDelete] = useState(null)
+
+  const txns = [...data.transactions].sort((a, b) => b.date.localeCompare(a.date))
+  const ingName = (id) => config.ingredients.find(i => i.id === id)?.name ?? `#${id}`
+  const ingUnit = (id) => config.ingredients.find(i => i.id === id)?.unit ?? ''
+
+  if (txns.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
+        {t('tx.noTransfers')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+            <th className="px-5 py-3 font-medium">{t('tx.date')}</th>
+            <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+            <th className="px-4 py-3 font-medium">{t('common.ingredient')}</th>
+            <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
+            <th className="px-4 py-3 font-medium text-gray-400 font-normal">PO</th>
+            <th className="px-4 py-3 w-32"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {txns.map(tx => (
+            <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
+              <td className="px-5 py-2.5 text-gray-500 font-mono text-xs">{tx.date}</td>
+              <td className="px-4 py-2.5 text-gray-800">{tx.store}</td>
+              <td className="px-4 py-2.5 text-gray-800">{ingName(tx.ingredientId)}</td>
+              <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                <span className={tx.quantity >= 0 ? 'text-green-600' : 'text-red-500'}>
+                  {tx.quantity >= 0 ? '+' : ''}{tx.quantity}{' '}
+                  <span className="text-gray-400 text-xs font-normal">{ingUnit(tx.ingredientId)}</span>
+                </span>
+              </td>
+              <td className="px-4 py-2.5 text-xs text-gray-400">{tx.poId ?? '—'}</td>
+              <td className="px-4 py-2.5 text-right">
+                {pendingDelete === tx.id
+                  ? <div className="flex gap-2 items-center justify-end">
+                      <span className="text-xs text-red-600">{t('tx.confirmDelete')}</span>
+                      <button onClick={() => { deleteTransaction(tx.id); setPendingDelete(null) }}
+                        className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
+                      <button onClick={() => setPendingDelete(null)}
+                        className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
+                    </div>
+                  : <button onClick={() => setPendingDelete(tx.id)}
+                      className="text-xs text-red-400 hover:text-red-600">{t('tx.deleteTransfer')}</button>
+                }
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Transactions({ activeTab = 'sales', onTabChange }) {
@@ -516,7 +582,7 @@ export default function Transactions({ activeTab = 'sales', onTabChange }) {
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
-        {[['sales', t('tx.tabSales')], ['waste', t('tx.tabWaste')]].map(([id, label]) => (
+        {[['sales', t('tx.tabSales')], ['waste', t('tx.tabWaste')], ['transfers', t('tx.tabTransfers')]].map(([id, label]) => (
           <button key={id} onClick={() => onTabChange?.(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -526,8 +592,9 @@ export default function Transactions({ activeTab = 'sales', onTabChange }) {
         ))}
       </div>
 
-      {activeTab === 'sales' && <SalesTab />}
-      {activeTab === 'waste' && <WasteTab />}
+      {activeTab === 'sales'     && <SalesTab />}
+      {activeTab === 'waste'     && <WasteTab />}
+      {activeTab === 'transfers' && <TransfersTab />}
     </div>
   )
 }
