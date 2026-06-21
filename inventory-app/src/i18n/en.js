@@ -216,6 +216,7 @@ const en = {
   'recipes.supplierOther':     'Other',
   'recipes.ingredientCount':  '{{count}} ingredient',
   'recipes.ingredientsCount': '{{count}} ingredients',
+  'recipes.notUsedAnywhere':  'Not used in any recipes yet',
 
   // Purchase Orders
   'po.title':              'Purchase Orders',

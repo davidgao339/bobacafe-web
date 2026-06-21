@@ -14,6 +14,7 @@ function IngredientsTab() {
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [search,          setSearch]          = useState('')
   const [sortDir,         setSortDir]         = useState(null)
+  const [expandedIngId,   setExpandedIngId]   = useState(null)
   const cycleSort = () => setSortDir(d => d === null ? 'asc' : d === 'asc' ? 'desc' : null)
   const si = sortDir === 'asc' ? ' ↑' : sortDir === 'desc' ? ' ↓' : ''
   const suppliers = config.suppliers ?? []
@@ -97,15 +98,32 @@ function IngredientsTab() {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
-          {visibleIngredients.map(ing => (
-            <tr key={ing.id} className="hover:bg-gray-50">
+          {visibleIngredients.map(ing => {
+            const usedIn = Object.entries(config.recipes)
+              .filter(([, recipe]) => (recipe[ing.id] ?? 0) > 0)
+              .map(([product, recipe]) => ({ product, qty: recipe[ing.id] }))
+            const isExpanded = expandedIngId === ing.id
+            return (<>
+            <tr key={ing.id} className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
               <td className="px-6 py-2.5">
                 {editingId === ing.id
                   ? <input autoFocus value={editVals.name}
                       onChange={e => setEditVals(v => ({ ...v, name: e.target.value }))}
                       onKeyDown={e => e.key === 'Enter' && saveEdit()}
                       className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                  : <span className="font-medium text-gray-900">{ing.name}</span>
+                  : <button
+                      onClick={() => setExpandedIngId(id => id === ing.id ? null : ing.id)}
+                      className="flex items-center gap-2 text-left group">
+                      <svg className={`w-3 h-3 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+                      </svg>
+                      <span className="font-medium text-gray-900 group-hover:text-blue-700">{ing.name}</span>
+                      {usedIn.length > 0
+                        ? <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">{usedIn.length}</span>
+                        : <span className="text-xs text-gray-300">—</span>
+                      }
+                    </button>
                 }
               </td>
               <td className="px-4 py-2.5">
@@ -147,7 +165,26 @@ function IngredientsTab() {
                 }
               </td>
             </tr>
-          ))}
+            {isExpanded && (
+              <tr key={`${ing.id}-used`} className="bg-blue-50/60 border-b border-blue-100">
+                <td colSpan={hasSuppliers ? 4 : 3} className="px-10 py-2.5">
+                  {usedIn.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">{t('recipes.notUsedAnywhere')}</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {usedIn.map(({ product, qty }) => (
+                        <span key={product} className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full px-3 py-1 text-xs text-gray-700 shadow-sm">
+                          <span className="font-medium">{product}</span>
+                          <span className="text-blue-500 font-semibold">{qty} {ing.unit}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )}
+            </>)
+          })}
           {adding && (
             <tr className="bg-blue-50">
               <td className="px-6 py-2.5">

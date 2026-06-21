@@ -216,6 +216,7 @@ const ru = {
   'recipes.supplierOther':     'Остальное',
   'recipes.ingredientCount':  '{{count}} ингредиент',
   'recipes.ingredientsCount': '{{count}} ингредиентов',
+  'recipes.notUsedAnywhere':  'Не используется ни в одной рецептуре',
 
   // Purchase Orders
   'po.title':              'Заказы поставщикам',
