@@ -88,9 +88,12 @@ export default function DailyLedger() {
       .forEach(t => {
         ensure(t.date)
         if (t.type === 'adjustment') {
-          if (t.quantity < 0 && t.poId != null) {
+          if (t.quantity < 0 && t.poId) {
             byDate[t.date].transferOut = r1(byDate[t.date].transferOut + Math.abs(t.quantity))
             byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId })
+          } else if (t.quantity > 0 && t.poId) {
+            byDate[t.date].received = r1(byDate[t.date].received + t.quantity)
+            byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId })
           } else {
             byDate[t.date].received = r1(byDate[t.date].received + t.quantity)
             byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity })
@@ -144,7 +147,7 @@ export default function DailyLedger() {
     const displayRows = allRows
       .filter(r =>
         r.date >= from && r.date <= to &&
-        (r.usage > 0 || r.received > 0 || r.transferOut > 0 || r.auditAdj !== null || r.date === today)
+        (r.usage > 0 || r.received !== 0 || r.transferOut > 0 || r.auditAdj !== null || r.date === today)
       )
       .reverse()
 
@@ -316,9 +319,11 @@ export default function DailyLedger() {
                                 ? <span>−{row.transferOut} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
                                 : <span className="text-gray-300">—</span>}
                             </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-green-600">
+                            <td className="px-4 py-3 text-right tabular-nums">
                               {row.received > 0
-                                ? <span>+{row.received} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                ? <span className="text-green-600">+{row.received} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                : row.received < 0
+                                ? <span className="text-red-600">−{Math.abs(row.received)} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
                                 : <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums">
@@ -349,6 +354,7 @@ export default function DailyLedger() {
                                         d.kind === 'adjustment'   ? 'bg-purple-100 text-purple-700' :
                                         d.kind === 'audit'        ? 'bg-purple-100 text-purple-700' :
                                         d.kind === 'transfer-out' ? 'bg-orange-100 text-orange-700' :
+                                        d.kind === 'transfer-in'  ? 'bg-teal-100 text-teal-700' :
                                                                     'bg-gray-100 text-gray-600'
                                       }`}>
                                         {d.kind === 'sale'         ? t('ledger.kindSale') :
@@ -357,6 +363,7 @@ export default function DailyLedger() {
                                          d.kind === 'adjustment'   ? t('ledger.kindAdj') :
                                          d.kind === 'audit'        ? t('ledger.kindAudit') :
                                          d.kind === 'transfer-out' ? t('ledger.kindTransferOut') :
+                                         d.kind === 'transfer-in'  ? t('ledger.kindTransferIn') :
                                                                      d.kind}
                                       </span>
                                       {d.product && (
@@ -374,14 +381,22 @@ export default function DailyLedger() {
                                               </span>
                                             )}
                                           </span>
-                                        : <span className={`font-semibold flex-shrink-0 ${
-                                            d.kind === 'po' || d.kind === 'adjustment' ? 'text-green-700' :
-                                            d.kind === 'transfer-out'                  ? 'text-orange-600' :
-                                                                                         'text-red-600'
-                                          }`}>
-                                            {d.kind === 'po' || d.kind === 'adjustment' ? '+' : '−'}
-                                            {d.consumed ?? d.qty} {selectedIng?.unit}
-                                          </span>
+                                        : (() => {
+                                            const isPositive = d.kind === 'po' || d.kind === 'transfer-in'
+                                              || (d.kind === 'adjustment' && d.qty >= 0)
+                                            return (
+                                              <span className={`font-semibold flex-shrink-0 ${
+                                                d.kind === 'transfer-out'                          ? 'text-orange-600' :
+                                                d.kind === 'transfer-in'                           ? 'text-teal-700' :
+                                                d.kind === 'adjustment' && d.qty < 0              ? 'text-red-600' :
+                                                isPositive                                         ? 'text-green-700' :
+                                                                                                    'text-red-600'
+                                              }`}>
+                                                {isPositive ? '+' : '−'}
+                                                {d.kind === 'adjustment' ? Math.abs(d.qty) : (d.consumed ?? d.qty)} {selectedIng?.unit}
+                                              </span>
+                                            )
+                                          })()}
                                       }
                                     </div>
                                   ))}

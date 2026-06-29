@@ -37,6 +37,7 @@ const ru = {
   'ledger.kindAdj':          'Коррект.',
   'ledger.colTransferOut':   'Перемещение (из)',
   'ledger.kindTransferOut':  'Перемещение →',
+  'ledger.kindTransferIn':   'Перемещение ←',
 
   // Common
   'common.all':         'Все',

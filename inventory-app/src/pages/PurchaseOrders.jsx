@@ -378,7 +378,7 @@ ${sectionsHtml}
 }
 
 export default function PurchaseOrders() {
-  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, addTransaction, stores } = useConfig()
+  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, addTransaction, stores } = useConfig()
   const { getOrderQty } = useCalcs()
   const { t } = useLanguage()
 
@@ -458,7 +458,7 @@ export default function PurchaseOrders() {
     const { poId, action, date } = confirm
     if (action === 'send')          updatePurchaseOrder(poId, { status: 'sent',     sentDate: date })
     if (action === 'receive')       updatePurchaseOrder(poId, { status: 'received', receivedDate: date })
-    if (action === 'revertToSent')  updatePurchaseOrder(poId, { status: 'sent',     receivedDate: null })
+    if (action === 'revertToSent')  revertPoToSent(poId)
     if (action === 'revertToDraft') updatePurchaseOrder(poId, { status: 'draft',    sentDate: null })
     if (action === 'delete') {
       deletePurchaseOrder(poId)

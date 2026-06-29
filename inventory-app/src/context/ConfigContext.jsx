@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useCallback } from 'react'
+import { createContext, useContext, useMemo, useState, useCallback, useEffect } from 'react'
 import { stores as STORES } from '../data/fakeData'
 
 const STORAGE_KEY           = 'bobacafe_inventory_config'
@@ -82,6 +82,20 @@ export function ConfigProvider({ children }) {
   })
   const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
   const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
+
+  // Sync state when another browser tab writes to localStorage
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === DATA_KEY && e.newValue) {
+        try { setDataState(JSON.parse(e.newValue)) } catch {}
+      }
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try { setConfigState(migrateConfig(JSON.parse(e.newValue))) } catch {}
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   const setConfig = useCallback((updater) => {
     setConfigState(prev => {
@@ -180,6 +194,17 @@ export function ConfigProvider({ children }) {
       ...prev,
       purchaseOrders: prev.purchaseOrders.filter(po => po.id !== id),
       transactions:   prev.transactions.filter(t => t.poId !== id),
+    }))
+  }, [setData])
+
+  // Atomically revert a received PO back to sent and remove its transfer transactions
+  const revertPoToSent = useCallback((id) => {
+    setData(prev => ({
+      ...prev,
+      purchaseOrders: prev.purchaseOrders.map(po =>
+        po.id === id ? { ...po, status: 'sent', receivedDate: null, receivedAt: undefined } : po
+      ),
+      transactions: prev.transactions.filter(t => t.poId !== id),
     }))
   }, [setData])
 
@@ -353,7 +378,7 @@ export function ConfigProvider({ children }) {
       config, setConfig,
       data, setData,
       addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction,
-      addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder,
+      addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility,
       settings, saveSettings, refreshSales,
@@ -432,7 +457,9 @@ export function useCalcs() {
       const win = getIngredientVarianceWindow(store, ingredientId)
       const from = win?.opening.date ?? ''; const to = win?.closing.date ?? '9999-12-31'
       return data.transactions
-        .filter(t => t.store === store && t.ingredientId === ingredientId && t.type === 'adjustment' && t.date > from && t.date <= to)
+        .filter(t => t.store === store && t.ingredientId === ingredientId && t.type === 'adjustment'
+          && !(t.quantity < 0 && t.poId)   // exclude transfer-outs; they show in their own column
+          && t.date > from && t.date <= to)
         .reduce((sum, t) => sum + t.quantity, 0)
     }
 
@@ -457,9 +484,13 @@ export function useCalcs() {
             .reduce((sum, t) => t.type === 'adjustment' ? sum + t.quantity : sum - t.quantity, 0)
         : 0
       // Compare by receivedAt timestamp when available; fall back to date-only with strict >
+      // Transfer POs (fromLocation + toLocation) are already accounted for by their adjustment
+      // transactions in txSince — exclude them here to avoid double-counting.
       const cutTime = lastAudit?.timestamp ?? cut
       const poSince = data.purchaseOrders
-        .filter(po => po.store === store && po.status === 'received' && (po.receivedAt ?? po.receivedDate ?? '') > cutTime)
+        .filter(po => po.store === store && po.status === 'received'
+          && !(po.fromLocation && po.toLocation)
+          && (po.receivedAt ?? po.receivedDate ?? '') > cutTime)
         .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
       return r1(base - salesSince + txSince + poSince)
     }

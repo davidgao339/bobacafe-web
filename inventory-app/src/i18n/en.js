@@ -37,6 +37,7 @@ const en = {
   'ledger.kindAdj':          'Adj',
   'ledger.colTransferOut':   'Transfer Out',
   'ledger.kindTransferOut':  'Transfer Out',
+  'ledger.kindTransferIn':   'Transfer In',
 
   // Common
   'common.all':         'All',
