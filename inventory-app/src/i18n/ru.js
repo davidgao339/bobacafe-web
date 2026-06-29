@@ -251,6 +251,7 @@ const ru = {
   'po.markReceived':       'Отметить как полученный',
   'po.revertDraft':        '↩ Черновик',
   'po.revertSent':         '↩ Отправлен',
+  'po.editDate':           'Изм. дату',
   'po.confirmSend':        'Отметить как отправленный?',
   'po.confirmReceive':     'Подтвердить получение?',
   'po.confirmRevertSent':  'Вернуть в отправленные?',

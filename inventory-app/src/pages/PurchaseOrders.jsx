@@ -395,6 +395,9 @@ export default function PurchaseOrders() {
   const [receiveDate, setReceiveDate] = useState(TODAY)
   const [receiveTime, setReceiveTime] = useState(() => new Date().toTimeString().slice(0, 5))
   const [receiveQtys, setReceiveQtys] = useState({})
+  const [editDateId,  setEditDateId]  = useState(null)
+  const [editDateVal, setEditDateVal] = useState(TODAY)
+  const [editDateTime,setEditDateTime]= useState('00:00')
 
   const pos    = data.purchaseOrders
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
@@ -441,11 +444,27 @@ export default function PurchaseOrders() {
     cancelReceive()
   }
 
+  const startEditDate = (po, e) => {
+    e.stopPropagation()
+    const [date, time] = (po.receivedAt ?? `${po.receivedDate}T00:00:00`).split('T')
+    setEditDateId(po.id)
+    setEditDateVal(date ?? po.receivedDate ?? TODAY)
+    setEditDateTime((time ?? '00:00').slice(0, 5))
+    setConfirm(null)
+  }
+
+  const saveEditDate = (po, e) => {
+    e.stopPropagation()
+    updatePurchaseOrder(po.id, { receivedDate: editDateVal, receivedAt: `${editDateVal}T${editDateTime}:00` })
+    setEditDateId(null)
+  }
+
   const toggle = (id) => {
     setExpanded(prev => prev === id ? null : id)
     setConfirm(null)
     if (editingId === id) setEditingId(null)
     if (receiveId === id) cancelReceive()
+    if (editDateId === id) setEditDateId(null)
   }
 
   const requestConfirm = (poId, action, e) => {
@@ -587,9 +606,23 @@ export default function PurchaseOrders() {
                           <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
                             className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.revertDraft')}</button>
                         </>}
-                        {po.status === 'received' && (
-                          <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
-                            className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.revertSent')}</button>
+                        {po.status === 'received' && (editDateId === po.id
+                          ? <div className="flex items-center gap-2 flex-wrap w-full" onClick={e => e.stopPropagation()}>
+                              <input type="date" value={editDateVal} onChange={e => setEditDateVal(e.target.value)}
+                                className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                              <input type="time" value={editDateTime} onChange={e => setEditDateTime(e.target.value)}
+                                className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                              <button onClick={e => saveEditDate(po, e)}
+                                className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg">{t('common.save')}</button>
+                              <button onClick={e => { e.stopPropagation(); setEditDateId(null) }}
+                                className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('common.cancel')}</button>
+                            </div>
+                          : <>
+                              <button onClick={e => startEditDate(po, e)}
+                                className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.editDate')}</button>
+                              <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
+                                className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">{t('po.revertSent')}</button>
+                            </>
                         )}
                         <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
                           className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg flex items-center gap-1">
@@ -701,9 +734,23 @@ export default function PurchaseOrders() {
                                   <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
                                     className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertDraft')}</button>
                                 </>}
-                                {po.status === 'received' && (
-                                  <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
-                                    className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertSent')}</button>
+                                {po.status === 'received' && (editDateId === po.id
+                                  ? <div className="flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                                      <input type="date" value={editDateVal} onChange={e => setEditDateVal(e.target.value)}
+                                        className="border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                      <input type="time" value={editDateTime} onChange={e => setEditDateTime(e.target.value)}
+                                        className="border border-gray-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                      <button onClick={e => saveEditDate(po, e)}
+                                        className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700">{t('common.save')}</button>
+                                      <button onClick={e => { e.stopPropagation(); setEditDateId(null) }}
+                                        className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('common.cancel')}</button>
+                                    </div>
+                                  : <>
+                                      <button onClick={e => startEditDate(po, e)}
+                                        className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.editDate')}</button>
+                                      <button onClick={e => requestConfirm(po.id, 'revertToSent', e)}
+                                        className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertSent')}</button>
+                                    </>
                                 )}
                                 <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
                                   className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50 flex items-center gap-1">

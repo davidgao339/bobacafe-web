@@ -251,6 +251,7 @@ const en = {
   'po.markReceived':       'Mark Received',
   'po.revertDraft':        '↩ Draft',
   'po.revertSent':         '↩ Sent',
+  'po.editDate':           'Edit date',
   'po.confirmSend':        'Mark as sent?',
   'po.confirmReceive':     'Confirm delivery?',
   'po.confirmRevertSent':  'Revert to Sent?',
