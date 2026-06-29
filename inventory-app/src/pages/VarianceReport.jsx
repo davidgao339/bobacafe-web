@@ -118,7 +118,7 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
 
 // ─── Store section ────────────────────────────────────────────────────────────
 
-function StoreSection({ store, issuesOnly }) {
+function StoreSection({ store, issuesOnly, search }) {
   const { config, data, sales, posWaste, stores } = useConfig()
   const { getSalesConsumption, getDirectConsumption, getActualConsumed, getUnexplainedVariance,
           getVariancePct, getVarianceWindow, getIngredientVarianceWindow } = useCalcs()
@@ -146,6 +146,7 @@ function StoreSection({ store, issuesOnly }) {
       }
     })
     .filter(r => r.actual !== null && (r.expected > 0 || r.actual > 0))
+    .filter(r => !search || r.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.pct - b.pct)   // most negative (worst loss) first
 
   const visibleRows = issuesOnly ? rows.filter(r => r.pct < -5) : rows
@@ -264,6 +265,7 @@ function StoreSection({ store, issuesOnly }) {
 export default function VarianceReport() {
   const [store,      setStore]      = useState('All')
   const [issuesOnly, setIssuesOnly] = useState(false)
+  const [search,     setSearch]     = useState('')
   const { t } = useLanguage()
   const { stores } = useConfig()
   const visibleStores = store === 'All' ? stores : [store]
@@ -275,11 +277,26 @@ export default function VarianceReport() {
           <h1 className="text-2xl font-semibold text-gray-900">{t('variance.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t('variance.subtitle')}</p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none mt-1">
-          <input type="checkbox" checked={issuesOnly} onChange={e => setIssuesOnly(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-          {t('variance.issuesOnly')}
-        </label>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={t('audit.filterPlaceholder')}
+              className="border border-gray-300 rounded-lg pl-8 pr-7 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" checked={issuesOnly} onChange={e => setIssuesOnly(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            {t('variance.issuesOnly')}
+          </label>
+        </div>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6 flex-wrap">
@@ -296,7 +313,7 @@ export default function VarianceReport() {
         })}
       </div>
 
-      {visibleStores.map(s => <StoreSection key={s} store={s} issuesOnly={issuesOnly} />)}
+      {visibleStores.map(s => <StoreSection key={s} store={s} issuesOnly={issuesOnly} search={search} />)}
 
       <p className="text-xs text-gray-400 mt-2">{t('variance.footer')}</p>
     </div>
