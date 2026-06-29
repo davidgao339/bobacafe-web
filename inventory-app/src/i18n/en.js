@@ -35,6 +35,8 @@ const en = {
   'ledger.kindSale':         'Sale',
   'ledger.kindWaste':        'Waste',
   'ledger.kindAdj':          'Adj',
+  'ledger.colTransferOut':   'Transfer Out',
+  'ledger.kindTransferOut':  'Transfer Out',
 
   // Common
   'common.all':         'All',

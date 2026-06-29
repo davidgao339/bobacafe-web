@@ -35,6 +35,8 @@ const ru = {
   'ledger.kindSale':         'Продажа',
   'ledger.kindWaste':        'Списание',
   'ledger.kindAdj':          'Коррект.',
+  'ledger.colTransferOut':   'Перемещение (из)',
+  'ledger.kindTransferOut':  'Перемещение →',
 
   // Common
   'common.all':         'Все',

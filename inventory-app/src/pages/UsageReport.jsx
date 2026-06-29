@@ -13,7 +13,7 @@ export default function DailyLedger() {
 
   const [selectedStore, setSelectedStore] = useState('All')
   const [from,          setFrom]          = useState(reportFrom)
-  const [to,            setTo]            = useState(reportTo)
+  const [to,            setTo]            = useState(todayStr())
   const [selectedId,    setSelectedId]    = useState(null)
   const [search,        setSearch]        = useState('')
   const [expandedDate,  setExpandedDate]  = useState(null)
@@ -61,7 +61,7 @@ export default function DailyLedger() {
 
     // Build per-day activity map from day after baseline
     const byDate = {}
-    const ensure = d => { if (!byDate[d]) byDate[d] = { usage: 0, received: 0, details: [] } }
+    const ensure = d => { if (!byDate[d]) byDate[d] = { usage: 0, received: 0, transferOut: 0, details: [] } }
 
     sales
       .filter(s => s.store === selectedStore && s.date > startDate)
@@ -88,8 +88,13 @@ export default function DailyLedger() {
       .forEach(t => {
         ensure(t.date)
         if (t.type === 'adjustment') {
-          byDate[t.date].received = r1(byDate[t.date].received + t.quantity)
-          byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity })
+          if (t.quantity < 0 && t.poId != null) {
+            byDate[t.date].transferOut = r1(byDate[t.date].transferOut + Math.abs(t.quantity))
+            byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId })
+          } else {
+            byDate[t.date].received = r1(byDate[t.date].received + t.quantity)
+            byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity })
+          }
         } else {
           byDate[t.date].usage = r1(byDate[t.date].usage + t.quantity)
           byDate[t.date].details.push({ kind: t.type, qty: t.quantity })
@@ -122,8 +127,8 @@ export default function DailyLedger() {
     const allRows = []
     for (const d of allDates) {
       if (d <= startDate) continue
-      const { usage = 0, received = 0, details = [] } = byDate[d] ?? {}
-      const computed = r1(running - usage + received)
+      const { usage = 0, received = 0, transferOut = 0, details = [] } = byDate[d] ?? {}
+      const computed = r1(running - usage - transferOut + received)
       let auditAdj = null
       if (auditByDate.has(d)) {
         const auditCount = auditByDate.get(d)
@@ -133,13 +138,13 @@ export default function DailyLedger() {
       } else {
         running = computed
       }
-      allRows.push({ date: d, usage, received, auditAdj, ending: running, details })
+      allRows.push({ date: d, usage, received, transferOut, auditAdj, ending: running, details })
     }
 
     const displayRows = allRows
       .filter(r =>
         r.date >= from && r.date <= to &&
-        (r.usage > 0 || r.received > 0 || r.auditAdj !== null || r.date === today)
+        (r.usage > 0 || r.received > 0 || r.transferOut > 0 || r.auditAdj !== null || r.date === today)
       )
       .reverse()
 
@@ -259,6 +264,7 @@ export default function DailyLedger() {
                       <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
                         <th className="px-5 py-3 font-medium">{t('common.date')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colUsage')}</th>
+                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colTransferOut')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colReceived')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colAuditAdj')}</th>
                         <th className="px-4 py-3 font-medium text-right">{t('ledger.colEnding')}</th>
@@ -305,6 +311,11 @@ export default function DailyLedger() {
                                 ? <span>−{row.usage} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
                                 : <span className="text-gray-300">—</span>}
                             </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-orange-600">
+                              {row.transferOut > 0
+                                ? <span>−{row.transferOut} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                : <span className="text-gray-300">—</span>}
+                            </td>
                             <td className="px-4 py-3 text-right tabular-nums text-green-600">
                               {row.received > 0
                                 ? <span>+{row.received} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
@@ -327,24 +338,26 @@ export default function DailyLedger() {
 
                           {expandedDate === row.date && (
                             <tr className="bg-blue-50/60 border-b border-blue-100">
-                              <td colSpan={5} className="px-8 py-3">
+                              <td colSpan={6} className="px-8 py-3">
                                 <div className="space-y-1.5">
                                   {row.details.map((d, j) => (
                                     <div key={j} className="flex items-center gap-3 text-xs">
                                       <span className={`px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
-                                        d.kind === 'sale'       ? 'bg-blue-100 text-blue-700' :
-                                        d.kind === 'waste'      ? 'bg-amber-100 text-amber-700' :
-                                        d.kind === 'po'         ? 'bg-green-100 text-green-700' :
-                                        d.kind === 'adjustment' ? 'bg-purple-100 text-purple-700' :
-                                        d.kind === 'audit'      ? 'bg-purple-100 text-purple-700' :
-                                                                  'bg-gray-100 text-gray-600'
+                                        d.kind === 'sale'         ? 'bg-blue-100 text-blue-700' :
+                                        d.kind === 'waste'        ? 'bg-amber-100 text-amber-700' :
+                                        d.kind === 'po'           ? 'bg-green-100 text-green-700' :
+                                        d.kind === 'adjustment'   ? 'bg-purple-100 text-purple-700' :
+                                        d.kind === 'audit'        ? 'bg-purple-100 text-purple-700' :
+                                        d.kind === 'transfer-out' ? 'bg-orange-100 text-orange-700' :
+                                                                    'bg-gray-100 text-gray-600'
                                       }`}>
-                                        {d.kind === 'sale'       ? t('ledger.kindSale') :
-                                         d.kind === 'waste'      ? t('ledger.kindWaste') :
-                                         d.kind === 'po'         ? `PO-${d.poId}` :
-                                         d.kind === 'adjustment' ? t('ledger.kindAdj') :
-                                         d.kind === 'audit'      ? t('ledger.kindAudit') :
-                                                                   d.kind}
+                                        {d.kind === 'sale'         ? t('ledger.kindSale') :
+                                         d.kind === 'waste'        ? t('ledger.kindWaste') :
+                                         d.kind === 'po'           ? `PO-${d.poId}` :
+                                         d.kind === 'adjustment'   ? t('ledger.kindAdj') :
+                                         d.kind === 'audit'        ? t('ledger.kindAudit') :
+                                         d.kind === 'transfer-out' ? t('ledger.kindTransferOut') :
+                                                                     d.kind}
                                       </span>
                                       {d.product && (
                                         <span className="font-medium text-gray-800 flex-1 truncate">{d.product}</span>
@@ -362,7 +375,9 @@ export default function DailyLedger() {
                                             )}
                                           </span>
                                         : <span className={`font-semibold flex-shrink-0 ${
-                                            d.kind === 'po' || d.kind === 'adjustment' ? 'text-green-700' : 'text-red-600'
+                                            d.kind === 'po' || d.kind === 'adjustment' ? 'text-green-700' :
+                                            d.kind === 'transfer-out'                  ? 'text-orange-600' :
+                                                                                         'text-red-600'
                                           }`}>
                                             {d.kind === 'po' || d.kind === 'adjustment' ? '+' : '−'}
                                             {d.consumed ?? d.qty} {selectedIng?.unit}
