@@ -31,6 +31,13 @@ def _fmt_date(dt):
     return dt.strftime('%Y-%m-%d')
 
 
+def _norm_name(val):
+    # Collapses stray double spaces / trailing whitespace from sheet formulas
+    # (e.g. full_name built from "last " + "first ") so lookups aren't case-sensitive
+    # to spreadsheet formatting.
+    return ' '.join(str(val or '').split())
+
+
 def _num(val):
     if isinstance(val, (int, float)):
         return float(val)
@@ -111,7 +118,7 @@ def parse_schedule_data(raw_data, month, year):
                 continue
 
             shifts.append({
-                'name':      cell,
+                'name':      _norm_name(cell),
                 'dateStr':   date_str,
                 'day':       day,
                 'store':     header[:sep].strip(),
@@ -129,7 +136,7 @@ def build_employee_map(raw_data):
     result = {}
     for r in range(1, len(raw_data)):
         obj = {headers[i]: raw_data[r][i] for i in range(min(len(headers), len(raw_data[r])))}
-        name = str(obj.get('full_name', '') or '').strip()
+        name = _norm_name(obj.get('full_name', ''))
         if name:
             result[name] = obj
     return result
@@ -201,7 +208,7 @@ def parse_bonus_data(raw_data, month, year):
         if len(row) < 6:
             continue
         timestamp  = row[0]
-        name       = str(row[1] or '').strip()
+        name       = _norm_name(row[1])
         b_month    = _parse_month(row[2])
         bonus_type = str(row[3] or '').strip().lower()
         amount     = abs(_num(row[4]))
@@ -235,7 +242,7 @@ def parse_paid_data(raw_data, month):
         row = raw_data[r]
         if len(row) < 5:
             continue
-        name    = str(row[0] or '').strip()
+        name    = _norm_name(row[0])
         store   = str(row[1] or '').strip()
         amount  = _num(row[2])
         r_month = _parse_int(row[3])
