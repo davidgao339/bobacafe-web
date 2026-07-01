@@ -48,6 +48,10 @@ with st.sidebar:
     calc_btn      = st.button('Calculate', type='primary', use_container_width=True)
     run_tests_btn = st.button('Run Tests', use_container_width=True)
     st.divider()
+    with st.expander('Data sources'):
+        for label, url in config.SHEET_LINKS.items():
+            st.markdown(f'[{label}]({url})')
+    st.divider()
     st.button('Sign out', on_click=st.logout, use_container_width=True)
 
 # ── Header ────────────────────────────────────────────────────────────────────
