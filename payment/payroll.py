@@ -137,6 +137,10 @@ def build_employee_map(raw_data):
     for r in range(1, len(raw_data)):
         obj = {headers[i]: raw_data[r][i] for i in range(min(len(headers), len(raw_data[r])))}
         name = _norm_name(obj.get('full_name', ''))
+        if not name:
+            # full_name formula/entry sometimes isn't filled in for newly added rows;
+            # fall back to last_name + first_name so those employees still match.
+            name = _norm_name(f"{obj.get('last_name', '')} {obj.get('first_name', '')}")
         if name:
             result[name] = obj
     return result
