@@ -437,13 +437,22 @@ function parseCSVLine(line, delim = ',') {
   return result
 }
 
-const RUSSIAN_LABEL_CELLS = new Set(['кафе', 'дата', 'ингредиент', 'ед.измерения', 'количество'])
+const RUSSIAN_LABEL_CELLS = new Set(['кафе', 'дата', 'время', 'ингредиент', 'ед.измерения', 'количество'])
 
 function normalizeDate(raw) {
   // Accept DD.MM.YYYY in addition to YYYY-MM-DD
   const ddmmyyyy = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
   if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`
   return raw
+}
+
+// 24-hour H:mm or HH:mm → 'HH:mm', or null if invalid
+function normalizeTime(raw) {
+  const m = raw.match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return null
+  const h = Number(m[1]), min = Number(m[2])
+  if (h > 23 || min > 59) return null
+  return `${String(h).padStart(2, '0')}:${m[2]}`
 }
 
 function ImportTab() {
@@ -459,14 +468,14 @@ function ImportTab() {
     const today = new Date().toISOString().slice(0, 10)
     const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
     const rows = [
-      ['store', 'date', 'ingredient', 'unit', 'supplier', 'qty'],
+      ['store', 'date', 'time', 'ingredient', 'unit', 'supplier', 'qty'],
       ...[...config.ingredients]
         .sort((a, b) => {
           const sa = suppName(a), sb = suppName(b)
           if (sa !== sb) return sa.localeCompare(sb)
           return a.name.localeCompare(b.name)
         })
-        .map(i => [stores[0], today, i.name, i.unit, suppName(i), '']),
+        .map(i => [stores[0], today, '', i.name, i.unit, suppName(i), '']),
     ]
     const csv = rows.map(r => r.map(csvEsc).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -486,6 +495,7 @@ function ImportTab() {
     const headers = parseCSVLine(lines[0], delim).map(h => h.trim().toLowerCase())
     const iStore = headers.indexOf('store')
     const iDate  = headers.indexOf('date')
+    const iTime  = headers.indexOf('time')   // optional, 24h HH:mm
     const iIng   = headers.indexOf('ingredient')
     const iQty   = headers.indexOf('qty')
     if (iStore < 0 || iDate < 0 || iIng < 0 || iQty < 0)
@@ -510,14 +520,17 @@ function ImportTab() {
       const cells = parseCSVLine(lines[i], delim)
       if (cells.every(c => !c.trim())) continue
       const rowNum = i + 1
-      const store  = cells[iStore]?.trim() ?? ''
-      const date   = normalizeDate(cells[iDate]?.trim() ?? '')
-      const ingRaw = cells[iIng]?.trim()   ?? ''
-      const qtyRaw = cells[iQty]?.trim()   ?? ''
+      const store   = cells[iStore]?.trim() ?? ''
+      const date    = normalizeDate(cells[iDate]?.trim() ?? '')
+      const timeRaw = iTime >= 0 ? (cells[iTime]?.trim() ?? '') : ''
+      const ingRaw  = cells[iIng]?.trim()   ?? ''
+      const qtyRaw  = cells[iQty]?.trim()   ?? ''
       const errors = []
 
       if (!stores.includes(store)) errors.push(`unknown store "${store}"`)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${cells[iDate]?.trim()}"`)
+      const time = timeRaw ? normalizeTime(timeRaw) : null
+      if (timeRaw && !time) errors.push(`invalid time "${timeRaw}" (use 24h HH:mm)`)
       const ing = ingByName[ingRaw.toLowerCase()]
       if (!ing) { unknownIngredients.add(ingRaw); continue }
       const qty = parseFloat(qtyRaw)
@@ -527,7 +540,8 @@ function ImportTab() {
       if (!qtyRaw) continue  // blank qty = not counted, skip silently
 
       const key = `${store}||${date}`
-      if (!groups[key]) groups[key] = { store, date, counts: {} }
+      if (!groups[key]) groups[key] = { store, date, time: null, counts: {} }
+      if (time && !groups[key].time) groups[key].time = time
       groups[key].counts[ing.id] = Math.max(0, qty)
     }
 
@@ -545,7 +559,7 @@ function ImportTab() {
   }
 
   const handleImport = () => {
-    parsed?.audits.forEach(a => addAudit(a.store, a.date, a.counts))
+    parsed?.audits.forEach(a => addAudit(a.store, a.date, a.counts, a.time ? `${a.date}T${a.time}:00` : undefined))
     setResult({ imported: parsed?.audits.length ?? 0 })
     setParsed(null)
     if (fileRef.current) fileRef.current.value = ''
@@ -620,7 +634,10 @@ function ImportTab() {
                     {parsed.audits.map(a => (
                       <tr key={`${a.store}||${a.date}`}>
                         <td className="px-4 py-2 font-medium text-gray-900">{a.store}</td>
-                        <td className="px-4 py-2 text-gray-700">{a.date}</td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {a.date}
+                          {a.time && <span className="text-gray-400 text-xs ml-1.5">{a.time}</span>}
+                        </td>
                         <td className="px-4 py-2 text-right tabular-nums text-gray-600">
                           {Object.keys(a.counts).length}
                           <span className="text-gray-400 text-xs"> / {config.ingredients.length}</span>
