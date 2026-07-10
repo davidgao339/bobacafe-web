@@ -34,15 +34,32 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
     .filter(s => s.store === store && s.date > from && s.date <= to)
     .reduce((sum, s) => sum + s.quantity * (config.recipes[s.product]?.[id] ?? 0), 0))
 
+  const windowTxns = data.transactions.filter(t =>
+    t.store === store && t.ingredientId === id && t.date > from && t.date <= to)
+
+  const directUsage = r1(windowTxns
+    .filter(t => t.type !== 'adjustment')
+    .reduce((sum, t) => sum + t.quantity, 0))
+
+  const transfersIn = r1(windowTxns
+    .filter(t => t.type === 'adjustment' && t.poId && t.quantity > 0)
+    .reduce((sum, t) => sum + t.quantity, 0))
+
+  const transfersOut = r1(Math.abs(windowTxns
+    .filter(t => t.type === 'adjustment' && t.poId && t.quantity < 0)
+    .reduce((sum, t) => sum + t.quantity, 0)))
+
+  // Transfer POs appear via their transfer transactions above, not as receipts
   const posInWindow = data.purchaseOrders
     .filter(po => po.store === store && po.status === 'received' &&
+      !(po.fromLocation && po.toLocation) &&
       (po.receivedDate ?? '') > from && (po.receivedDate ?? '') <= to)
     .map(po => { const line = po.lines.find(l => Number(l.ingredientId) === id); return { id: po.id, date: po.receivedDate, qty: line?.received ?? line?.ordered ?? 0 } })
     .filter(po => po.qty > 0)
 
   const totalReceived   = r1(posInWindow.reduce((sum, po) => sum + po.qty, 0))
-  const totalAvailable  = r1(openingCount + totalReceived)
-  const totalExpected   = r1(salesUsage + wasteUsage)
+  const totalAvailable  = r1(openingCount + totalReceived + transfersIn)
+  const totalExpected   = r1(salesUsage + wasteUsage + directUsage + transfersOut)
   const expectedClosing = r1(totalAvailable - totalExpected)
 
   // Positive = surplus (have more than expected), negative = loss (have less)
@@ -83,11 +100,20 @@ function DetailCard({ store, ingredient, iwin, config, data, sales, posWaste }) 
           ))
         : <Row label={t('variance.detailReceived')} sub={t('variance.detailNone')} right={`+0 ${unit}`} rightColor="text-gray-400" />
       }
+      {transfersIn > 0 && (
+        <Row label={t('variance.detailTransferIn')} right={`+${transfersIn} ${unit}`} rightColor="text-teal-600" />
+      )}
       <Row label={t('variance.detailAvailable')} right={`${totalAvailable} ${unit}`} bold divider />
 
       {/* Expected consumption */}
       <Row label={t('variance.detailSales')}  right={`−${salesUsage} ${unit}`}   rightColor={salesUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
       <Row label={t('variance.detailWaste')}  right={`−${wasteUsage} ${unit}`}   rightColor={wasteUsage > 0  ? 'text-gray-700' : 'text-gray-400'} />
+      {directUsage > 0 && (
+        <Row label={t('variance.detailDirect')} right={`−${directUsage} ${unit}`} rightColor="text-gray-700" />
+      )}
+      {transfersOut > 0 && (
+        <Row label={t('variance.detailTransferOut')} right={`−${transfersOut} ${unit}`} rightColor="text-orange-600" />
+      )}
       <Row label={t('variance.detailExpClosing')} right={`${expectedClosing} ${unit}`} bold divider />
 
       {/* Actual vs expected */}

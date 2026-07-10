@@ -329,6 +329,8 @@ const en = {
   'variance.detailSales':         '− Sales × recipe',
   'variance.detailWaste':         '− Non-Fiscal waste',
   'variance.detailDirect':        '− Direct write-offs',
+  'variance.detailTransferIn':    '+ Transfer in',
+  'variance.detailTransferOut':   '− Transfer out',
   'variance.detailExpClosing':    'Expected closing balance',
   'variance.detailActClosing':    'Actual closing',
   'variance.detailVarianceLabel': 'Variance',

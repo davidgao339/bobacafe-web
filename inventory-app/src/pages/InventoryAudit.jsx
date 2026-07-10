@@ -124,7 +124,8 @@ function CountTab({ store, setStore, date, setDate }) {
           <span>{t('audit.newCount')}</span>
         </div>
         {config.ingredients
-          .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+          .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+            suppName(p).toLowerCase().includes(search.toLowerCase()))
           .length === 0 && (
             <div className="px-6 py-8 text-center text-sm text-gray-400">{t('audit.noMatch', { query: search })}</div>
           )
@@ -351,39 +352,36 @@ function HistoryTab() {
                                   className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                               </div>
                               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                {/* Counted ingredients (in draft) */}
-                                {config.ingredients
-                                  .filter(ing => ing.id in editCounts)
+                                {/* Partition by the ORIGINAL audit counts so a card never jumps
+                                    between groups mid-typing (which unmounts the input and drops focus) */}
+                                {[
+                                  ...config.ingredients.filter(ing => audit.counts[ing.id] != null),
+                                  ...config.ingredients.filter(ing => audit.counts[ing.id] == null),
+                                ]
                                   .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
-                                  .map(ing => (
-                                    <div key={ing.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <p className="text-gray-500 truncate flex-1">{ing.name}</p>
-                                        <button onClick={() => removeIng(ing.id)}
-                                          className="text-gray-300 hover:text-red-400 ml-1 flex-shrink-0">✕</button>
+                                  .map(ing => {
+                                    const inDraft = ing.id in editCounts
+                                    return (
+                                      <div key={ing.id} className={`bg-white rounded-lg px-3 py-2 text-xs ${
+                                        inDraft
+                                          ? 'border border-blue-200'
+                                          : 'border border-dashed border-gray-200 opacity-60 hover:opacity-100 transition-opacity'
+                                      }`}>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <p className={`truncate flex-1 ${inDraft ? 'text-gray-500' : 'text-gray-400'}`}>{ing.name}</p>
+                                          {inDraft && (
+                                            <button onClick={() => removeIng(ing.id)}
+                                              className="text-gray-300 hover:text-red-400 ml-1 flex-shrink-0">✕</button>
+                                          )}
+                                        </div>
+                                        <input type="number" min="0" step="0.1" placeholder={inDraft ? undefined : '—'}
+                                          value={editCounts[ing.id] ?? ''}
+                                          onChange={e => setIngVal(ing.id, e.target.value)}
+                                          className="w-full border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
+                                        <span className="text-gray-400 text-xs">{ing.unit}</span>
                                       </div>
-                                      <input type="number" min="0" step="0.1"
-                                        value={editCounts[ing.id] ?? ''}
-                                        onChange={e => setIngVal(ing.id, e.target.value)}
-                                        className="w-full border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
-                                      <span className="text-gray-400 text-xs">{ing.unit}</span>
-                                    </div>
-                                  ))
-                                }
-                                {/* Uncounted ingredients — can add */}
-                                {config.ingredients
-                                  .filter(ing => !(ing.id in editCounts))
-                                  .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
-                                  .map(ing => (
-                                    <div key={ing.id} className="bg-white rounded-lg px-3 py-2 border border-dashed border-gray-200 text-xs opacity-60 hover:opacity-100 transition-opacity">
-                                      <p className="text-gray-400 truncate mb-1">{ing.name}</p>
-                                      <input type="number" min="0" step="0.1" placeholder="—"
-                                        value=""
-                                        onChange={e => { if (e.target.value !== '') setIngVal(ing.id, e.target.value) }}
-                                        className="w-full border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
-                                      <span className="text-gray-400 text-xs">{ing.unit}</span>
-                                    </div>
-                                  ))
+                                    )
+                                  })
                                 }
                               </div>
                             </>

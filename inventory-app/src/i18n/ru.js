@@ -329,6 +329,8 @@ const ru = {
   'variance.detailSales':         '− Продажи × рецепт',
   'variance.detailWaste':         '− Нефискальные списания',
   'variance.detailDirect':        '− Прямые списания',
+  'variance.detailTransferIn':    '+ Перемещение (в)',
+  'variance.detailTransferOut':   '− Перемещение (из)',
   'variance.detailExpClosing':    'Ожидаемый остаток на конец',
   'variance.detailActClosing':    'Фактический остаток',
   'variance.detailVarianceLabel': 'Отклонение',

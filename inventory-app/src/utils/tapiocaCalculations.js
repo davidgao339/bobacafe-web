@@ -1,5 +1,3 @@
-import { DEFAULT_DATA } from '../context/ConfigContext'
-
 /**
  * Filter sales to only tapioca products
  */
@@ -29,8 +27,8 @@ export function dailyBySlot(tapiocaSales) {
     // Parse time if available (for now, assume it's in the sale data somehow)
     // For now, we'll use date and distribute evenly
     const dateObj = new Date(sale.date)
-    const dayOfWeek = dateObj.getDay()
-    const dayType = dayOfWeek >= 5 ? 'Weekend' : 'Weekday'
+    const dayOfWeek = dateObj.getDay() // 0 = Sunday … 6 = Saturday
+    const dayType = (dayOfWeek === 0 || dayOfWeek === 6) ? 'Weekend' : 'Weekday'
 
     // Since we don't have hour data in the filtered sales, we'll aggregate by day
     // (In a real scenario, you'd need to expand the data structure)

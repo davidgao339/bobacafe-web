@@ -175,7 +175,12 @@ export function ConfigProvider({ children }) {
   }, [setData])
 
   const deleteTransaction = useCallback((id) => {
-    setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }))
+    setData(prev => {
+      const tx = prev.transactions.find(t => t.id === id)
+      // A transfer's two legs (same PO + ingredient) must go together, or stock is created/lost
+      const isPairedLeg = t => tx?.poId != null && t.poId === tx.poId && t.ingredientId === tx.ingredientId
+      return { ...prev, transactions: prev.transactions.filter(t => t.id !== id && !isPairedLeg(t)) }
+    })
   }, [setData])
 
   const addPurchaseOrder = useCallback((po) => {
@@ -194,6 +199,19 @@ export function ConfigProvider({ children }) {
       ...prev,
       purchaseOrders: prev.purchaseOrders.filter(po => po.id !== id),
       transactions:   prev.transactions.filter(t => t.poId !== id),
+    }))
+  }, [setData])
+
+  // Atomically move a received PO's date and any transfer transactions it created
+  const updatePoReceivedDate = useCallback((id, receivedDate, receivedAt) => {
+    setData(prev => ({
+      ...prev,
+      purchaseOrders: prev.purchaseOrders.map(po =>
+        po.id === id ? { ...po, receivedDate, receivedAt } : po
+      ),
+      transactions: prev.transactions.map(t =>
+        t.poId === id ? { ...t, date: receivedDate } : t
+      ),
     }))
   }, [setData])
 
@@ -378,7 +396,7 @@ export function ConfigProvider({ children }) {
       config, setConfig,
       data, setData,
       addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction,
-      addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent,
+      addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility,
       settings, saveSettings, refreshSales,
@@ -523,12 +541,20 @@ export function useCalcs() {
       if (!win) return null
       const opening = win.opening.counts[ingredientId]
       const closing = win.closing.counts[ingredientId]
+      // Transfer POs are represented by their poId-linked adjustment transactions
       const poInWindow = data.purchaseOrders
         .filter(po => po.store === store && po.status === 'received'
+          && !(po.fromLocation && po.toLocation)
           && (po.receivedDate ?? '') > win.opening.date
           && (po.receivedDate ?? '') <= win.closing.date)
         .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
-      return r1(opening - closing + poInWindow)
+      // Net transfers in/out so a transfer doesn't read as consumption (out) or surplus (in)
+      const transferNet = data.transactions
+        .filter(t => t.store === store && t.ingredientId === ingredientId
+          && t.type === 'adjustment' && t.poId
+          && t.date > win.opening.date && t.date <= win.closing.date)
+        .reduce((sum, t) => sum + t.quantity, 0)
+      return r1(opening - closing + poInWindow + transferNet)
     }
     const getUnexplainedVariance = (store, ingredientId) => {
       const actual = getActualConsumed(store, ingredientId)

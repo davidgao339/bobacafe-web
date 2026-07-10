@@ -378,7 +378,7 @@ ${sectionsHtml}
 }
 
 export default function PurchaseOrders() {
-  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, addTransaction, stores } = useConfig()
+  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate, addTransaction, stores } = useConfig()
   const { getOrderQty } = useCalcs()
   const { t } = useLanguage()
 
@@ -455,7 +455,7 @@ export default function PurchaseOrders() {
 
   const saveEditDate = (po, e) => {
     e.stopPropagation()
-    updatePurchaseOrder(po.id, { receivedDate: editDateVal, receivedAt: `${editDateVal}T${editDateTime}:00` })
+    updatePoReceivedDate(po.id, editDateVal, `${editDateVal}T${editDateTime}:00`)
     setEditDateId(null)
   }
 

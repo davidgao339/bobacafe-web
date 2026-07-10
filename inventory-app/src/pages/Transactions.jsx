@@ -61,15 +61,15 @@ function SalesTab() {
     setRefreshMsg(null)
   }
 
-  const filtered = useMemo(() => {
-    setPage(0)
-    setExpanded(null)
-    return sales.filter(s => {
+  const resetView = () => { setPage(0); setExpanded(null) }
+
+  const filtered = useMemo(() =>
+    sales.filter(s => {
       if (filterStore !== 'All' && s.store !== filterStore) return false
       if (s.date < filterFrom || s.date > filterTo)         return false
       return true
     })
-  }, [sales, filterStore, filterFrom, filterTo])
+  , [sales, filterStore, filterFrom, filterTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -83,20 +83,20 @@ function SalesTab() {
         <div className="flex items-end gap-4 flex-wrap">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
-            <select value={filterStore} onChange={e => setFilterStore(e.target.value)}
+            <select value={filterStore} onChange={e => { setFilterStore(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option>{t('common.all')}</option>
+              <option value="All">{t('common.all')}</option>
               {stores.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.from')}</label>
-            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
+            <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.to')}</label>
-            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
+            <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <span className="text-sm text-gray-500 pb-2">{t('tx.rows', { count: filtered.length })}</span>
@@ -306,9 +306,9 @@ function WasteTab() {
   const [page,        setPage]        = useState(0)
   const [sortAsc,     setSortAsc]     = useState(false)
 
+  const resetView = () => { setPage(0); setExpanded(null) }
+
   const filtered = useMemo(() => {
-    setPage(0)
-    setExpanded(null)
     const rows = posWaste.filter(r => {
       if (filterStore !== 'All' && r.store !== filterStore) return false
       if (r.date < filterFrom || r.date > filterTo)         return false
@@ -330,20 +330,20 @@ function WasteTab() {
         <div className="flex items-end gap-4 flex-wrap">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
-            <select value={filterStore} onChange={e => setFilterStore(e.target.value)}
+            <select value={filterStore} onChange={e => { setFilterStore(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option>{t('common.all')}</option>
+              <option value="All">{t('common.all')}</option>
               {stores.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.from')}</label>
-            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
+            <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.to')}</label>
-            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
+            <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <span className="text-sm text-gray-500 pb-2">{t('tx.rows', { count: filtered.length })}</span>
@@ -414,7 +414,7 @@ function WasteTab() {
             <thead>
               <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-3 font-medium">
-                  <button onClick={() => setSortAsc(v => !v)}
+                  <button onClick={() => { setSortAsc(v => !v); resetView() }}
                     className="flex items-center gap-1 hover:text-gray-800 transition-colors">
                     {t('tx.date')}
                     <span className="text-gray-300">{sortAsc ? '↑' : '↓'}</span>

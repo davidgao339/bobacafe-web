@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, Fragment } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
@@ -103,8 +103,8 @@ function IngredientsTab() {
               .filter(([, recipe]) => (recipe[ing.id] ?? 0) > 0)
               .map(([product, recipe]) => ({ product, qty: recipe[ing.id] }))
             const isExpanded = expandedIngId === ing.id
-            return (<>
-            <tr key={ing.id} className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
+            return (<Fragment key={ing.id}>
+            <tr className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
               <td className="px-6 py-2.5">
                 {editingId === ing.id
                   ? <input autoFocus value={editVals.name}
@@ -166,7 +166,7 @@ function IngredientsTab() {
               </td>
             </tr>
             {isExpanded && (
-              <tr key={`${ing.id}-used`} className="bg-blue-50/60 border-b border-blue-100">
+              <tr className="bg-blue-50/60 border-b border-blue-100">
                 <td colSpan={hasSuppliers ? 4 : 3} className="px-10 py-2.5">
                   {usedIn.length === 0 ? (
                     <p className="text-xs text-gray-400 italic">{t('recipes.notUsedAnywhere')}</p>
@@ -183,7 +183,7 @@ function IngredientsTab() {
                 </td>
               </tr>
             )}
-            </>)
+            </Fragment>)
           })}
           {adding && (
             <tr className="bg-blue-50">

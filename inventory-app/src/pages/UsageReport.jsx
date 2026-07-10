@@ -108,6 +108,8 @@ export default function DailyLedger() {
       .filter(po =>
         po.store === selectedStore &&
         po.status === 'received' &&
+        // Transfer POs are already represented by their adjustment transactions above
+        !(po.fromLocation && po.toLocation) &&
         (po.receivedAt ?? po.receivedDate ?? '') > (baseAudit.timestamp ?? startDate)
       )
       .forEach(po => {
@@ -397,7 +399,6 @@ export default function DailyLedger() {
                                               </span>
                                             )
                                           })()}
-                                      }
                                     </div>
                                   ))}
                                 </div>
