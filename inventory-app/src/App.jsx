@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ConfigProvider } from './context/ConfigContext'
+import { ConfigProvider, useConfig } from './context/ConfigContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
@@ -106,6 +106,71 @@ const DEFAULT_TABS = {
   recipes:      'ingredients',
 }
 
+function LogisticsView({ onLogout }) {
+  const { config, listCloudBackups, restoreCloudBackup } = useConfig()
+  const [loadState, setLoadState] = useState(null) // null | 'loading' | 'done' | 'error'
+
+  const hasData = (config.ingredients ?? []).length > 0
+
+  const handleLoad = async () => {
+    setLoadState('loading')
+    try {
+      const backups = await listCloudBackups()
+      if (!backups || backups.length === 0) throw new Error('No backups found')
+      const latest = backups.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))[0]
+      await restoreCloudBackup(latest.id)
+      setLoadState('done')
+    } catch {
+      setLoadState('error')
+    }
+  }
+
+  useEffect(() => {
+    if (!hasData && loadState === null) handleLoad()
+  }, [])
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50">
+      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
+        <div>
+          <p className="font-semibold text-gray-800 text-sm">Боба Кролик · Склад</p>
+          <p className="text-xs text-gray-400">Логистика</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {loadState === 'loading' && (
+            <span className="text-xs text-gray-400">Загрузка...</span>
+          )}
+          {loadState === 'error' && (
+            <button onClick={handleLoad}
+              className="text-xs text-red-600 hover:text-red-700 px-2.5 py-1 border border-red-200 rounded-md transition-colors">
+              Повторить
+            </button>
+          )}
+          {(loadState === null || loadState === 'done') && hasData && (
+            <button onClick={handleLoad}
+              className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors">
+              Обновить данные
+            </button>
+          )}
+          <button onClick={onLogout}
+            className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors">
+            Выйти
+          </button>
+        </div>
+      </header>
+      <div className="flex-1 overflow-auto">
+        {loadState === 'loading' && !hasData ? (
+          <div className="flex items-center justify-center h-full text-sm text-gray-400">
+            Загрузка данных...
+          </div>
+        ) : (
+          <InventoryLevels />
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AppContent({ role, onLogout }) {
   const [page,          setPage]          = useState('dashboard')
   const [subTab,        setSubTab]        = useState(null)
@@ -120,23 +185,7 @@ function AppContent({ role, onLogout }) {
   }
 
   if (role === 'logistics') {
-    return (
-      <div className="flex flex-col h-screen bg-gray-50">
-        <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-          <div>
-            <p className="font-semibold text-gray-800 text-sm">Боба Кролик · Склад</p>
-            <p className="text-xs text-gray-400">Логистика</p>
-          </div>
-          <button onClick={onLogout}
-            className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors">
-            Выйти
-          </button>
-        </header>
-        <div className="flex-1 overflow-auto">
-          <InventoryLevels />
-        </div>
-      </div>
-    )
+    return <LogisticsView onLogout={onLogout} />
   }
 
   return (
