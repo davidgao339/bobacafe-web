@@ -10,6 +10,9 @@ const ru = {
   'nav.purchases':     'Заказы',
   'nav.replenishment': 'Закупка',
   'nav.usage':         'Дневной журнал',
+  'nav.dataThrough':   'Данные по {{date}}',
+  'nav.noSalesData':   'Нет данных — обновить',
+  'nav.refreshHint':   'Оценки зависят от последней синхронизации продаж. Нажмите, чтобы обновить.',
   'nav.manager':       'Менеджер',
 
   // Usage Report (legacy keys kept for compatibility)
@@ -141,6 +144,10 @@ const ru = {
   'levels.estStock':       'Расч. остаток',
   'levels.dailyAvg':       'Расход/день',
   'levels.daysLeft':       'Дней осталось',
+  'levels.colDaily':       'Расход/день',
+  'levels.col7d':          '7 дней',
+  'levels.colOrder':       'Заказ',
+  'levels.openLedger':     'Открыть в дневном журнале',
   'levels.issuesOnly':     'Только проблемные',
   'levels.showAll':        'Показать все',
   'levels.noIssues':       'Проблем нет',
@@ -288,6 +295,7 @@ const ru = {
   'report.hideZero':         'Скрыть нулевые строки',
   'report.exportCSV':        'Экспорт CSV',
   'report.print':            'Печать',
+  'report.createPO':         'Создать заявку →',
   'report.printTitle':       'Еженедельный отчёт по закупкам',
   'report.printPeriod':      'Период: {{from}} – {{to}}',
   'report.printStore':       ' · Магазин: {{store}}',

@@ -77,6 +77,37 @@ export default function Dashboard({ onNavigate }) {
         {tasks.map((task, i) => (
           <TaskCard key={i} {...task} onClick={() => onNavigate(task.nav)} />
         ))}
+
+        {alerts.length > 0 && (
+          <div className="bg-white rounded-xl border-2 border-amber-200 overflow-hidden">
+            <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+              <p className="text-sm font-semibold text-amber-800">⚠️ {t('dash.lowAlerts')} · {alerts.length}</p>
+              <button onClick={() => onNavigate('inventory')} className="text-xs text-amber-700 hover:underline">
+                {t('dash.viewAll')}
+              </button>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {[...alerts].sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 6).map(a => (
+                <button key={`${a.store}-${a.productId}`}
+                  onClick={() => onNavigate('usage', null, { store: a.store, ingredientId: a.productId })}
+                  className="w-full flex items-center gap-3 px-5 py-2.5 text-left hover:bg-amber-50/60 transition-colors">
+                  <span className="text-xs text-gray-400 w-28 truncate flex-shrink-0">{a.store}</span>
+                  <span className="text-sm font-medium text-gray-800 flex-1 truncate">{a.product}</span>
+                  <span className="text-xs tabular-nums text-gray-500">{a.current} {a.unit}</span>
+                  <span className={`text-xs tabular-nums font-semibold w-14 text-right ${a.daysLeft < 1 ? 'text-red-600' : 'text-amber-600'}`}>
+                    {a.daysLeft < 1 ? '<1d' : `~${Math.round(a.daysLeft)}d`}
+                  </span>
+                </button>
+              ))}
+              {alerts.length > 6 && (
+                <button onClick={() => onNavigate('inventory')}
+                  className="w-full px-5 py-2 text-xs text-gray-400 hover:text-gray-600 text-center">
+                  +{alerts.length - 6}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-gray-100 pt-8">

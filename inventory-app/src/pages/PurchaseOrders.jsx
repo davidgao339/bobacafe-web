@@ -74,7 +74,7 @@ function StatusStepper({ po }) {
 
 // ─── Create / Edit form ───────────────────────────────────────────────────────
 
-function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate, initialFromLocation, initialToLocation, stores }) {
+function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate, initialFromLocation, initialToLocation, stores, autoApplySuggested }) {
   const { t } = useLanguage()
   const [store,          setStore]          = useState(initialStore ?? stores?.[0] ?? '')
   const [createdDate,    setCreatedDate]    = useState(initialCreatedDate ?? TODAY)
@@ -93,6 +93,16 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
     if (initialLines) {
       const map = {}
       initialLines.forEach(l => { map[`${initialStore}:${l.ingredientId}`] = l.ordered })
+      return map
+    }
+    if (autoApplySuggested) {
+      // Arriving from the Replenishment Report: pre-fill with suggested quantities
+      const st  = initialStore ?? stores?.[0] ?? ''
+      const map = {}
+      ingredients.forEach(p => {
+        const s = getOrderQty(st, p.id, 7)
+        if (s > 0) map[`${st}:${p.id}`] = s
+      })
       return map
     }
     return {}
@@ -377,7 +387,7 @@ ${sectionsHtml}
   setTimeout(() => win.print(), 400)
 }
 
-export default function PurchaseOrders() {
+export default function PurchaseOrders({ initialCreate }) {
   const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate, addTransaction, stores } = useConfig()
   const { getOrderQty } = useCalcs()
   const { t } = useLanguage()
@@ -386,7 +396,7 @@ export default function PurchaseOrders() {
   const ingredientUnit = (id) => config.ingredients.find(p => p.id === id)?.unit ?? ''
 
   const [expanded,    setExpanded]    = useState(null)
-  const [creating,    setCreating]    = useState(false)
+  const [creating,    setCreating]    = useState(!!initialCreate)
   const [editingId,   setEditingId]   = useState(null)
   const [confirm,     setConfirm]     = useState(null)
   const [filter,      setFilter]      = useState('all')
@@ -527,6 +537,8 @@ export default function PurchaseOrders() {
           suppliers={config.suppliers}
           getOrderQty={getOrderQty}
           stores={stores}
+          initialStore={initialCreate?.store}
+          autoApplySuggested={!!initialCreate}
           onSave={handleCreate}
           onCancel={() => setCreating(false)}
         />

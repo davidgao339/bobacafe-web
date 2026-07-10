@@ -3,7 +3,7 @@ import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
 
-export default function ReplenishmentReport() {
+export default function ReplenishmentReport({ onNavigate }) {
   const { config, reportFrom, reportTo, stores, visibleStores } = useConfig()
   const { getConsumed7d, estimateCurrentStock, getOrderQty } = useCalcs()
   const { t } = useLanguage()
@@ -108,11 +108,19 @@ export default function ReplenishmentReport() {
           const itemsToOrder = rows.filter(r => r.orderQty > 0).length
           return (
             <div key={store} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between">
+              <div className="px-6 py-4 bg-slate-50 border-b border-gray-200 flex items-center justify-between gap-3 flex-wrap">
                 <h2 className="font-semibold text-gray-900">{store}</h2>
-                <span className="text-sm text-gray-500">
-                  {t('report.storeHeader', { count: itemsToOrder, total: rows.length })}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">
+                    {t('report.storeHeader', { count: itemsToOrder, total: rows.length })}
+                  </span>
+                  {itemsToOrder > 0 && onNavigate && (
+                    <button onClick={() => onNavigate('purchases', null, { createPO: { store } })}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors no-print">
+                      {t('report.createPO')}
+                    </button>
+                  )}
+                </div>
               </div>
               {visibleRows.length === 0 ? (
                 <p className="px-6 py-8 text-sm text-gray-400 text-center">{t('report.nothingToOrder')}</p>

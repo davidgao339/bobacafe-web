@@ -165,6 +165,28 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
         <p className="text-slate-400 text-xs mt-0.5">Inventory Manager</p>
       </div>
 
+      {/* Data freshness — every estimate depends on the last sales sync */}
+      {(() => {
+        const last = salesCache?.lastRefreshDate
+        const daysAgo = last ? Math.floor((Date.now() - new Date(last + 'T12:00:00')) / 86400000) : null
+        const tone = last == null ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60'
+          : daysAgo <= 1 ? 'bg-slate-700/60 text-slate-300 hover:bg-slate-700'
+          : daysAgo <= 3 ? 'bg-amber-900/40 text-amber-300 hover:bg-amber-900/60'
+          :                'bg-red-900/40 text-red-300 hover:bg-red-900/60'
+        return (
+          <button onClick={() => onNavigate('transactions', 'sales')}
+            title={t('nav.refreshHint')}
+            className={`mx-3 mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${tone}`}>
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              last == null || daysAgo > 3 ? 'bg-red-400' : daysAgo > 1 ? 'bg-amber-400' : 'bg-green-400'
+            }`} />
+            <span className="truncate">
+              {last ? t('nav.dataThrough', { date: last }) : t('nav.noSalesData')}
+            </span>
+          </button>
+        )
+      })()}
+
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
         {STAFF_NAV.map(item => (
           <NavItem key={item.id} {...item} currentPage={currentPage} currentTab={currentTab} onNavigate={onNavigate} />

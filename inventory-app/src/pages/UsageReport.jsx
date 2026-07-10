@@ -5,16 +5,16 @@ import { useLanguage } from '../context/LanguageContext'
 const r1 = n => Math.round(n * 10) / 10
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
-export default function DailyLedger() {
+export default function DailyLedger({ initialStore, initialIngredientId }) {
   const { config, sales, posWaste, data, reportFrom, reportTo, stores } = useConfig()
   const calcs = useCalcs()
   const { t } = useLanguage()
   const { recipes } = config
 
-  const [selectedStore, setSelectedStore] = useState('All')
+  const [selectedStore, setSelectedStore] = useState(initialStore ?? 'All')
   const [from,          setFrom]          = useState(reportFrom)
   const [to,            setTo]            = useState(todayStr())
-  const [selectedId,    setSelectedId]    = useState(null)
+  const [selectedId,    setSelectedId]    = useState(initialIngredientId ?? null)
   const [search,        setSearch]        = useState('')
   const [expandedDate,  setExpandedDate]  = useState(null)
 

@@ -10,6 +10,9 @@ const en = {
   'nav.purchases':     'Purchase Orders',
   'nav.replenishment': 'Replenishment',
   'nav.usage':         'Daily Ledger',
+  'nav.dataThrough':   'Data through {{date}}',
+  'nav.noSalesData':   'No sales data — sync',
+  'nav.refreshHint':   'Estimates depend on the last sales sync. Click to refresh.',
   'nav.manager':       'Manager',
 
   // Usage Report (legacy keys kept for compatibility)
@@ -141,6 +144,10 @@ const en = {
   'levels.estStock':       'Est. stock',
   'levels.dailyAvg':       'Daily avg',
   'levels.daysLeft':       'Days left',
+  'levels.colDaily':       'Usage/day',
+  'levels.col7d':          '7 days',
+  'levels.colOrder':       'Order',
+  'levels.openLedger':     'Open in Daily Ledger',
   'levels.issuesOnly':     'Issues only',
   'levels.showAll':        'Show all',
   'levels.noIssues':       'No issues found',
@@ -288,6 +295,7 @@ const en = {
   'report.hideZero':         'Hide zero rows',
   'report.exportCSV':        'Export CSV',
   'report.print':            'Print',
+  'report.createPO':         'Create PO →',
   'report.printTitle':       'Weekly Replenishment Report',
   'report.printPeriod':      'Period: {{from}} – {{to}}',
   'report.printStore':       ' · Store: {{store}}',

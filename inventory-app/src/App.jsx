@@ -174,13 +174,15 @@ function LogisticsView({ onLogout }) {
 function AppContent({ role, onLogout }) {
   const [page,          setPage]          = useState('dashboard')
   const [subTab,        setSubTab]        = useState(null)
+  const [pageParams,    setPageParams]    = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { setLang } = useLanguage()
   useEffect(() => { if (role === 'logistics') setLang('ru') }, [role])
 
-  const navigate = (pageId, tabId = null) => {
+  const navigate = (pageId, tabId = null, params = null) => {
     setPage(pageId)
     setSubTab(tabId ?? DEFAULT_TABS[pageId] ?? null)
+    setPageParams(params)
     setMobileNavOpen(false)
   }
 
@@ -214,12 +216,12 @@ function AppContent({ role, onLogout }) {
           {page === 'audit'        && <InventoryAudit activeTab={subTab ?? 'count'} onTabChange={t => setSubTab(t)} />}
           {page === 'transactions' && <Transactions   activeTab={subTab ?? 'sales'} onTabChange={t => setSubTab(t)} />}
           {page === 'tapioca'      && <TapiocaCookingPlan />}
-          {page === 'report'       && <ReplenishmentReport />}
+          {page === 'report'       && <ReplenishmentReport onNavigate={navigate} />}
           {page === 'recipes'      && <Recipes         activeTab={subTab ?? 'ingredients'} onTabChange={t => setSubTab(t)} />}
           {page === 'variance'     && <VarianceReport />}
-          {page === 'purchases'    && <PurchaseOrders />}
-          {page === 'inventory'    && <InventoryLevels />}
-          {page === 'usage'        && <UsageReport />}
+          {page === 'purchases'    && <PurchaseOrders initialCreate={pageParams?.createPO} />}
+          {page === 'inventory'    && <InventoryLevels onNavigate={navigate} />}
+          {page === 'usage'        && <UsageReport initialStore={pageParams?.store} initialIngredientId={pageParams?.ingredientId} />}
         </div>
       </main>
     </div>
