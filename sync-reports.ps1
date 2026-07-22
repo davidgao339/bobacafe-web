@@ -29,9 +29,45 @@ if ($files.Count -eq 0) {
     exit 0
 }
 
+# Pass 1: read + decode + validate everything in memory FIRST.
+# Some Databricks exports wrap the HTML as {"content":"<base64>","file_type":""}.
+# A raw copy of that JSON renders as a blank white page, so decode it here.
+# Nothing is written to disk until every file passes validation, so a bad
+# export aborts the whole publish instead of pushing broken reports live.
+$outputs = @()
 foreach ($f in $files) {
-    Copy-Item $f.FullName -Destination $DestDir -Force
-    Write-Host "Copied  $($f.Name)"
+    $raw = Get-Content -LiteralPath $f.FullName -Raw
+
+    if ($raw.TrimStart() -match '^\{\s*"content"\s*:') {
+        try {
+            $obj  = $raw | ConvertFrom-Json
+            $html = [System.Text.Encoding]::UTF8.GetString(
+                        [System.Convert]::FromBase64String($obj.content))
+        } catch {
+            Write-Error "Failed to decode wrapped report $($f.Name): $($_.Exception.Message). Nothing was published."
+            exit 1
+        }
+        $action = "Decoded"
+    } else {
+        $html   = $raw
+        $action = "Copied "
+    }
+
+    # Sanity check: output must be an HTML document, not leftover JSON or junk.
+    if ($html.TrimStart() -notmatch '(?i)^(<!DOCTYPE|<html)') {
+        $head = $html.Substring(0, [Math]::Min(40, $html.Length))
+        Write-Error "Aborting: $($f.Name) is not valid HTML after processing (starts with '$head'). Nothing was published."
+        exit 1
+    }
+
+    $outputs += [PSCustomObject]@{ Name = $f.Name; Html = $html; Action = $action }
+}
+
+# Pass 2: only reached if every file validated — write them all out.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+foreach ($o in $outputs) {
+    [System.IO.File]::WriteAllText("$DestDir\$($o.Name)", $o.Html, $utf8NoBom)
+    Write-Host "$($o.Action) $($o.Name)"
 }
 
 # --- Build index entries ---
