@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -c \"import streamlit, pandas, openpyxl; print\\('all deps OK'\\)\")",
-      "Bash(streamlit run *)"
-    ]
-  }
-}

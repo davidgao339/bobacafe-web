@@ -12,12 +12,12 @@ echo.
 
 REM --- Step 1: Pull latest reports from the Databricks repo ---
 echo [1/4] Pulling latest reports from boba-cafe-databricks...
-if exist "..\boba-cafe-databricks\.git" (
-    pushd "..\boba-cafe-databricks"
+if exist "..\..\boba-cafe-databricks\.git" (
+    pushd "..\..\boba-cafe-databricks"
     git pull
     popd
 ) else (
-    echo   ^(Skipped: ..\boba-cafe-databricks not found next to this repo^)
+    echo   ^(Skipped: ..\..\boba-cafe-databricks not found next to this repo^)
 )
 echo.
 
@@ -33,7 +33,7 @@ echo.
 
 REM --- Step 3: Stage and commit ---
 echo [3/4] Committing changes...
-git add internal/reports/
+git add ../site/internal/reports/
 git diff --cached --quiet
 if not errorlevel 1 (
     echo   Nothing new to publish - reports are already up to date.

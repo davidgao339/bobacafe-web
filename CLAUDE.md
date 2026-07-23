@@ -10,19 +10,24 @@ Website and internal tooling for Боба Кролик (Boba Rabbit) bubble tea 
 
 ```
 bobacafe-web/
-├── index.html              # Public site (menu, locations, Yandex map)
-├── internal/
-│   ├── index.html          # PIN-gated internal portal (sessionStorage auth)
-│   ├── faq.html            # Employee FAQ (live-loads Google Sheets CSV)
-│   ├── dashboard.html      # Databricks embedded dashboard (token injected at deploy)
-│   ├── schedule/           # Compiled React schedule app (do not edit directly)
-│   └── reports/            # Business intelligence HTML reports
-├── main-site/reports/      # Synced report HTMLs + auto-generated index.html
-├── schedule-app/           # React 19 + TypeScript source for the schedule app
-├── bank-statement/         # Streamlit bank statement analyser (separate deployment)
-├── payment/                # Google Apps Script payment system
-├── .github/workflows/      # CI/CD — deploy-pages.yml
-└── sync-reports.ps1        # Copies Databricks reports and regenerates index
+├── site/
+│   ├── index.html              # Public site (menu, locations, Yandex map)
+│   └── internal/               # PIN-gated internal portal (sessionStorage auth)
+│       ├── index.html          
+│       ├── faq.html            # Employee FAQ (live-loads Google Sheets CSV)
+│       ├── dashboard.html      # Databricks embedded dashboard (token injected at deploy)
+│       └── reports/            # Business intelligence HTML reports
+├── apps/
+│   ├── schedule-app/           # React 19 + TypeScript source for the schedule app
+│   ├── bank-statement/         # Streamlit bank statement analyser (separate deployment)
+│   ├── payment/                # Google Apps Script payment system
+│   ├── databricks-proxy/       # Databricks Cloudflare Worker proxy
+│   ├── inventory-app/          # Vite/React inventory management
+│   └── schedule-optimizer/     # Streamlit CP-SAT optimizer
+├── scripts/                    # Utility and sync scripts
+│   └── sync-reports.ps1        # Copies Databricks reports and regenerates index
+├── data/                       # Miscellaneous data files
+└── .github/workflows/          # CI/CD — deploy-pages.yml
 ```
 
 ---
@@ -34,9 +39,9 @@ GitHub Pages only — no Netlify or Vercel.
 **Trigger:** every push to `main` (or manual `workflow_dispatch`).
 
 **Pipeline (`deploy-pages.yml`):**
-1. Build React app: `cd schedule-app && npm ci && npm run build`
-2. Mint a Databricks embedded dashboard token via OAuth and inject it into `internal/dashboard.html`
-3. Assemble `deploy/` with: `index.html`, `internal/`, `internal/schedule/` (React build), `internal/reports/`
+1. Build React app: `cd apps/schedule-app && npm ci && npm run build`
+2. Mint a Databricks embedded dashboard token via OAuth and inject it into `site/internal/dashboard.html`
+3. Assemble `deploy/` with: `site/index.html`, `site/internal/`, `site/internal/schedule/` (React build), `site/internal/reports/`
 4. Upload and deploy to GitHub Pages
 
 ---
@@ -50,12 +55,14 @@ New reports live in the sibling repo `boba-cafe-databricks/weekly-analysis/analy
 cd ..\boba-cafe-databricks && git pull && cd ..\bobacafe-web
 
 # 2. Sync into this repo
+cd scripts
 .\sync-reports.ps1
 
 # 3. Commit and push to publish
-git add main-site/reports/
+git add ../site/internal/reports/
 git commit -m "sync: add new report"
 git push
+cd ..
 ```
 
 If the script is blocked by execution policy:
@@ -68,16 +75,16 @@ Custom source path:
 .\sync-reports.ps1 -SourceDir "C:\other\path\to\analysis-html"
 ```
 
-`sync-reports.ps1` copies all `.html` files to `main-site/reports/` and regenerates `index.html` (UTF-8 without BOM, sorted newest-first by filename).
+`sync-reports.ps1` copies all `.html` files to `site/internal/reports/` and regenerates `index.html` (UTF-8 without BOM, sorted newest-first by filename).
 
 ---
 
 ## Schedule app (React)
 
-Source: `schedule-app/` · Built output goes to `internal/schedule/` via CI.
+Source: `apps/schedule-app/` · Built output goes to `internal/schedule/` via CI.
 
 ```powershell
-cd schedule-app
+cd apps/schedule-app
 npm install   # first time only
 npm start     # dev server at localhost:3000
 npm run build # production build
@@ -89,6 +96,6 @@ npm run build # production build
 
 ## Key facts
 
-- The `internal/` portal uses PIN auth stored in `sessionStorage` (clears on tab close).
-- `internal/dashboard.html` has a Databricks token baked in at CI time — don't hand-edit it.
-- `bank-statement/` is deployed separately to Streamlit Community Cloud.
+- The `site/internal/` portal uses PIN auth stored in `sessionStorage` (clears on tab close).
+- `site/internal/dashboard.html` has a Databricks token baked in at CI time — don't hand-edit it.
+- `apps/bank-statement/` is deployed separately to Streamlit Community Cloud.

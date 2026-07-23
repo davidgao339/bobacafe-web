@@ -1,4 +1,4 @@
-﻿# sync-reports.ps1
+# sync-reports.ps1
 # Copies generated HTML reports from boba-cafe-databricks into internal/reports/
 # and regenerates the index. Run this after pulling boba-cafe-databricks.
 #
@@ -7,10 +7,10 @@
 #   .\sync-reports.ps1 -SourceDir "C:\other\path\to\analysis-html"
 
 param(
-    [string]$SourceDir = "..\boba-cafe-databricks\weekly-analysis\analysis-html"
+    [string]$SourceDir = "..\..\boba-cafe-databricks\weekly-analysis\analysis-html"
 )
 
-$DestDir = "$PSScriptRoot\internal\reports"
+$DestDir = "$PSScriptRoot\..\site\internal\reports"
 
 if (-not (Test-Path $SourceDir)) {
     Write-Error "Source not found: $SourceDir"

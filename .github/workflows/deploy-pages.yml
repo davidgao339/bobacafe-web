@@ -28,11 +28,11 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: schedule-app/package-lock.json
+          cache-dependency-path: apps/schedule-app/package-lock.json
 
       - name: Install and Build Schedule App
         run: |
-          cd schedule-app
+          cd apps/schedule-app
           npm ci
           npm run build
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Build Inventory App
         run: |
-          cd inventory-app
+          cd apps/inventory-app
           npm ci
           npm run build
 
@@ -114,22 +114,22 @@ jobs:
           mkdir -p deploy/internal/schedule deploy/internal/inventory deploy/internal/reports
 
           # 2. Public site root
-          cp index.html deploy/index.html
+          cp site/index.html deploy/index.html
 
           # 3. Internal dashboard + static pages
-          cp internal/index.html       deploy/internal/index.html
-          cp internal/faq.html         deploy/internal/faq.html
-          cp internal/dashboard.html   deploy/internal/dashboard.html
-          cp internal/admin.html       deploy/internal/admin.html
-          cp internal/pins.js          deploy/internal/pins.js
+          cp site/internal/index.html       deploy/internal/index.html
+          cp site/internal/faq.html         deploy/internal/faq.html
+          cp site/internal/dashboard.html   deploy/internal/dashboard.html
+          cp site/internal/admin.html       deploy/internal/admin.html
+          cp site/internal/pins.js          deploy/internal/pins.js
           sed -i "s|YOUR_DATABRICKS_TOKEN_HERE|${DATABRICKS_TOKEN}|g" deploy/internal/dashboard.html
 
           # 4. Fresh React builds
-          cp -r schedule-app/build/*   deploy/internal/schedule/
-          cp -r inventory-app/dist/*   deploy/internal/inventory/
+          cp -r apps/schedule-app/build/*   deploy/internal/schedule/
+          cp -r apps/inventory-app/dist/*   deploy/internal/inventory/
 
           # 5. Reports
-          cp -r internal/reports/. deploy/internal/reports/
+          cp -r site/internal/reports/. deploy/internal/reports/
 
           # 6. Prevent Jekyll from ignoring underscore files
           touch deploy/.nojekyll
