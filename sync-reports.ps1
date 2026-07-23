@@ -34,39 +34,46 @@ if ($files.Count -eq 0) {
 # A raw copy of that JSON renders as a blank white page, so decode it here.
 # Nothing is written to disk until every file passes validation, so a bad
 # export aborts the whole publish instead of pushing broken reports live.
+#
+# IMPORTANT: work in BYTES, never re-encode text. The reports are UTF-8 without
+# a BOM; reading them as text with Get-Content and rewriting would let PS 5.1
+# mis-decode them as the ANSI codepage and corrupt the Cyrillic (mojibake).
+# So we pass plain files through byte-for-byte and only decode base64 in memory.
 $outputs = @()
 foreach ($f in $files) {
-    $raw = Get-Content -LiteralPath $f.FullName -Raw
+    $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+    # Decode to text ONLY to inspect/validate — we never write from this string.
+    $probe = [System.Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF).TrimStart()
 
-    if ($raw.TrimStart() -match '^\{\s*"content"\s*:') {
+    if ($probe -match '^\{\s*"content"\s*:') {
         try {
-            $obj  = $raw | ConvertFrom-Json
-            $html = [System.Text.Encoding]::UTF8.GetString(
-                        [System.Convert]::FromBase64String($obj.content))
+            $obj      = ([System.Text.Encoding]::UTF8.GetString($bytes)) | ConvertFrom-Json
+            $outBytes = [System.Convert]::FromBase64String($obj.content)
+            $check    = [System.Text.Encoding]::UTF8.GetString($outBytes).TrimStart([char]0xFEFF).TrimStart()
         } catch {
             Write-Error "Failed to decode wrapped report $($f.Name): $($_.Exception.Message). Nothing was published."
             exit 1
         }
         $action = "Decoded"
     } else {
-        $html   = $raw
-        $action = "Copied "
+        $outBytes = $bytes      # pass through unchanged — byte-for-byte, preserves UTF-8
+        $check    = $probe
+        $action   = "Copied "
     }
 
     # Sanity check: output must be an HTML document, not leftover JSON or junk.
-    if ($html.TrimStart() -notmatch '(?i)^(<!DOCTYPE|<html)') {
-        $head = $html.Substring(0, [Math]::Min(40, $html.Length))
+    if ($check -notmatch '(?i)^(<!DOCTYPE|<html)') {
+        $head = $check.Substring(0, [Math]::Min(40, $check.Length))
         Write-Error "Aborting: $($f.Name) is not valid HTML after processing (starts with '$head'). Nothing was published."
         exit 1
     }
 
-    $outputs += [PSCustomObject]@{ Name = $f.Name; Html = $html; Action = $action }
+    $outputs += [PSCustomObject]@{ Name = $f.Name; Bytes = $outBytes; Action = $action }
 }
 
-# Pass 2: only reached if every file validated — write them all out.
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+# Pass 2: only reached if every file validated — write raw bytes, no re-encoding.
 foreach ($o in $outputs) {
-    [System.IO.File]::WriteAllText("$DestDir\$($o.Name)", $o.Html, $utf8NoBom)
+    [System.IO.File]::WriteAllBytes("$DestDir\$($o.Name)", $o.Bytes)
     Write-Host "$($o.Action) $($o.Name)"
 }
 
