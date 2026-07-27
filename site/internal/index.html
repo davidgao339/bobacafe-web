@@ -221,6 +221,25 @@
             letter-spacing: 0.05em;
         }
 
+        /* Language Toggle Button */
+        .lang-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .lang-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-1);
+            border-color: var(--border-hover);
+        }
+
         /* ── Page ─────────────────────────────────────────────────────────── */
         .page {
             max-width: 1200px;
@@ -427,8 +446,8 @@
 <div id="pin-overlay" class="hidden">
     <div class="auth-card">
         <div class="auth-logo" id="modal-icon">🔒</div>
-        <h2 id="modal-title">Access Restricted</h2>
-        <p>Please enter PIN for <strong id="modal-app-name"></strong></p>
+        <h2 id="modal-title" data-ru="Доступ закрыт">Access Restricted</h2>
+        <p><span data-ru="Введите PIN для">Please enter PIN for</span> <strong id="modal-app-name"></strong></p>
         <div class="pin-dots" id="pin-dots">
             <span></span><span></span><span></span><span></span>
         </div>
@@ -442,7 +461,7 @@
             <button class="key" data-d="7">7</button>
             <button class="key" data-d="8">8</button>
             <button class="key" data-d="9">9</button>
-            <button class="key cancel" id="key-cancel">Cancel</button>
+            <button class="key cancel" id="key-cancel" data-ru="Отмена">Cancel</button>
             <button class="key" data-d="0">0</button>
             <button class="key del" id="key-del">⌫</button>
         </div>
@@ -452,135 +471,164 @@
 
 <!-- Nav -->
 <nav>
-    <div class="nav-brand">🐰 Boba Rabbit</div>
+    <div class="nav-brand" data-ru="🐰 Боба Кролик">🐰 Boba Rabbit</div>
     <div class="nav-right">
-        <span class="nav-tag">Internal Team</span>
+        <button id="lang-toggle" class="lang-btn">RU</button>
+        <span class="nav-tag" data-ru="Внутренний">Internal Team</span>
     </div>
 </nav>
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">Internal Workspace</h1>
-        <p class="page-sub">Secure tools and resources for the Boba Rabbit team</p>
+        <h1 class="page-title" data-ru="Внутренний портал">Internal Workspace</h1>
+        <p class="page-sub" data-ru="Инструменты и ресурсы для команды Боба Кролик">Secure tools and resources for the Boba Rabbit team</p>
     </div>
 
     <div class="section">
-        <div class="section-label">Knowledge Base</div>
+        <div class="section-label" data-ru="База знаний">Knowledge Base</div>
         <div class="app-grid">
             <a href="/internal/faq.html" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📋</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Employee FAQ</div>
-                <div class="app-desc">Answers to common operational questions with search and categorization.</div>
-                <div class="card-link">Open App →</div>
+                <div class="app-name" data-ru="FAQ сотрудников">Employee FAQ</div>
+                <div class="app-desc" data-ru="Ответы на частые вопросы с поиском и фильтрацией.">Answers to common operational questions with search and categorization.</div>
+                <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Operations</div>
+        <div class="section-label" data-ru="Операции">Operations</div>
         <div class="app-grid">
             <a href="/internal/schedule/" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📅</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Work Schedule</div>
-                <div class="app-desc">Manage employee shifts, availability, and weekly scheduling across stores.</div>
-                <div class="card-link">Open App →</div>
+                <div class="app-name" data-ru="График работы">Work Schedule</div>
+                <div class="app-desc" data-ru="Управление расписанием сотрудников и графиками по кафе.">Manage employee shifts, availability, and weekly scheduling across stores.</div>
+                <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
             <a href="https://bobacafe-web-scheduleoptimizer.streamlit.app/" target="_blank" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">🤖</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Schedule Optimizer</div>
-                <div class="app-desc">AI-powered CP-SAT optimization for automated shift assignments.</div>
-                <div class="card-link">Open App ↗</div>
+                <div class="app-name" data-ru="Оптимизатор расписания">Schedule Optimizer</div>
+                <div class="app-desc" data-ru="CP-SAT оптимизация назначений по кафе и сменам.">AI-powered CP-SAT optimization for automated shift assignments.</div>
+                <div class="card-link" data-ru="Открыть ↗">Open App ↗</div>
             </a>
             <a href="https://bobacafe-web-nznc3n7mjmtgtvvbmqv7ca.streamlit.app/" target="_blank" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">💰</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Payroll</div>
-                <div class="app-desc">Automated salary calculation and historical payment tracking.</div>
-                <div class="card-link">Open App ↗</div>
+                <div class="app-name" data-ru="Зарплата">Payroll</div>
+                <div class="app-desc" data-ru="Расчёт и история выплат сотрудников.">Automated salary calculation and historical payment tracking.</div>
+                <div class="card-link" data-ru="Открыть ↗">Open App ↗</div>
             </a>
             <a href="#" class="app-card disabled">
                 <div class="card-top">
                     <div class="app-icon">💳</div>
-                    <span class="badge badge-soon">Soon</span>
+                    <span class="badge badge-soon" data-ru="Скоро">Soon</span>
                 </div>
-                <div class="app-name">Payments</div>
-                <div class="app-desc">Streamlined management for outgoing transfers and vendor payments.</div>
+                <div class="app-name" data-ru="Платежи">Payments</div>
+                <div class="app-desc" data-ru="Управление платежами и переводами.">Streamlined management for outgoing transfers and vendor payments.</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Inventory Management</div>
+        <div class="section-label" data-ru="Склад и запасы">Inventory Management</div>
         <div class="app-grid">
             <a href="/internal/inventory/" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📦</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Inventory Tracker</div>
-                <div class="app-desc">Real-time ingredient tracking, stock audits, and purchase order generation.</div>
-                <div class="card-link">Open App →</div>
+                <div class="app-name" data-ru="Учёт запасов">Inventory Tracker</div>
+                <div class="app-desc" data-ru="Инвентаризация, расход ингредиентов, заявки на закупку.">Real-time ingredient tracking, stock audits, and purchase order generation.</div>
+                <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Analytics & BI</div>
+        <div class="section-label" data-ru="Аналитика">Analytics & BI</div>
         <div class="app-grid">
             <a href="/internal/dashboard.html" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📈</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Databricks Dashboard</div>
-                <div class="app-desc">Live sales metrics, traffic analytics, and operational performance.</div>
-                <div class="card-link">Open App →</div>
+                <div class="app-name" data-ru="Аналитика Databricks">Databricks Dashboard</div>
+                <div class="app-desc" data-ru="Дашборд Databricks — продажи, трафик и метрики.">Live sales metrics, traffic analytics, and operational performance.</div>
+                <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Finance & Reporting</div>
+        <div class="section-label" data-ru="Финансы и отчёты">Finance & Reporting</div>
         <div class="app-grid">
             <div class="app-card" data-app="reports">
                 <div class="card-top">
                     <div class="app-icon">📊</div>
                     <span class="badge badge-locked">🔒 PIN</span>
                 </div>
-                <div class="app-name">Business Reports</div>
-                <div class="app-desc">Confidential weekly and monthly financial performance reports.</div>
-                <div class="card-link">Unlock App →</div>
+                <div class="app-name" data-ru="Отчёты">Business Reports</div>
+                <div class="app-desc" data-ru="Еженедельные и ежемесячные бизнес-отчёты.">Confidential weekly and monthly financial performance reports.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
             </div>
             <div class="app-card" data-app="bank-statement">
                 <div class="card-top">
                     <div class="app-icon">🏦</div>
                     <span class="badge badge-locked">🔒 PIN</span>
                 </div>
-                <div class="app-name">Bank Statements</div>
-                <div class="app-desc">Secure processing for Sberbank and Ozon transaction records.</div>
-                <div class="card-link">Unlock App ↗</div>
+                <div class="app-name" data-ru="Банковские выписки">Bank Statements</div>
+                <div class="app-desc" data-ru="Обработка выписок Сбербанк и Ozon.">Secure processing for Sberbank and Ozon transaction records.</div>
+                <div class="card-link" data-ru="Разблокировать ↗">Unlock App ↗</div>
             </div>
         </div>
     </div>
 </div>
 
 <footer>
-    <a href="/">← Main Website</a> &nbsp;·&nbsp; <a href="/internal/admin.html">🔑 Password Management</a> &nbsp;·&nbsp; Boba Rabbit &copy; 2026 — Internal Staff Only
+    <a href="/" data-ru="← Главный сайт">← Main Website</a> &nbsp;·&nbsp; 
+    <a href="/internal/admin.html" data-ru="🔑 Управление паролями">🔑 Password Management</a> &nbsp;·&nbsp; 
+    <span data-ru="Боба Кролик &copy; 2026 — Только для сотрудников">Boba Rabbit &copy; 2026 — Internal Staff Only</span>
 </footer>
 
 <script src="/internal/pins.js"></script>
 <script>
+    // ── Internationalization (i18n) ───────────────────────────────────────────
+    let currentLang = localStorage.getItem('bc_lang') || 'en';
+    const langBtn = document.getElementById('lang-toggle');
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        localStorage.setItem('bc_lang', lang);
+        langBtn.textContent = lang === 'en' ? 'RU' : 'EN';
+        
+        document.querySelectorAll('[data-ru]').forEach(el => {
+            if (!el.dataset.en) el.dataset.en = el.innerHTML;
+            el.innerHTML = lang === 'ru' ? el.dataset.ru : el.dataset.en;
+        });
+
+        // Also update JS dynamic app labels if modal is open
+        if (activeApp) {
+            const app = APPS[activeApp];
+            modalName.textContent = lang === 'ru' ? app.labelRu : app.label;
+            errEl.textContent = ''; // clear error message if language changes
+        }
+    }
+
+    langBtn.addEventListener('click', () => {
+        setLanguage(currentLang === 'en' ? 'ru' : 'en');
+    });
+
     // ── PIN config ───────────────────────────────────────────────────────────
     const _P = window.BC_PINS || {};
     const MASTER_PIN = _P.master || '7530';
@@ -589,12 +637,14 @@
             url:    '/internal/reports/',
             pin:    _P.reports || '2244',
             label:  'Business Reports',
+            labelRu: 'Отчёты',
             icon:   '📊',
         },
         'bank-statement': {
             url:    'https://bobacafe-web-bank-statement.streamlit.app/',
             pin:    _P.bank || '9999',
             label:  'Bank Statements',
+            labelRu: 'Банковские выписки',
             icon:   '🏦',
             target: '_blank',
         },
@@ -627,7 +677,7 @@
         dotsEl.classList.remove('error', 'shake');
         updateDots();
         modalIcon.textContent = app.icon;
-        modalName.textContent = app.label;
+        modalName.textContent = currentLang === 'ru' ? app.labelRu : app.label;
         overlay.classList.remove('hidden');
     }
 
@@ -653,7 +703,7 @@
             navigate(app);
         } else {
             dotsEl.classList.add('error', 'shake');
-            errEl.textContent = 'Incorrect PIN. Please try again.';
+            errEl.textContent = currentLang === 'ru' ? 'Неверный PIN. Попробуйте ещё раз.' : 'Incorrect PIN. Please try again.';
             setTimeout(() => {
                 dotsEl.classList.remove('error', 'shake');
                 errEl.textContent = '';
@@ -697,6 +747,9 @@
     });
 
     overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+    // Initialize language on load
+    setLanguage(currentLang);
 </script>
 </body>
 </html>
