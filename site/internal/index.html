@@ -1,64 +1,107 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Боба Кролик — Внутренний портал</title>
+    <title>Boba Rabbit — Internal Portal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg:      #f8f9fa;
-            --surface: #ffffff;
-            --border:  #dadce0;
-            --text-1:  #202124;
-            --text-2:  #5f6368;
-            --text-3:  #80868b;
-            --accent:  #8d6e63;
-            --accent-bg: #f4ede9;
-            --shadow-sm: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px rgba(60,64,67,.15);
-            --shadow-md: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px rgba(60,64,67,.15);
+            --bg-base: #0f172a;
+            --bg-gradient: radial-gradient(circle at top right, #1e293b, #0f172a);
+            --surface: rgba(30, 41, 59, 0.6);
+            --surface-hover: rgba(30, 41, 59, 0.85);
+            --border: rgba(255, 255, 255, 0.1);
+            --border-hover: rgba(255, 255, 255, 0.2);
+            --text-1: #f8fafc;
+            --text-2: #cbd5e1;
+            --text-3: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.4);
+            --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --blur: blur(12px);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Roboto', Arial, sans-serif;
-            background: var(--bg);
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-base);
+            background-image: var(--bg-gradient);
             color: var(--text-1);
             min-height: 100vh;
             font-size: 16px;
             line-height: 1.5;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Ambient background glow */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -20%; left: -10%;
+            width: 50%; height: 50%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -20%; right: -10%;
+            width: 60%; height: 60%;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: -1;
+            pointer-events: none;
         }
 
         /* ── PIN modal ────────────────────────────────────────────────────── */
         #pin-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.54);
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.3s ease;
         }
-        #pin-overlay.hidden { display: none; }
+        #pin-overlay.hidden { 
+            opacity: 0;
+            pointer-events: none;
+        }
 
         .auth-card {
-            background: var(--surface);
-            border-radius: 28px;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: var(--blur);
+            border: 1px solid var(--border);
+            border-radius: 24px;
             padding: 40px 40px 32px;
             width: 360px;
             text-align: center;
-            box-shadow: 0 11px 15px rgba(0,0,0,0.2), 0 9px 46px rgba(0,0,0,0.12);
+            box-shadow: var(--shadow-card), 0 0 0 1px rgba(255,255,255,0.05) inset;
+            transform: translateY(0);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        #pin-overlay.hidden .auth-card {
+            transform: translateY(20px) scale(0.95);
         }
 
-        .auth-logo { font-size: 40px; margin-bottom: 12px; }
+        .auth-logo { font-size: 44px; margin-bottom: 12px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
 
         .auth-card h2 {
-            font-size: 22px;
-            font-weight: 700;
+            font-size: 24px;
+            font-weight: 600;
             color: var(--text-1);
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .auth-card p {
@@ -66,68 +109,86 @@
             color: var(--text-2);
             margin-bottom: 28px;
         }
-        .auth-card p strong { color: var(--text-1); }
+        .auth-card p strong { color: var(--accent); }
 
         .pin-dots {
             display: flex;
-            gap: 14px;
+            gap: 16px;
             justify-content: center;
-            margin-bottom: 24px;
+            margin-bottom: 32px;
         }
         .pin-dots span {
-            width: 13px;
-            height: 13px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
-            border: 2px solid var(--border);
-            transition: background 0.12s, border-color 0.12s;
+            border: 2px solid var(--border-hover);
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        .pin-dots span.filled { background: var(--accent); border-color: var(--accent); }
-        .pin-dots.error span { background: #d93025; border-color: #d93025; }
+        .pin-dots span.filled { 
+            background: var(--accent); 
+            border-color: var(--accent); 
+            box-shadow: 0 0 12px var(--accent-glow);
+            transform: scale(1.1);
+        }
+        .pin-dots.error span { 
+            background: #ef4444; 
+            border-color: #ef4444; 
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+        }
 
         @keyframes shake {
             0%,100% { transform: translateX(0); }
             20%      { transform: translateX(-8px); }
             60%      { transform: translateX(8px); }
         }
-        .pin-dots.shake { animation: shake 0.3s ease; }
+        .pin-dots.shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 
         .auth-keypad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
+            gap: 12px;
             margin-bottom: 16px;
         }
 
         .key {
             height: 56px;
-            background: var(--bg);
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 20px;
+            border-radius: 12px;
+            font-size: 22px;
             font-weight: 500;
-            font-family: 'Roboto', Arial, sans-serif;
+            font-family: 'Outfit', sans-serif;
             color: var(--text-1);
             cursor: pointer;
-            transition: background 0.1s, box-shadow 0.1s;
+            transition: all 0.15s ease;
         }
-        .key:hover { background: #f1f3f4; box-shadow: var(--shadow-sm); }
-        .key:active { background: #e8eaed; }
-        .key.del { font-size: 16px; color: var(--text-2); }
+        .key:hover { 
+            background: rgba(255, 255, 255, 0.1); 
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+        .key:active { 
+            background: rgba(255, 255, 255, 0.05); 
+            transform: translateY(0);
+        }
+        .key.del { font-size: 18px; color: var(--text-2); }
         .key.empty { background: transparent; border-color: transparent; pointer-events: none; }
-        .key.cancel { font-size: 13px; color: var(--text-2); }
+        .key.cancel { font-size: 14px; color: var(--text-3); font-weight: 400; }
 
         .auth-error {
-            font-size: 13px;
-            color: #d93025;
-            min-height: 18px;
+            font-size: 14px;
+            color: #ef4444;
+            min-height: 20px;
+            font-weight: 500;
         }
 
         /* ── Navbar ───────────────────────────────────────────────────────── */
         nav {
-            background: var(--surface);
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: var(--blur);
             border-bottom: 1px solid var(--border);
-            height: 64px;
-            padding: 0 24px;
+            height: 72px;
+            padding: 0 32px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -139,166 +200,235 @@
         .nav-brand {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 18px;
+            gap: 12px;
+            font-size: 20px;
             font-weight: 700;
             color: var(--text-1);
-            letter-spacing: -0.01em;
+            letter-spacing: 0.02em;
         }
 
-        .nav-right { display: flex; align-items: center; gap: 8px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
 
         .nav-tag {
             font-size: 12px;
-            font-weight: 500;
-            color: var(--text-3);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 3px 8px;
+            font-weight: 600;
+            color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 6px;
+            padding: 4px 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         /* ── Page ─────────────────────────────────────────────────────────── */
         .page {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 48px 24px 80px;
+            padding: 56px 32px 80px;
         }
 
-        .page-header { margin-bottom: 48px; }
+        .page-header { margin-bottom: 64px; text-align: center; }
 
         .page-title {
-            font-size: 32px;
+            font-size: 42px;
             font-weight: 700;
             color: var(--text-1);
             letter-spacing: -0.02em;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .page-sub {
-            font-size: 16px;
-            color: var(--text-2);
+            font-size: 18px;
+            color: var(--text-3);
+            font-weight: 300;
         }
 
         /* ── Section ──────────────────────────────────────────────────────── */
-        .section { margin-bottom: 40px; }
+        .section { margin-bottom: 56px; }
 
         .section-label {
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
             color: var(--text-3);
-            margin-bottom: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, var(--border), transparent);
         }
 
         /* ── Cards ────────────────────────────────────────────────────────── */
         .app-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 24px;
         }
 
         .app-card {
             background: var(--surface);
+            backdrop-filter: var(--blur);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
+            border-radius: 16px;
+            padding: 28px;
             text-decoration: none;
             color: inherit;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            transition: box-shadow 0.2s, border-color 0.2s;
+            gap: 12px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             cursor: pointer;
+            position: relative;
+            overflow: hidden;
         }
+        
+        .app-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
         .app-card:hover {
-            box-shadow: var(--shadow-md);
-            border-color: #c5c7cb;
+            background: var(--surface-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-card), 0 12px 24px rgba(0,0,0,0.2);
         }
+        
+        .app-card:hover::before { opacity: 1; }
+        
         .app-card.disabled {
-            opacity: 0.45;
+            opacity: 0.5;
             pointer-events: none;
+            filter: grayscale(100%);
         }
 
         .card-top {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
         }
 
-        .app-icon { font-size: 28px; line-height: 1; }
+        .app-icon { 
+            font-size: 32px; 
+            line-height: 1;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+            transition: transform 0.3s ease;
+        }
+        
+        .app-card:hover .app-icon {
+            transform: scale(1.1) rotate(-5deg);
+        }
 
         .badge {
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 600;
             letter-spacing: 0.05em;
             text-transform: uppercase;
-            padding: 3px 8px;
-            border-radius: 4px;
+            padding: 4px 10px;
+            border-radius: 100px;
         }
-        .badge-live { background: #e6f4ea; color: #137333; }
-        .badge-soon { background: #fef7e0; color: #b06000; }
+        .badge-live { 
+            background: rgba(16, 185, 129, 0.15); 
+            color: #34d399; 
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .badge-soon { 
+            background: rgba(245, 158, 11, 0.15); 
+            color: #fbbf24; 
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
         .badge-locked {
-            background: #f1f3f4;
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
         }
 
         .app-name {
-            font-size: 17px;
-            font-weight: 700;
+            font-size: 18px;
+            font-weight: 600;
             color: var(--text-1);
-            letter-spacing: -0.01em;
+            letter-spacing: 0.01em;
         }
 
         .app-desc {
             font-size: 14px;
-            color: var(--text-2);
-            line-height: 1.5;
+            color: var(--text-3);
+            line-height: 1.6;
             flex: 1;
+            font-weight: 300;
         }
 
         .card-link {
             font-size: 13px;
             font-weight: 500;
             color: var(--accent);
-            margin-top: 8px;
+            margin-top: 12px;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
+            opacity: 0.8;
+            transition: opacity 0.2s, gap 0.2s;
         }
+        
+        .app-card:hover .card-link { 
+            opacity: 1; 
+            gap: 10px;
+        }
+        
         .app-card.disabled .card-link { display: none; }
 
         /* ── Footer ───────────────────────────────────────────────────────── */
         footer {
-            padding: 24px;
-            font-size: 13px;
+            padding: 32px;
+            font-size: 14px;
             color: var(--text-3);
             border-top: 1px solid var(--border);
             text-align: center;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: var(--blur);
         }
-        footer a { color: var(--accent); text-decoration: none; }
-        footer a:hover { text-decoration: underline; }
+        footer a { 
+            color: var(--text-2); 
+            text-decoration: none; 
+            transition: color 0.2s;
+        }
+        footer a:hover { color: var(--accent); }
 
-        @media (max-width: 640px) {
-            .page { padding: 32px 16px 60px; }
-            .page-title { font-size: 26px; }
+        @media (max-width: 768px) {
+            .page { padding: 40px 20px 60px; }
+            .page-title { font-size: 32px; }
             .app-grid { grid-template-columns: 1fr; }
-            .auth-card { width: 100%; margin: 16px; padding: 32px 24px 24px; }
+            .auth-card { width: 100%; margin: 20px; padding: 32px 24px 24px; }
         }
     </style>
 </head>
 <body>
 
-<!-- PIN modal (hidden until a locked card is clicked) -->
+<!-- PIN modal -->
 <div id="pin-overlay" class="hidden">
     <div class="auth-card">
         <div class="auth-logo" id="modal-icon">🔒</div>
-        <h2 id="modal-title">Доступ закрыт</h2>
-        <p>Введите PIN для <strong id="modal-app-name"></strong></p>
+        <h2 id="modal-title">Access Restricted</h2>
+        <p>Please enter PIN for <strong id="modal-app-name"></strong></p>
         <div class="pin-dots" id="pin-dots">
             <span></span><span></span><span></span><span></span>
         </div>
@@ -312,7 +442,7 @@
             <button class="key" data-d="7">7</button>
             <button class="key" data-d="8">8</button>
             <button class="key" data-d="9">9</button>
-            <button class="key cancel" id="key-cancel">Отмена</button>
+            <button class="key cancel" id="key-cancel">Cancel</button>
             <button class="key" data-d="0">0</button>
             <button class="key del" id="key-del">⌫</button>
         </div>
@@ -322,160 +452,154 @@
 
 <!-- Nav -->
 <nav>
-    <div class="nav-brand">🐰 Боба Кролик</div>
+    <div class="nav-brand">🐰 Boba Rabbit</div>
     <div class="nav-right">
-        <span class="nav-tag">Внутренний</span>
+        <span class="nav-tag">Internal Team</span>
     </div>
 </nav>
 
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">Внутренний портал</h1>
-        <p class="page-sub">Инструменты и ресурсы для команды Боба Кролик</p>
+        <h1 class="page-title">Internal Workspace</h1>
+        <p class="page-sub">Secure tools and resources for the Boba Rabbit team</p>
     </div>
 
     <div class="section">
-        <div class="section-label">База знаний</div>
+        <div class="section-label">Knowledge Base</div>
         <div class="app-grid">
-            <!-- No PIN — opens freely -->
             <a href="/internal/faq.html" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📋</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">FAQ сотрудников</div>
-                <div class="app-desc">Ответы на частые вопросы с поиском и фильтрацией по категориям</div>
-                <div class="card-link">Открыть →</div>
+                <div class="app-name">Employee FAQ</div>
+                <div class="app-desc">Answers to common operational questions with search and categorization.</div>
+                <div class="card-link">Open App →</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Операции</div>
+        <div class="section-label">Operations</div>
         <div class="app-grid">
             <a href="/internal/schedule/" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📅</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">График работы</div>
-                <div class="app-desc">Управление расписанием сотрудников</div>
-                <div class="card-link">Открыть →</div>
+                <div class="app-name">Work Schedule</div>
+                <div class="app-desc">Manage employee shifts, availability, and weekly scheduling across stores.</div>
+                <div class="card-link">Open App →</div>
             </a>
             <a href="https://bobacafe-web-scheduleoptimizer.streamlit.app/" target="_blank" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">🤖</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Оптимизатор расписания</div>
-                <div class="app-desc">CP-SAT оптимизация назначений по кафе и сменам</div>
-                <div class="card-link">Открыть ↗</div>
+                <div class="app-name">Schedule Optimizer</div>
+                <div class="app-desc">AI-powered CP-SAT optimization for automated shift assignments.</div>
+                <div class="card-link">Open App ↗</div>
             </a>
-            <a href="https://bobacafe-web-payroll.streamlit.app/" target="_blank" class="app-card">
+            <a href="https://bobacafe-web-nznc3n7mjmtgtvvbmqv7ca.streamlit.app/" target="_blank" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">💰</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Зарплата</div>
-                <div class="app-desc">Расчёт и история выплат сотрудников</div>
-                <div class="card-link">Открыть ↗</div>
+                <div class="app-name">Payroll</div>
+                <div class="app-desc">Automated salary calculation and historical payment tracking.</div>
+                <div class="card-link">Open App ↗</div>
             </a>
-
             <a href="#" class="app-card disabled">
                 <div class="card-top">
                     <div class="app-icon">💳</div>
-                    <span class="badge badge-soon">Скоро</span>
+                    <span class="badge badge-soon">Soon</span>
                 </div>
-                <div class="app-name">Платежи</div>
-                <div class="app-desc">Управление платежами и переводами</div>
+                <div class="app-name">Payments</div>
+                <div class="app-desc">Streamlined management for outgoing transfers and vendor payments.</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Склад и запасы</div>
+        <div class="section-label">Inventory Management</div>
         <div class="app-grid">
             <a href="/internal/inventory/" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📦</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Учёт запасов</div>
-                <div class="app-desc">Инвентаризация, расход ингредиентов, заявки на закупку и контроль списаний</div>
-                <div class="card-link">Открыть →</div>
+                <div class="app-name">Inventory Tracker</div>
+                <div class="app-desc">Real-time ingredient tracking, stock audits, and purchase order generation.</div>
+                <div class="card-link">Open App →</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Аналитика</div>
+        <div class="section-label">Analytics & BI</div>
         <div class="app-grid">
             <a href="/internal/dashboard.html" class="app-card">
                 <div class="card-top">
                     <div class="app-icon">📈</div>
                     <span class="badge badge-live">Live</span>
                 </div>
-                <div class="app-name">Аналитика</div>
-                <div class="app-desc">Дашборд Databricks AI/BI — продажи, трафик и операционные метрики</div>
-                <div class="card-link">Открыть →</div>
+                <div class="app-name">Databricks Dashboard</div>
+                <div class="app-desc">Live sales metrics, traffic analytics, and operational performance.</div>
+                <div class="card-link">Open App →</div>
             </a>
         </div>
     </div>
 
     <div class="section">
-        <div class="section-label">Финансы и отчёты</div>
+        <div class="section-label">Finance & Reporting</div>
         <div class="app-grid">
-            <!-- PIN protected -->
             <div class="app-card" data-app="reports">
                 <div class="card-top">
                     <div class="app-icon">📊</div>
                     <span class="badge badge-locked">🔒 PIN</span>
                 </div>
-                <div class="app-name">Отчёты</div>
-                <div class="app-desc">Еженедельные и ежемесячные бизнес-отчёты</div>
-                <div class="card-link">Открыть →</div>
+                <div class="app-name">Business Reports</div>
+                <div class="app-desc">Confidential weekly and monthly financial performance reports.</div>
+                <div class="card-link">Unlock App →</div>
             </div>
-            <!-- PIN protected (accountant's card) -->
             <div class="app-card" data-app="bank-statement">
                 <div class="card-top">
                     <div class="app-icon">🏦</div>
                     <span class="badge badge-locked">🔒 PIN</span>
                 </div>
-                <div class="app-name">Банковские выписки</div>
-                <div class="app-desc">Обработка выписок Сбербанк и Ozon</div>
-                <div class="card-link">Открыть ↗</div>
+                <div class="app-name">Bank Statements</div>
+                <div class="app-desc">Secure processing for Sberbank and Ozon transaction records.</div>
+                <div class="card-link">Unlock App ↗</div>
             </div>
         </div>
     </div>
 </div>
 
 <footer>
-    <a href="/">← Главный сайт</a> &nbsp;·&nbsp; <a href="/internal/admin.html">🔑 Управление паролями</a> &nbsp;·&nbsp; Боба Кролик &copy; 2024 — Только для сотрудников
+    <a href="/">← Main Website</a> &nbsp;·&nbsp; <a href="/internal/admin.html">🔑 Password Management</a> &nbsp;·&nbsp; Boba Rabbit &copy; 2026 — Internal Staff Only
 </footer>
 
 <script src="/internal/pins.js"></script>
 <script>
-    // ── PIN config — edit internal/pins.js to change passwords ───────────────
+    // ── PIN config ───────────────────────────────────────────────────────────
     const _P = window.BC_PINS || {};
     const MASTER_PIN = _P.master || '7530';
     const APPS = {
         'reports': {
             url:    '/internal/reports/',
             pin:    _P.reports || '2244',
-            label:  'Отчёты',
+            label:  'Business Reports',
             icon:   '📊',
         },
         'bank-statement': {
             url:    'https://bobacafe-web-bank-statement.streamlit.app/',
             pin:    _P.bank || '9999',
-            label:  'Банковские выписки',
+            label:  'Bank Statements',
             icon:   '🏦',
             target: '_blank',
         },
-
     };
 
-    // sessionStorage key prefix — once unlocked in a session, no re-entry needed
     const SESSION_PREFIX = 'bc_pin_';
 
     // ── Modal state ───────────────────────────────────────────────────────────
@@ -529,7 +653,7 @@
             navigate(app);
         } else {
             dotsEl.classList.add('error', 'shake');
-            errEl.textContent = 'Неверный PIN. Попробуйте ещё раз.';
+            errEl.textContent = 'Incorrect PIN. Please try again.';
             setTimeout(() => {
                 dotsEl.classList.remove('error', 'shake');
                 errEl.textContent = '';
@@ -543,7 +667,7 @@
         card.addEventListener('click', () => {
             const key = card.dataset.app;
             if (sessionStorage.getItem(SESSION_PREFIX + key) === '1') {
-                navigate(APPS[key]);   // already unlocked this session
+                navigate(APPS[key]);   
             } else {
                 openModal(key);
             }
@@ -572,7 +696,6 @@
         } else if (e.key === 'Backspace') { pin = pin.slice(0, -1); updateDots(); }
     });
 
-    // close on backdrop click
     overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 </script>
 </body>
