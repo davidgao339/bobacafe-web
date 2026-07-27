@@ -19,7 +19,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <ConfigProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <AppRoot />
         </BrowserRouter>
       </ConfigProvider>

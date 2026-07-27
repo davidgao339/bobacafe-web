@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: '/demo/inventory-app/',
+  base: mode === 'development' ? '/demo/inventory-app/' : '/internal/inventory/',
   server: {
     proxy: {
       '/databricks-proxy': {
@@ -13,4 +13,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
