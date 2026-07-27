@@ -66,8 +66,8 @@ export function useCalcs() {
         .reduce((sum, t) => sum + t.quantity, 0)
     }
 
-    const getOrderQty = (store, ingredientId, days = 7) =>
-      Math.max(0, Math.ceil(getDailyAvg(store, ingredientId) * days * 1.05) - estimateCurrentStock(store, ingredientId))
+    const getOrderQty = (store, ingredientId, days = 7, bufferPct = 5) =>
+      Math.max(0, Math.ceil(getDailyAvg(store, ingredientId) * days * (1 + bufferPct / 100)) - estimateCurrentStock(store, ingredientId))
 
     const estimateCurrentStock = (store, ingredientId) => {
       // Use the most recent audit that actually counted this ingredient.

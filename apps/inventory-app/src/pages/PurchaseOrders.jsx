@@ -79,6 +79,7 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
   const [store,          setStore]          = useState(initialStore ?? stores?.[0] ?? '')
   const [createdDate,    setCreatedDate]    = useState(initialCreatedDate ?? TODAY)
   const [days,           setDays]           = useState(7)
+  const [bufferPct,      setBufferPct]      = useState(5)
   const [fromLocation,   setFromLocation]   = useState(initialFromLocation ?? null)
   const [toLocation,     setToLocation]     = useState(initialToLocation ?? null)
   const [search,         setSearch]         = useState('')
@@ -113,7 +114,7 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
 
   const lines = ingredients.map(p => {
     const key = `${store}:${p.id}`
-    const suggested = getOrderQty(store, p.id, days)
+    const suggested = getOrderQty(store, p.id, days, bufferPct)
     const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : 0)
     return { ...p, suggested, qty, isOriginal: originalIds.has(p.id) }
   })
@@ -219,6 +220,13 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
               onChange={e => setDays(Math.max(1, parseInt(e.target.value) || 7))}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-right" />
             <span className="text-xs text-gray-400">{t('po.days')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600">+ Buffer %</label>
+            <input type="number" min="0" max="100" value={bufferPct}
+              onChange={e => setBufferPct(Math.max(0, parseInt(e.target.value) || 0))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-16 text-right" />
+            <span className="text-xs text-gray-400">%</span>
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-gray-600">{t('po.from')}</label>
