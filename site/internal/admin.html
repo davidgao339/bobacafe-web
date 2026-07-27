@@ -336,6 +336,14 @@
 </div>
 
 <script>
+    // ── PIN gate ──────────────────────────────────────────────────────────────
+    const P = window.BC_PINS || {};
+    const overlay = document.getElementById('pin-overlay');
+    const dotsEl  = document.getElementById('pin-dots');
+    const dots    = dotsEl.querySelectorAll('span');
+    const errEl   = document.getElementById('auth-error');
+    let pin = '';
+
     // ── Internationalization (i18n) ───────────────────────────────────────────
     let currentLang = localStorage.getItem('bc_lang') || 'en';
     const langBtn = document.getElementById('lang-toggle');
@@ -350,7 +358,7 @@
             el.innerHTML = lang === 'ru' ? el.dataset.ru : el.dataset.en;
         });
         
-        errEl.textContent = '';
+        if (errEl) errEl.textContent = '';
     }
 
     langBtn.addEventListener('click', () => {
@@ -358,14 +366,6 @@
     });
 
     setLanguage(currentLang);
-
-    // ── PIN gate ──────────────────────────────────────────────────────────────
-    const P = window.BC_PINS || {};
-    const overlay = document.getElementById('pin-overlay');
-    const dotsEl  = document.getElementById('pin-dots');
-    const dots    = dotsEl.querySelectorAll('span');
-    const errEl   = document.getElementById('auth-error');
-    let pin = '';
 
     function updateDots() {
         dots.forEach((d, i) => d.classList.toggle('filled', i < pin.length));
