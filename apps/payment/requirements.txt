@@ -1,0 +1,6 @@
+streamlit[auth]>=1.41,<1.58
+authlib>=1.3.2,<1.4
+httpx>=0.27
+gspread>=6.0
+google-auth>=2.0
+python-dateutil>=2.9
