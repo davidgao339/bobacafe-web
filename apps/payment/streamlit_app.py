@@ -42,7 +42,6 @@ _today = _date.today()
 
 with st.sidebar:
     st.title('Boba Rabbit')
-    st.caption(st.user.email)
     st.divider()
     month = st.selectbox('Month', range(1, 13),
                           format_func=lambda m: MONTHS[m - 1],
@@ -57,7 +56,9 @@ with st.sidebar:
         for label, url in config.SHEET_LINKS.items():
             st.markdown(f'[{label}]({url})')
     st.divider()
-    st.button('Sign out', on_click=st.logout, use_container_width=True)
+    if st.button('Lock App', use_container_width=True):
+        st.session_state.pop('auth_ok', None)
+        st.rerun()
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
