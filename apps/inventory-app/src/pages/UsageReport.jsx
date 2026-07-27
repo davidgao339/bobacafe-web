@@ -52,55 +52,57 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
     const startDate = baseAudit.date
     const base      = baseAudit.counts[selectedId] ?? 0
 
-    // Subsequent audits (after baseline) become adjustment anchors
-    const auditByDate = new Map(
-      storeAudits
-        .filter(a => a.date > startDate)
-        .map(a => [a.date, a.counts[selectedId] ?? 0])
-    )
+    const baseAuditTime = baseAudit.timestamp ?? `${startDate}T23:59:59`
 
-    // Build per-day activity map from day after baseline
+    // Build per-day activity map
     const byDate = {}
-    const ensure = d => { if (!byDate[d]) byDate[d] = { usage: 0, received: 0, transferOut: 0, details: [] } }
+    const ensure = d => { if (!byDate[d]) byDate[d] = { details: [] } }
 
     sales
-      .filter(s => s.store === selectedStore && s.date > startDate)
+      .filter(s => s.store === selectedStore && s.date >= startDate)
       .forEach(s => {
+        const time = `${s.date}T23:59:58`
+        if (time <= baseAuditTime) return
         const consumed = s.quantity * (recipes[s.product]?.[selectedId] ?? 0)
         if (!consumed) return
         ensure(s.date)
-        byDate[s.date].usage = r1(byDate[s.date].usage + consumed)
-        byDate[s.date].details.push({ kind: 'sale', product: s.product, soldQty: s.quantity, consumed: r1(consumed) })
+        byDate[s.date].details.push({ kind: 'sale', product: s.product, soldQty: s.quantity, consumed: r1(consumed), time })
       })
 
     posWaste
-      .filter(s => s.store === selectedStore && s.date > startDate)
+      .filter(s => s.store === selectedStore && s.date >= startDate)
       .forEach(s => {
+        const time = `${s.date}T23:59:58`
+        if (time <= baseAuditTime) return
         const consumed = s.quantity * (recipes[s.product]?.[selectedId] ?? 0)
         if (!consumed) return
         ensure(s.date)
-        byDate[s.date].usage = r1(byDate[s.date].usage + consumed)
-        byDate[s.date].details.push({ kind: 'waste', product: s.product, soldQty: s.quantity, consumed: r1(consumed) })
+        byDate[s.date].details.push({ kind: 'waste', product: s.product, soldQty: s.quantity, consumed: r1(consumed), time })
       })
 
+    const getPoTime = (poId) => {
+      const po = data.purchaseOrders.find(p => p.id === poId)
+      return po?.receivedAt ?? (po?.receivedDate ? `${po.receivedDate}T12:00:00` : '9999-12-31T23:59:59')
+    }
+
     data.transactions
-      .filter(t => t.ingredientId === selectedId && t.store === selectedStore && t.date > startDate)
+      .filter(t => t.ingredientId === selectedId && t.store === selectedStore && t.date >= startDate)
       .forEach(t => {
+        let time = `${t.date}T12:00:00`
+        if (t.type === 'adjustment' && t.poId) time = getPoTime(t.poId)
+        if (time <= baseAuditTime) return
+
         ensure(t.date)
         if (t.type === 'adjustment') {
           if (t.quantity < 0 && t.poId) {
-            byDate[t.date].transferOut = r1(byDate[t.date].transferOut + Math.abs(t.quantity))
-            byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId })
+            byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId, time })
           } else if (t.quantity > 0 && t.poId) {
-            byDate[t.date].received = r1(byDate[t.date].received + t.quantity)
-            byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId })
+            byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId, time })
           } else {
-            byDate[t.date].received = r1(byDate[t.date].received + t.quantity)
-            byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity })
+            byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity, time })
           }
         } else {
-          byDate[t.date].usage = r1(byDate[t.date].usage + t.quantity)
-          byDate[t.date].details.push({ kind: t.type, qty: t.quantity })
+          byDate[t.date].details.push({ kind: t.type, qty: t.quantity, time })
         }
       })
 
@@ -108,42 +110,91 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
       .filter(po =>
         po.store === selectedStore &&
         po.status === 'received' &&
-        // Transfer POs are already represented by their adjustment transactions above
-        !(po.fromLocation && po.toLocation) &&
-        (po.receivedAt ?? po.receivedDate ?? '') > (baseAudit.timestamp ?? startDate)
+        !(po.fromLocation && po.toLocation)
       )
       .forEach(po => {
+        const time = po.receivedAt ?? (po.receivedDate ? `${po.receivedDate}T12:00:00` : '9999-12-31T23:59:59')
+        if (time <= baseAuditTime) return
+        const d = po.receivedDate ?? time.slice(0, 10)
+        if (d < startDate) return
+
         const line = po.lines.find(l => l.ingredientId === selectedId)
         if (!line) return
         const qty = line.received ?? line.ordered ?? 0
         if (!qty) return
-        const d = (po.receivedAt ?? po.receivedDate ?? '').slice(0, 10)
+
         ensure(d)
-        byDate[d].received = r1(byDate[d].received + qty)
-        byDate[d].details.push({ kind: 'po', poId: po.id, qty })
+        byDate[d].details.push({ kind: 'po', poId: po.id, qty, time })
       })
 
-    // Walk every date from startDate to today; audits snap the running balance
+    const auditsByDate = new Map(
+      storeAudits
+        .filter(a => a.date >= startDate && (a.timestamp ?? `${a.date}T23:59:59`) > baseAuditTime)
+        .map(a => [a.date, a])
+    )
+
     const allDates = [
-      ...new Set([startDate, ...Object.keys(byDate), ...[...auditByDate.keys()], today])
+      ...new Set([startDate, ...Object.keys(byDate), ...[...auditsByDate.keys()], today])
     ].sort()
 
     let running = base
     const allRows = []
+
     for (const d of allDates) {
-      if (d <= startDate) continue
-      const { usage = 0, received = 0, transferOut = 0, details = [] } = byDate[d] ?? {}
-      const computed = r1(running - usage - transferOut + received)
-      let auditAdj = null
-      if (auditByDate.has(d)) {
-        const auditCount = auditByDate.get(d)
-        auditAdj = r1(auditCount - computed)
-        running = auditCount
-        details.push({ kind: 'audit', count: auditCount, adj: auditAdj })
-      } else {
-        running = computed
+      if (d < startDate) continue
+      
+      const dayData = byDate[d] ?? { details: [] }
+      const details = [...dayData.details]
+      
+      if (auditsByDate.has(d)) {
+        const audit = auditsByDate.get(d)
+        details.push({
+          kind: 'audit',
+          count: audit.counts[selectedId] ?? 0,
+          time: audit.timestamp ?? `${d}T23:59:59`
+        })
       }
-      allRows.push({ date: d, usage, received, transferOut, auditAdj, ending: running, details })
+
+      details.sort((a, b) => a.time.localeCompare(b.time))
+
+      let dayUsage = 0
+      let dayReceived = 0
+      let dayTransferOut = 0
+      let dayAuditAdj = null
+
+      for (const ev of details) {
+        if (ev.kind === 'audit') {
+          const adj = r1(ev.count - running)
+          ev.adj = adj
+          dayAuditAdj = dayAuditAdj === null ? adj : r1(dayAuditAdj + adj)
+          running = ev.count
+        } else if (ev.kind === 'po' || ev.kind === 'transfer-in') {
+          running = r1(running + ev.qty)
+          dayReceived = r1(dayReceived + ev.qty)
+        } else if (ev.kind === 'transfer-out') {
+          running = r1(running - ev.qty)
+          dayTransferOut = r1(dayTransferOut + ev.qty)
+        } else if (ev.kind === 'sale' || ev.kind === 'waste') {
+          running = r1(running - ev.consumed)
+          dayUsage = r1(dayUsage + ev.consumed)
+        } else if (ev.kind === 'adjustment') {
+          running = r1(running + ev.qty)
+          dayReceived = r1(dayReceived + ev.qty)
+        } else {
+          running = r1(running - ev.qty)
+          dayUsage = r1(dayUsage + ev.qty)
+        }
+      }
+
+      allRows.push({
+        date: d,
+        usage: dayUsage,
+        received: dayReceived,
+        transferOut: dayTransferOut,
+        auditAdj: dayAuditAdj,
+        ending: running,
+        details
+      })
     }
 
     const displayRows = allRows
