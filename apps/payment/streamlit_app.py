@@ -17,14 +17,19 @@ st.set_page_config(page_title='Boba Rabbit — Payroll', layout='wide')
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 
-if not getattr(st.user, 'is_logged_in', False):
+if 'auth_ok' not in st.session_state:
     st.title('Boba Rabbit — Payroll Calculator')
-    st.button('Sign in with Google', on_click=st.login, args=('google',))
-    st.stop()
-
-if st.user.email not in config.ALLOWED_EMAILS:
-    st.error(f'Access denied. Your Google account ({st.user.email}) is not authorized.')
-    st.button('Sign out', on_click=st.logout)
+    
+    with st.form("login_form"):
+        pwd = st.text_input('Enter PIN', type='password')
+        submitted = st.form_submit_button('Unlock')
+        if submitted:
+            # You can override this default PIN in Streamlit Cloud Secrets using APP_PIN = "your_pin"
+            if pwd == st.secrets.get("APP_PIN", "5566"):
+                st.session_state['auth_ok'] = True
+                st.rerun()
+            else:
+                st.error('Incorrect PIN')
     st.stop()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
