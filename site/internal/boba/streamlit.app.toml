@@ -1,2 +1,0 @@
-[general]
-entrypoint = "streamlit_app.py"
