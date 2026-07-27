@@ -13,11 +13,15 @@ import PurchaseOrders from './pages/PurchaseOrders'
 import InventoryLevels from './pages/InventoryLevels'
 import UsageReport from './pages/UsageReport'
 
+import { BrowserRouter, Routes, Route, useNavigate, useParams, useSearchParams, Navigate } from 'react-router-dom'
+
 export default function App() {
   return (
     <LanguageProvider>
       <ConfigProvider>
-        <AppRoot />
+        <BrowserRouter>
+          <AppRoot />
+        </BrowserRouter>
       </ConfigProvider>
     </LanguageProvider>
   )
@@ -172,19 +176,11 @@ function LogisticsView({ onLogout }) {
 }
 
 function AppContent({ role, onLogout }) {
-  const [page,          setPage]          = useState('dashboard')
-  const [subTab,        setSubTab]        = useState(null)
-  const [pageParams,    setPageParams]    = useState(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { setLang } = useLanguage()
   useEffect(() => { if (role === 'logistics') setLang('ru') }, [role])
 
-  const navigate = (pageId, tabId = null, params = null) => {
-    setPage(pageId)
-    setSubTab(tabId ?? DEFAULT_TABS[pageId] ?? null)
-    setPageParams(params)
-    setMobileNavOpen(false)
-  }
+  const navigate = useNavigate()
 
   if (role === 'logistics') {
     return <LogisticsView onLogout={onLogout} />
@@ -194,9 +190,8 @@ function AppContent({ role, onLogout }) {
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <div className="no-print">
         <Sidebar
-          currentPage={page} currentTab={subTab} onNavigate={navigate}
           mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)}
-          onLogout={onLogout}
+          onLogout={onLogout} role={role}
         />
       </div>
       <main className="flex-1 overflow-auto flex flex-col">
@@ -212,18 +207,58 @@ function AppContent({ role, onLogout }) {
           <span className="ml-3 font-semibold text-gray-800 text-sm">BOBA · Inventory</span>
         </div>
         <div className="flex-1 overflow-auto">
-          {page === 'dashboard'    && <Dashboard onNavigate={navigate} />}
-          {page === 'audit'        && <InventoryAudit activeTab={subTab ?? 'count'} onTabChange={t => setSubTab(t)} />}
-          {page === 'transactions' && <Transactions   activeTab={subTab ?? 'sales'} onTabChange={t => setSubTab(t)} />}
-          {page === 'tapioca'      && <TapiocaCookingPlan />}
-          {page === 'report'       && <ReplenishmentReport onNavigate={navigate} />}
-          {page === 'recipes'      && <Recipes         activeTab={subTab ?? 'ingredients'} onTabChange={t => setSubTab(t)} />}
-          {page === 'variance'     && <VarianceReport />}
-          {page === 'purchases'    && <PurchaseOrders initialCreate={pageParams?.createPO} />}
-          {page === 'inventory'    && <InventoryLevels onNavigate={navigate} />}
-          {page === 'usage'        && <UsageReport initialStore={pageParams?.store} initialIngredientId={pageParams?.ingredientId} />}
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard onNavigate={(pageId, tabId) => navigate(`/${pageId}${tabId ? '/' + tabId : ''}`)} />} />
+            <Route path="/audit/:tab?" element={<AuditWrapper />} />
+            <Route path="/transactions/:tab?" element={<TransactionsWrapper />} />
+            <Route path="/tapioca" element={<TapiocaCookingPlan />} />
+            <Route path="/report" element={<ReplenishmentReport onNavigate={(pageId) => navigate(`/${pageId}`)} />} />
+            <Route path="/recipes/:tab?" element={<RecipesWrapper />} />
+            <Route path="/variance" element={<VarianceReport />} />
+            <Route path="/purchases" element={<PurchaseOrdersWrapper />} />
+            <Route path="/inventory" element={<InventoryLevels onNavigate={(pageId, tabId, params) => {
+              const url = `/${pageId}${tabId ? '/' + tabId : ''}`
+              if (params) {
+                const search = new URLSearchParams(params).toString()
+                navigate(`${url}?${search}`)
+              } else {
+                navigate(url)
+              }
+            }} />} />
+            <Route path="/usage" element={<UsageReportWrapper />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </div>
       </main>
     </div>
   )
+}
+
+function AuditWrapper() {
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  return <InventoryAudit activeTab={tab ?? 'count'} onTabChange={t => navigate(`/audit/${t}`)} />
+}
+
+function TransactionsWrapper() {
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  return <Transactions activeTab={tab ?? 'sales'} onTabChange={t => navigate(`/transactions/${t}`)} />
+}
+
+function RecipesWrapper() {
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  return <Recipes activeTab={tab ?? 'ingredients'} onTabChange={t => navigate(`/recipes/${t}`)} />
+}
+
+function PurchaseOrdersWrapper() {
+  const [searchParams] = useSearchParams()
+  return <PurchaseOrders initialCreate={searchParams.get('createPO') === 'true'} />
+}
+
+function UsageReportWrapper() {
+  const [searchParams] = useSearchParams()
+  return <UsageReport initialStore={searchParams.get('store')} initialIngredientId={searchParams.get('ingredientId') ? parseInt(searchParams.get('ingredientId'), 10) : null} />
 }

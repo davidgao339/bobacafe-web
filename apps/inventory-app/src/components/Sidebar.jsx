@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { DashIcon, AuditIcon, InventoryIcon, TxIcon, TapiocaIcon, RecipeIcon, VarianceIcon, POIcon, ReportIcon, UsageIcon } from '../icons'
@@ -68,8 +69,17 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
   )
 }
 
-export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpen, onMobileClose, onLogout }) {
-  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache } = useConfig()
+export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const currentPage = location.pathname.split('/')[1] || 'dashboard'
+  const currentTab = location.pathname.split('/')[2] || null
+  const onNavigate = (pageId, tabId = null) => {
+    navigate(`/${pageId}${tabId ? '/' + tabId : ''}`)
+    if (onMobileClose) onMobileClose()
+  }
+
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, importConfig } = useConfig()
 
   const handleDownloadJson = () => {
     const payload = { exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
@@ -81,6 +91,25 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
     a.click()
     URL.revokeObjectURL(url)
   }
+  const fileInputRef = useRef(null)
+  
+  const handleUploadJson = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e) => {
+    try {
+      const file = e.target.files?.[0]
+      if (!file) return
+      await importConfig(file)
+      flash('ok', 'Data imported successfully')
+    } catch (err) {
+      flash('err', 'Failed to import JSON')
+    }
+    // reset input so same file can be uploaded again if needed
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const { lang, setLang, t } = useLanguage()
 
   const [saving,        setSaving]        = useState(false)
@@ -281,26 +310,41 @@ export default function Sidebar({ currentPage, currentTab, onNavigate, mobileOpe
           </div>
         )}
 
-        {/* Buttons */}
-        <button onClick={handleDownloadJson}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-          Download JSON (debug)
-        </button>
-
-        <button onClick={handleSave} disabled={saving}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50">
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          {saving ? t('backup.saving') : t('backup.saveToCloud')}
-        </button>
-
-        <button onClick={handleOpenRestore}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs transition-colors ${
-            restoreOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-          }`}>
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
-          {t('backup.restoreBackup')}
-        </button>
+        {/* Admin Tools */}
+        {role === 'admin' && (
+          <details className="group">
+            <summary className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer list-none select-none">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Advanced Tools
+              <svg className="w-3 h-3 ml-auto transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div className="mt-1 ml-2 pl-2 border-l border-slate-700 space-y-1">
+              <button onClick={handleDownloadJson}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                Download JSON (debug)
+              </button>
+              <button onClick={handleUploadJson}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                Upload JSON (debug)
+              </button>
+              <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+              <button onClick={handleSave} disabled={saving}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                {saving ? t('backup.saving') : t('backup.saveToCloud')}
+              </button>
+              <button onClick={handleOpenRestore}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs transition-colors ${
+                  restoreOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}>
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                {t('backup.restoreBackup')}
+              </button>
+            </div>
+          </details>
+        )}
 
         {msg && (
           <p className={`px-3 text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>

@@ -127,9 +127,14 @@ function SalesTab() {
         </div>
 
         {refreshMsg && (
-          <p className={`text-xs ${refreshMsg.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
-            {refreshMsg.text}
-          </p>
+          <div className={`text-xs px-3 py-2 rounded-lg flex items-center justify-between ${refreshMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+            <span>{refreshMsg.text}</span>
+            {refreshMsg.type === 'error' && (
+              <button onClick={handleRefresh} disabled={refreshing} className="ml-4 px-3 py-1 bg-white rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors shadow-sm">
+                Retry
+              </button>
+            )}
+          </div>
         )}
 
         {showSettings && (
@@ -155,7 +160,23 @@ function SalesTab() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* Mobile: cards */}
-        {filtered.length === 0
+        {refreshing ? (
+          <div className="md:hidden divide-y divide-gray-100">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="px-4 py-4 animate-pulse">
+                <div className="flex justify-between mb-3">
+                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                </div>
+                <div className="h-4 bg-gray-200 rounded w-32 mb-3"></div>
+                <div className="flex gap-2">
+                  <div className="h-5 bg-gray-100 rounded w-16"></div>
+                  <div className="h-5 bg-gray-100 rounded w-20"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0
           ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</p>
           : <div className="md:hidden divide-y divide-gray-100">
               {pageRows.map(s => {
@@ -218,7 +239,22 @@ function SalesTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0
+              {refreshing ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-50 animate-pulse">
+                    <td className="px-6 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                    <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"></div></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <div className="h-5 bg-gray-100 rounded w-16"></div>
+                        <div className="h-5 bg-gray-100 rounded w-24"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : filtered.length === 0
                 ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
                 : pageRows.map(s => {
                     const impact = getSaleIngredientImpact(s.product, s.quantity)

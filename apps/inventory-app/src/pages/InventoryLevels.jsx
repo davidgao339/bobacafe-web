@@ -28,10 +28,12 @@ export default function InventoryLevels({ onNavigate }) {
   const [search,        setSearch]        = useState('')
   const [sortKey,       setSortKey]       = useState(null)
   const [sortDir,       setSortDir]       = useState('asc')
+  const [page,          setPage]          = useState(0)
 
   const handleSort = key => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
+    setPage(0)
   }
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
@@ -71,7 +73,7 @@ export default function InventoryLevels({ onNavigate }) {
     <div className="flex gap-1.5 flex-wrap">
       {['All', ...visibleStores].map(s => (
         <button key={s}
-          onClick={() => { setSelectedStore(s); setIssuesOnly(false) }}
+          onClick={() => { setSelectedStore(s); setIssuesOnly(false); setPage(0) }}
           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
             selectedStore === s
               ? 'bg-slate-800 text-white'
@@ -120,7 +122,11 @@ export default function InventoryLevels({ onNavigate }) {
       })
 
     const issueCount  = rows.filter(r => r.status === 'depleted' || r.status === 'critical' || r.status === 'low').length
-    const visibleRows = issuesOnly ? rows.filter(r => r.status !== 'ok' && r.status !== 'unknown') : rows
+    const visibleRowsAll = issuesOnly ? rows.filter(r => r.status !== 'ok' && r.status !== 'unknown') : rows
+
+    const PAGE_SIZE = 50
+    const totalPages = Math.max(1, Math.ceil(visibleRowsAll.length / PAGE_SIZE))
+    const visibleRows = visibleRowsAll.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
     const rowBg = status =>
       status === 'depleted' || status === 'critical' ? 'bg-red-50 hover:bg-red-100/60' :
@@ -162,14 +168,14 @@ export default function InventoryLevels({ onNavigate }) {
           <div className="relative flex-1 min-w-40 max-w-xs">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(0) }}
               className="w-full border border-gray-300 rounded-lg pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
             )}
           </div>
           {issueCount > 0 && (
-            <button onClick={() => setIssuesOnly(v => !v)}
+            <button onClick={() => { setIssuesOnly(v => !v); setPage(0) }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
                 issuesOnly
                   ? 'bg-red-50 text-red-700 border-red-200'
@@ -276,13 +282,29 @@ export default function InventoryLevels({ onNavigate }) {
             </table>
           </div>
         </div>
+
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center gap-2 mx-auto md:mx-0 w-full justify-end">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              ←
+            </button>
+            <span className="text-xs text-gray-500 tabular-nums">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, visibleRowsAll.length)} / {visibleRowsAll.length}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              →
+            </button>
+          </div>
+        )}
       </div>
     )
   }
 
   // ── All-stores matrix ────────────────────────────────────────────────────────
 
-  const matrixRows = ingredients
+  const matrixRowsAll = ingredients
     .filter(ing => !q || ing.name.toLowerCase().includes(q))
     .map(ing => {
       const cells     = filteredStores.map(s => ({ store: s, ...stockLevel(s, ing) }))
@@ -296,6 +318,10 @@ export default function InventoryLevels({ onNavigate }) {
       }
       return a.worstRank - b.worstRank
     })
+
+  const PAGE_SIZE = 50
+  const totalPages = Math.max(1, Math.ceil(matrixRowsAll.length / PAGE_SIZE))
+  const matrixRows = matrixRowsAll.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const CELL_BG = {
     unknown:  '',
@@ -323,7 +349,7 @@ export default function InventoryLevels({ onNavigate }) {
         <div className="relative flex-1 min-w-40 max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(0) }}
             className="w-full border border-gray-300 rounded-lg pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
@@ -389,6 +415,22 @@ export default function InventoryLevels({ onNavigate }) {
           </tfoot>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center gap-2 mx-auto w-full justify-end">
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+            className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+            ←
+          </button>
+          <span className="text-xs text-gray-500 tabular-nums">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, matrixRowsAll.length)} / {matrixRowsAll.length}
+          </span>
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+            className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+            →
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-4 mt-3 text-xs text-gray-400 flex-wrap">
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>{t('levels.legendDepleted')}</span>

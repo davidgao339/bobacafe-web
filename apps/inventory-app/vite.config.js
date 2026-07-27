@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/internal/inventory/',
+  base: '/demo/inventory-app/',
   server: {
     proxy: {
       '/databricks-proxy': {
