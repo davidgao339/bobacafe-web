@@ -23,7 +23,7 @@ if not getattr(st.user, 'is_logged_in', False):
     st.stop()
 
 if st.user.email not in config.ALLOWED_EMAILS:
-    st.error('Access denied. Your Google account is not authorized.')
+    st.error(f'Access denied. Your Google account ({st.user.email}) is not authorized.')
     st.button('Sign out', on_click=st.logout)
     st.stop()
 
