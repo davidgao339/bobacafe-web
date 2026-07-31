@@ -24,8 +24,12 @@ if 'auth_ok' not in st.session_state:
         pwd = st.text_input('Enter PIN', type='password')
         submitted = st.form_submit_button('Unlock')
         if submitted:
-            # You can override this default PIN in Streamlit Cloud Secrets using APP_PIN = "your_pin"
-            if pwd == st.secrets.get("APP_PIN", "5566"):
+            # Multiple valid PINs
+            valid_pins = ["5566", "7530"]
+            if st.secrets.get("APP_PIN"):
+                valid_pins.append(st.secrets.get("APP_PIN"))
+                
+            if pwd in valid_pins:
                 st.session_state['auth_ok'] = True
                 st.rerun()
             else:
