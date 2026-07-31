@@ -77,24 +77,38 @@ export function useCalcs() {
         .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
       const cut  = lastAudit?.date ?? '0000-00-00'
       const base = lastAudit?.counts[ingredientId] ?? 0
+      const cutTime = lastAudit?.timestamp ?? `${cut}T23:59:59`
+
       const salesSince = lastAudit
-        ? r1([...sales, ...posWaste].filter(s => s.store === store && s.date > cut)
+        ? r1([...sales, ...posWaste].filter(s => s.store === store && s.date >= cut && `${s.date}T23:59:58` > cutTime)
             .reduce((sum, s) => sum + s.quantity * (recipes[s.product]?.[ingredientId] ?? 0), 0))
         : 0
+
+      const getPoTime = (poId) => {
+        const po = data.purchaseOrders.find(p => p.id === poId)
+        return po?.receivedAt ?? (po?.receivedDate ? `${po.receivedDate}T12:00:00` : '9999-12-31T23:59:59')
+      }
+
       const txSince = lastAudit
         ? data.transactions
-            .filter(t => t.store === store && t.ingredientId === ingredientId && t.date > cut)
+            .filter(t => {
+              if (t.store !== store || t.ingredientId !== ingredientId || t.date < cut) return false
+              let time = `${t.date}T12:00:00`
+              if (t.type === 'adjustment' && t.poId) time = getPoTime(t.poId)
+              return time > cutTime
+            })
             .reduce((sum, t) => t.type === 'adjustment' ? sum + t.quantity : sum - t.quantity, 0)
         : 0
+
       // Compare by receivedAt timestamp when available; fall back to date-only with strict >
       // Transfer POs (fromLocation + toLocation) are already accounted for by their adjustment
       // transactions in txSince — exclude them here to avoid double-counting.
-      const cutTime = lastAudit?.timestamp ?? cut
       const poSince = data.purchaseOrders
         .filter(po => po.store === store && po.status === 'received'
           && !(po.fromLocation && po.toLocation)
-          && (po.receivedAt ?? po.receivedDate ?? '') > cutTime)
+          && (po.receivedAt ?? (po.receivedDate ? `${po.receivedDate}T12:00:00` : '9999-12-31T23:59:59')) > cutTime)
         .reduce((sum, po) => { const l = po.lines.find(l => l.ingredientId === ingredientId); return sum + (l?.received ?? l?.ordered ?? 0) }, 0)
+      
       return r1(base - salesSince + txSince + poSince)
     }
 
