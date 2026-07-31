@@ -274,9 +274,9 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const saveCloudBackup = useCallback(async () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
+    const payload = { version: 1, exportedAt: new Date().toISOString(), config, data }
     return pushCloudBackup(payload)
-  }, [config, data, salesCache])
+  }, [config, data])
 
   const restoreCloudBackup = useCallback(async (id) => {
     const parsed = await fetchCloudBackupData(id)

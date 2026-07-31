@@ -68,8 +68,12 @@ async function handleDatabricks(request) {
 // ── Backup handlers ───────────────────────────────────────────────────────────
 
 async function handleListBackups(env) {
-  const index = await getIndex(env)
-  return json(index)
+  const result = await env.BACKUP_STORE.list({ prefix: 'backup:' })
+  const backups = result.keys
+    .filter(k => k.metadata)
+    .map(k => k.metadata)
+    .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+  return json(backups)
 }
 
 async function handleSaveBackup(request, env) {
@@ -81,7 +85,7 @@ async function handleSaveBackup(request, env) {
   const id      = new Date().toISOString().replace(/[:.]/g, '-')
   const savedAt = new Date().toISOString()
 
-  // Metadata stored in the index (small, fast to list)
+  // Metadata stored directly on the KV key
   const meta = {
     id,
     savedAt,
@@ -90,19 +94,23 @@ async function handleSaveBackup(request, env) {
     poCount:         body.data?.purchaseOrders?.length  ?? 0,
   }
 
-  // Write full payload
-  await env.BACKUP_STORE.put(`backup:${id}`, JSON.stringify(body))
+  // Write full payload with metadata
+  await env.BACKUP_STORE.put(`backup:${id}`, JSON.stringify(body), { metadata: meta })
 
-  // Update index, cap at MAX_BACKUPS, delete evicted entries
-  const index   = await getIndex(env)
-  const updated = [meta, ...index].slice(0, MAX_BACKUPS)
-  const evicted = [meta, ...index].slice(MAX_BACKUPS)
+  // Clean up old backups based on list
+  const result = await env.BACKUP_STORE.list({ prefix: 'backup:' })
+  const backups = result.keys
+    .filter(k => k.metadata)
+    .sort((a, b) => b.metadata.savedAt.localeCompare(a.metadata.savedAt))
 
-  for (const old of evicted) {
-    await env.BACKUP_STORE.delete(`backup:${old.id}`)
+  if (backups.length > MAX_BACKUPS) {
+    const evicted = backups.slice(MAX_BACKUPS)
+    for (const old of evicted) {
+      // Don't wait for deletions so the response is fast
+      env.BACKUP_STORE.delete(old.name).catch(() => {})
+    }
   }
 
-  await env.BACKUP_STORE.put('index', JSON.stringify(updated))
   return json({ id, savedAt })
 }
 
@@ -116,11 +124,6 @@ async function handleGetBackup(id, env) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function getIndex(env) {
-  const raw = await env.BACKUP_STORE.get('index')
-  return raw ? JSON.parse(raw) : []
-}
 
 function json(data) {
   return new Response(JSON.stringify(data), {
