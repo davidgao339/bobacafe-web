@@ -11,6 +11,7 @@ from payroll import (build_payment_rows, build_verification_rows,
                      enrich_shifts, parse_bonus_data, parse_paid_data,
                      parse_schedule_data, build_employee_map, build_salary_map,
                      build_difference_waterfall, build_store_audit, build_employee_audit)
+from pdf_generator import generate_city_pdfs_zip
 from tests import run_all_tests
 
 st.set_page_config(page_title='Boba Rabbit — Payroll', layout='wide')
@@ -96,7 +97,8 @@ if calc_btn:
             raw_paid      = read_paid_raw()
 
             shifts, warnings = parse_schedule_data(raw_schedule, int(month), int(year))
-            employee_map     = build_employee_map(raw_employees)
+            employee_map, emp_warnings = build_employee_map(raw_employees)
+            warnings.extend(emp_warnings)
             salary_map       = build_salary_map(raw_salary)
             enriched         = enrich_shifts(shifts, employee_map, salary_map)
             unmatched        = [s for s in enriched if not s['matched']]
@@ -303,6 +305,24 @@ with st.expander("9 · Employee Detail"):
                 'Base': f"{s['base']:,.0f}",
                 'Residual': f"{s['residual']:,.0f}",
             } for s in emp_info['shifts']], use_container_width=True)
+
+# Panel 10 — Manager Printouts
+with st.expander("10 · Manager Payout Sheets (PDF)"):
+    st.write("**Generate printable PDFs for managers to dispense cash.**")
+    
+    half_choice = st.radio("Select which half to generate payouts for:", ["H1 (Days 1-15)", "H2 (Days 16-end)"], horizontal=True)
+    target_half = 1 if "H1" in half_choice else 2
+    
+    if st.button(f'Generate PDFs for {half_choice}'):
+        with st.spinner('Generating PDFs...'):
+            zip_bytes = generate_city_pdfs_zip(c['summaries'], target_half)
+            st.download_button(
+                label='⬇️ Download Payout PDFs (.zip)',
+                data=zip_bytes,
+                file_name=f'Manager_Payouts_H{target_half}_{c["year"]}_{c["month"]:02d}.zip',
+                mime='application/zip'
+            )
+            st.success("PDFs ready for download!")
 
 # ── Downloads ─────────────────────────────────────────────────────────────────
 

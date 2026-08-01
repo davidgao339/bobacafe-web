@@ -134,6 +134,7 @@ def parse_schedule_data(raw_data, month, year):
 def build_employee_map(raw_data):
     headers = [str(h).strip().lower() for h in raw_data[0]]
     result = {}
+    warnings = []
     for r in range(1, len(raw_data)):
         obj = {headers[i]: raw_data[r][i] for i in range(min(len(headers), len(raw_data[r])))}
         name = _norm_name(obj.get('full_name', ''))
@@ -142,8 +143,13 @@ def build_employee_map(raw_data):
             # fall back to last_name + first_name so those employees still match.
             name = _norm_name(f"{obj.get('last_name', '')} {obj.get('first_name', '')}")
         if name:
+            if name in result:
+                old_role = str(result[name].get('role', '')).strip().lower()
+                new_role = str(obj.get('role', '')).strip().lower()
+                if old_role and new_role and old_role != new_role:
+                    warnings.append(f"Employee DB: '{name}' has multiple active roles ('{old_role}' vs '{new_role}')")
             result[name] = obj
-    return result
+    return result, warnings
 
 
 # ── Step 2b ───────────────────────────────────────────────────────────────────
@@ -289,7 +295,11 @@ def calculate_payroll(enriched_shifts, bonuses, paid_records):
         emp[b['name']]['bonusLines'].append(b)
 
     for e in emp.values():
-        e['bonusTotal']   = sum(b['amount'] for b in e['bonusLines'] if b['type'] == 'добавка')
+        total_shifts = (e['halfShiftsH1'] + e['fullShiftsH1'] + e['helperShiftsH1'] +
+                        e['halfShiftsH2'] + e['fullShiftsH2'] + e['helperShiftsH2'])
+        
+        raw_bonus = sum(b['amount'] for b in e['bonusLines'] if b['type'] == 'добавка')
+        e['bonusTotal']   = raw_bonus if total_shifts > 0 else 0.0
         e['penaltyTotal'] = sum(b['amount'] for b in e['bonusLines'] if b['type'] == 'вычет')
         e['advances']     = sum(b['amount'] for b in e['bonusLines'] if b['type'] == 'выплатили?')
 

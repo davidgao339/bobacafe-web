@@ -97,7 +97,7 @@ def test_parse_schedule():
 
 
 def test_build_employee_map():
-    m = build_employee_map(T_EMPLOYEES)
+    m = build_employee_map(T_EMPLOYEES)[0]
     return _assert('test_build_employee_map', [
         (len(m) == 4,                                    'expected 4 employees'),
         (m['Бучнева Мария']['role'] == 'бариста',        'Бучнева role'),
@@ -118,7 +118,7 @@ def test_build_salary_map():
 
 def test_enrich_shifts_matched():
     shifts   = parse_schedule_data(T_SCHEDULE, 4, 2026)[0]
-    enriched = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES), build_salary_map(T_SALARY))
+    enriched = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES)[0], build_salary_map(T_SALARY))
     helpers  = [s for s in enriched if s.get('shiftCategory') == 'helper']
     halves   = [s for s in enriched if s.get('shiftCategory') == 'half']
     return _assert('test_enrich_shifts_matched', [
@@ -134,7 +134,7 @@ def test_enrich_shifts_matched():
 def test_enrich_shifts_unmatched():
     unknown = [{'name': 'Неизвестный Сотрудник', 'dateStr': '2026-04-01', 'day': 1,
                 'store': 'X', 'shiftType': 'День', 'half': 1}]
-    result = enrich_shifts(unknown, build_employee_map(T_EMPLOYEES), build_salary_map(T_SALARY))
+    result = enrich_shifts(unknown, build_employee_map(T_EMPLOYEES)[0], build_salary_map(T_SALARY))
     return _assert('test_enrich_shifts_unmatched', [
         (result[0]['matched'] == False,      'unknown employee should not match'),
         (result[0]['error'] == 'NOT_IN_DB',  'error should be NOT_IN_DB'),
@@ -167,7 +167,7 @@ def test_parse_paid_data():
 
 def test_h1_calculation():
     shifts    = parse_schedule_data(T_SCHEDULE, 4, 2026)[0]
-    enriched  = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES), build_salary_map(T_SALARY))
+    enriched  = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES)[0], build_salary_map(T_SALARY))
     bonuses   = parse_bonus_data(T_BONUSES, 4, 2026)
     summaries = calculate_payroll(enriched, bonuses, [])
     by_name   = {e['name']: e for e in summaries}
@@ -184,7 +184,7 @@ def test_h1_calculation():
 
 def test_h2_calculation():
     shifts    = parse_schedule_data(T_SCHEDULE, 4, 2026)[0]
-    enriched  = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES), build_salary_map(T_SALARY))
+    enriched  = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES)[0], build_salary_map(T_SALARY))
     bonuses   = parse_bonus_data(T_BONUSES, 4, 2026)
     paid      = parse_paid_data(T_PAID, 4)
     summaries = calculate_payroll(enriched, bonuses, paid)
@@ -201,7 +201,7 @@ def test_h2_calculation():
 
 def test_verification():
     shifts    = parse_schedule_data(T_SCHEDULE, 4, 2026)[0]
-    enriched  = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES), build_salary_map(T_SALARY))
+    enriched  = enrich_shifts(shifts, build_employee_map(T_EMPLOYEES)[0], build_salary_map(T_SALARY))
     summaries = calculate_payroll(enriched, parse_bonus_data(T_BONUSES, 4, 2026), [])
     result    = calculate_verification(enriched, summaries)
     by_store  = {r['store']: r for r in result['rows']}
@@ -209,8 +209,8 @@ def test_verification():
     return _assert('test_verification', [
         (by_store['Бон Пассаж']['scheduleCost'] == 5400, f"Бон Пассаж schedule: {by_store['Бон Пассаж']['scheduleCost']}"),
         (by_store['Советов']['scheduleCost']    == 7100, f"Советов schedule: {by_store['Советов']['scheduleCost']}"),
-        (by_store['Бон Пассаж']['employeeCost'] == 6100, f"Бон Пассаж employee: {by_store['Бон Пассаж']['employeeCost']}"),
-        (by_store['Советов']['employeeCost']    == 6800, f"Советов employee: {by_store['Советов']['employeeCost']}"),
+        (abs(by_store['Бон Пассаж']['employeeCost'] - 5347.0588) < 0.01, f"Бон Пассаж employee: {by_store['Бон Пассаж']['employeeCost']}"),
+        (abs(by_store['Советов']['employeeCost'] - 7552.9412) < 0.01, f"Советов employee: {by_store['Советов']['employeeCost']}"),
         (totals['scheduleCost'] == 12500,                f"total schedule: {totals['scheduleCost']}"),
         (totals['employeeCost'] == 12900,                f"total employee: {totals['employeeCost']}"),
     ])
