@@ -309,7 +309,7 @@ def calculate_payroll(enriched_shifts, bonuses, paid_records):
 
         e['paidAlready']   = sum(p['amount'] for p in paid_records if p['name'] == e['name'])
         total_out          = e['paidAlready'] + e['advances']
-        e['toPayH2']       = max(0.0, e['monthlyTotal'] - total_out)
+        e['toPayH2']       = e['monthlyTotal'] - total_out
         e['overpayment']   = total_out - e['monthlyTotal'] if total_out > e['monthlyTotal'] else 0.0
 
     return sorted(emp.values(), key=lambda e: e['name'])

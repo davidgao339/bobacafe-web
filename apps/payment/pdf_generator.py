@@ -22,8 +22,8 @@ def generate_single_pdf(summaries, half):
     # Filter and group by City -> Store
     grouped = {}
     for e in summaries:
-        amt = e.get(pay_key, 0.0)
-        if amt <= 0:
+        amt = float(e.get(pay_key, 0.0))
+        if amt == 0:
             continue
             
         store = str(e.get('preferableStore') or '').strip()
