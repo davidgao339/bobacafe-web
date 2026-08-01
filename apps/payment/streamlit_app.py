@@ -313,16 +313,13 @@ with st.expander("10 · Manager Payout Sheets (PDF)"):
     half_choice = st.radio("Select which half to generate payouts for:", ["H1 (Days 1-15)", "H2 (Days 16-end)"], horizontal=True)
     target_half = 1 if "H1" in half_choice else 2
     
-    if st.button(f'Generate PDF for {half_choice}'):
-        with st.spinner('Generating PDF...'):
-            pdf_bytes = generate_single_pdf(c['summaries'], target_half)
-            st.download_button(
-                label='⬇️ Download Payout PDF',
-                data=pdf_bytes,
-                file_name=f'Manager_Payouts_H{target_half}_{c["year"]}_{c["month"]:02d}.pdf',
-                mime='application/pdf'
-            )
-            st.success("PDF ready for download!")
+    pdf_bytes = generate_single_pdf(c['summaries'], target_half)
+    st.download_button(
+        label=f'⬇️ Download Payout PDF ({half_choice})',
+        data=pdf_bytes,
+        file_name=f'Manager_Payouts_H{target_half}_{c["year"]}_{c["month"]:02d}.pdf',
+        mime='application/pdf'
+    )
 
 # ── Downloads ─────────────────────────────────────────────────────────────────
 
