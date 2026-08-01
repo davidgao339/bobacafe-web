@@ -11,7 +11,7 @@ from payroll import (build_payment_rows, build_verification_rows,
                      enrich_shifts, parse_bonus_data, parse_paid_data,
                      parse_schedule_data, build_employee_map, build_salary_map,
                      build_difference_waterfall, build_store_audit, build_employee_audit)
-from pdf_generator import generate_city_pdfs_zip
+from pdf_generator import generate_single_pdf
 from tests import run_all_tests
 
 st.set_page_config(page_title='Boba Rabbit — Payroll', layout='wide')
@@ -313,16 +313,16 @@ with st.expander("10 · Manager Payout Sheets (PDF)"):
     half_choice = st.radio("Select which half to generate payouts for:", ["H1 (Days 1-15)", "H2 (Days 16-end)"], horizontal=True)
     target_half = 1 if "H1" in half_choice else 2
     
-    if st.button(f'Generate PDFs for {half_choice}'):
-        with st.spinner('Generating PDFs...'):
-            zip_bytes = generate_city_pdfs_zip(c['summaries'], target_half)
+    if st.button(f'Generate PDF for {half_choice}'):
+        with st.spinner('Generating PDF...'):
+            pdf_bytes = generate_single_pdf(c['summaries'], target_half)
             st.download_button(
-                label='⬇️ Download Payout PDFs (.zip)',
-                data=zip_bytes,
-                file_name=f'Manager_Payouts_H{target_half}_{c["year"]}_{c["month"]:02d}.zip',
-                mime='application/zip'
+                label='⬇️ Download Payout PDF',
+                data=pdf_bytes,
+                file_name=f'Manager_Payouts_H{target_half}_{c["year"]}_{c["month"]:02d}.pdf',
+                mime='application/pdf'
             )
-            st.success("PDFs ready for download!")
+            st.success("PDF ready for download!")
 
 # ── Downloads ─────────────────────────────────────────────────────────────────
 

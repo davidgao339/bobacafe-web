@@ -11,9 +11,9 @@ def _get_city(store_name):
         return 'Краснодар'
     return 'Новороссийск'
 
-def generate_city_pdfs_zip(summaries, half):
+def generate_single_pdf(summaries, half):
     """
-    Generates a ZIP file containing one PDF per city.
+    Generates a single PDF containing payouts for all cities (each city starts on a new page).
     half: 1 or 2
     summaries: List of employee dictionaries from calculate_payroll
     """
@@ -39,13 +39,14 @@ def generate_city_pdfs_zip(summaries, half):
             
         grouped[city][store].append({'name': e['name'], 'amount': amt})
         
-    # Generate PDFs
-    pdf_buffers = {}
+    # Generate 1 PDF
+    pdf = FPDF()
+    pdf.add_font('Roboto', '', FONT_PATH, uni=True)
     
-    for city, stores in grouped.items():
-        pdf = FPDF()
+    for city in sorted(grouped.keys()):
+        stores = grouped[city]
+        
         pdf.add_page()
-        pdf.add_font('Roboto', '', FONT_PATH, uni=True)
         pdf.set_font('Roboto', '', 14)
         
         # Title
@@ -70,17 +71,7 @@ def generate_city_pdfs_zip(summaries, half):
                 
             pdf.ln(5)
             
-        # Write to buffer
-        buf = io.BytesIO()
-        pdf.output(buf)
-        pdf_buffers[city] = buf.getvalue()
-        
-    # Package into ZIP
-    zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, 'w') as zf:
-        for city, pdf_bytes in pdf_buffers.items():
-            # Translate city name for filename to avoid encoding issues
-            city_en = 'Krasnodar' if city == 'Краснодар' else 'Novorossiysk'
-            zf.writestr(f"Payout_{city_en}_H{half}.pdf", pdf_bytes)
-            
-    return zip_buf.getvalue()
+    # Write to buffer
+    buf = io.BytesIO()
+    pdf.output(buf)
+    return buf.getvalue()
