@@ -112,7 +112,11 @@ const DEFAULT_TABS = {
 
 function LogisticsView({ onLogout }) {
   const { config, listCloudBackups, restoreCloudBackup } = useConfig()
+  const { t } = useLanguage()
   const [loadState, setLoadState] = useState(null) // null | 'loading' | 'done' | 'error'
+  const [activeTab, setActiveTab] = useState('levels') // 'levels' | 'ledger'
+  const [ledgerStore, setLedgerStore] = useState(null)
+  const [ledgerIngredientId, setLedgerIngredientId] = useState(null)
 
   const hasData = (config.ingredients ?? []).length > 0
 
@@ -133,12 +137,44 @@ function LogisticsView({ onLogout }) {
     if (!hasData && loadState === null) handleLoad()
   }, [])
 
+  const handleNavigateFromLevels = (pageId, tabId, params) => {
+    if (pageId === 'usage') {
+      if (params?.store) setLedgerStore(params.store)
+      if (params?.ingredientId) setLedgerIngredientId(params.ingredientId)
+      setActiveTab('ledger')
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-        <div>
-          <p className="font-semibold text-gray-800 text-sm">Боба Кролик · Склад</p>
-          <p className="text-xs text-gray-400">Логистика</p>
+      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 gap-4 flex-wrap">
+        <div className="flex items-center gap-6">
+          <div>
+            <p className="font-semibold text-gray-800 text-sm">Боба Кролик · Склад</p>
+            <p className="text-xs text-gray-400">Менеджер</p>
+          </div>
+          <div className="flex items-center bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('levels')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                activeTab === 'levels'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {t('nav.inventory')}
+            </button>
+            <button
+              onClick={() => setActiveTab('ledger')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                activeTab === 'ledger'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {t('nav.usage')}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {loadState === 'loading' && (
@@ -167,8 +203,14 @@ function LogisticsView({ onLogout }) {
           <div className="flex items-center justify-center h-full text-sm text-gray-400">
             Загрузка данных...
           </div>
+        ) : activeTab === 'levels' ? (
+          <InventoryLevels onNavigate={handleNavigateFromLevels} />
         ) : (
-          <InventoryLevels />
+          <UsageReport
+            key={`${ledgerStore ?? 'all'}-${ledgerIngredientId ?? 'none'}`}
+            initialStore={ledgerStore}
+            initialIngredientId={ledgerIngredientId}
+          />
         )}
       </div>
     </div>

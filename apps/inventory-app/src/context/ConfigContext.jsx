@@ -287,11 +287,13 @@ export function ConfigProvider({ children }) {
   const restoreFromJson = useCallback((parsed) => {
     setConfig(migrateConfig(parsed.config))
     setData({ ...DEFAULT_DATA, ...parsed.data })
-    if (parsed.salesCache) {
-      setSalesCacheState(parsed.salesCache)
-      saveToStorage(SALES_CACHE_KEY, parsed.salesCache)
-    } else {
-      clearSalesCache()
+    if (parsed.salesCache !== undefined) {
+      if (parsed.salesCache) {
+        setSalesCacheState(parsed.salesCache)
+        saveToStorage(SALES_CACHE_KEY, parsed.salesCache)
+      } else {
+        clearSalesCache()
+      }
     }
   }, [setConfig, setData, clearSalesCache])
 
