@@ -309,6 +309,23 @@
     </div>
 
     <div class="section">
+        <div class="section-label" data-ru="Расчёт зарплаты">Payroll</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">💰 <span data-ru="Пароль менеджера">Manager Password</span></div>
+                    <div class="config-hint" data-ru="Расчёт зарплаты; мастер-PIN также принимается">Payroll calculator; Master PIN also accepted</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_payroll"></span>
+                    <button class="eye-btn" data-target="v_payroll">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="section">
         <div class="section-label" data-ru="Учёт запасов">Inventory Management</div>
         <div class="config-card">
             <div class="config-row">
@@ -415,6 +432,7 @@
             v_bank:          P.bank          || '9999',
             v_boba:          P.boba          || '1023',
             v_schedule:      P.schedule      || '2233',
+            v_payroll:       P.payroll       || '2372',
             v_inv_admin:     P.inv_admin     || '7530',
             v_inv_logistics: P.inv_logistics || '9876',
         };

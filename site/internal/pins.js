@@ -6,6 +6,8 @@ window.BC_PINS = {
   bank:          '9999',  // bank statement Streamlit app
   boba:          '1023',  // tapioca cooking plan
   schedule:      '2233',  // schedule app (master also works)
+  payroll:       '2372',  // payroll app manager password (master also works)
   inv_admin:     '7530',  // inventory app — admin role (30-day session)
   inv_logistics: '9876',  // inventory app — logistics role (tab session)
 };
+
