@@ -298,6 +298,55 @@ function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, i
   )
 }
 
+// ─── Russian Date Formatter ──────────────────────────────────────────────────
+
+function formatRussianDate(dateStr) {
+  if (!dateStr) return { formatted: '—', numeric: '—', dayOfWeek: '' }
+  const MONTHS_RU = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+  ]
+  const DAYS_RU = [
+    'Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'
+  ]
+
+  const clean = String(dateStr).trim().split('T')[0]
+  const parts = clean.split('-')
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10)
+    const m = parseInt(parts[1], 10)
+    const d = parseInt(parts[2], 10)
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d) && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const dayPad = String(d).padStart(2, '0')
+      const monthPad = String(m).padStart(2, '0')
+      const monthName = MONTHS_RU[m - 1]
+      const dt = new Date(y, m - 1, d)
+      const dayOfWeek = DAYS_RU[dt.getDay()] || ''
+      return {
+        formatted: `${d} ${monthName} ${y} г.`,
+        numeric: `${dayPad}.${monthPad}.${y}`,
+        dayOfWeek,
+      }
+    }
+  }
+
+  try {
+    const d = new Date(dateStr)
+    if (!isNaN(d.getTime())) {
+      const formatted = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+      const numeric = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      const dayOfWeek = d.toLocaleDateString('ru-RU', { weekday: 'long' })
+      return {
+        formatted: formatted.endsWith('г.') ? formatted : `${formatted} г.`,
+        numeric,
+        dayOfWeek: dayOfWeek ? dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1) : ''
+      }
+    }
+  } catch (e) {}
+
+  return { formatted: String(dateStr), numeric: String(dateStr), dayOfWeek: '' }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function exportPO(po, config) {
@@ -318,6 +367,8 @@ function exportPO(po, config) {
   const other = active.filter(l => !suppliers.find(s => s.id === l.supplierId))
   if (other.length) groups.push({ name: 'Остальное', lines: other })
   if (!groups.length) return
+
+  const ruDate = formatRussianDate(po.createdDate || TODAY)
 
   const sectionsHtml = groups.map((g, i) => `
     <div class="section">
@@ -346,34 +397,71 @@ function exportPO(po, config) {
 <html lang="ru"><head><meta charset="UTF-8"><title>Заявка ${esc(po.id)}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,sans-serif;padding:36px 48px;color:#222;font-size:13px}
-.store{font-size:26px;font-weight:900;color:#1a6e34;letter-spacing:.5px;margin-bottom:6px}
-.title{font-size:15px;color:#333;margin-bottom:3px}
-.cat{font-size:11px;color:#999}
-hr{border:none;border-top:1.5px solid #ddd;margin:18px 0}
-.section{margin-bottom:28px}
-.section-header{font-size:15px;font-weight:bold;border-left:4px solid #1a6e34;padding:8px 14px;background:#f7f7f7;margin-bottom:0}
+body{font-family:Arial,sans-serif;padding:32px 44px;color:#222;font-size:13px}
+.header-wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2.5px solid #1a6e34;padding-bottom:14px;margin-bottom:16px}
+.header-left{flex:1}
+.store{font-size:24px;font-weight:900;color:#1a6e34;letter-spacing:.5px;margin-bottom:3px;line-height:1.15}
+.title{font-size:16px;font-weight:800;color:#1f2937;margin-bottom:3px;letter-spacing:.3px}
+.doc-id{color:#1a6e34;font-family:'Courier New',monospace;font-weight:900}
+.cat{font-size:11px;color:#6b7280}
+.route-badge{display:inline-block;margin-top:4px;font-size:11px;color:#1a6e34;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:2px 8px}
+
+.created-date-box{background:#f0fdf4;border:2.5px solid #1a6e34;border-radius:8px;padding:10px 18px;text-align:right;min-width:240px;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.date-box-label{font-size:10px;font-weight:800;letter-spacing:.8px;color:#1a6e34;text-transform:uppercase;margin-bottom:3px}
+.date-box-val{font-size:17px;font-weight:900;color:#0d381a;line-height:1.2}
+.date-box-sub{font-size:11.5px;font-weight:600;color:#3b7049;margin-top:2px}
+
+.sig-box{border:1px solid #ddd;border-radius:6px;padding:14px 18px;margin-bottom:16px;background:#fafafa}
+.sig-title{font-weight:700;font-size:12px;margin-bottom:16px;color:#333;text-transform:uppercase;letter-spacing:.4px}
+.sig-row{display:flex;gap:28px}
+.sig-field{flex:1}
+.sig-label{font-size:11px;color:#555;margin-bottom:18px}
+.sig-line{border-bottom:1px solid #333}
+
+.section{margin-bottom:24px}
+.section-header{font-size:14px;font-weight:bold;border-left:4px solid #1a6e34;padding:7px 12px;background:#f4f6f4;margin-bottom:0;color:#1f2937}
 table{width:100%;border-collapse:collapse}
-th{text-transform:uppercase;font-size:10px;letter-spacing:.4px;font-weight:700;color:#666;padding:8px 12px;border-bottom:1.5px solid #e8e8e8;background:#fafafa;text-align:left}
-td{padding:10px 12px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
-.col-cb{width:52px;text-align:center}
+th{text-transform:uppercase;font-size:10px;letter-spacing:.4px;font-weight:700;color:#666;padding:7px 10px;border-bottom:1.5px solid #e8e8e8;background:#fafafa;text-align:left}
+td{padding:8px 10px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
+.col-cb{width:50px;text-align:center}
 .col-qty{width:90px;text-align:right;font-weight:700}
 .col-unit{width:80px;color:#888;font-size:12px}
-.cb{display:inline-block;width:18px;height:18px;border:1.5px solid #aaa;border-radius:3px}
-.instr{font-style:italic;font-size:11px;color:#888;padding:14px 0;border-top:1px dashed #ccc;margin-top:8px}
-.sig-box{border:1px solid #ddd;border-radius:6px;padding:16px 20px;margin-bottom:14px}
-.sig-title{font-weight:700;font-size:13px;margin-bottom:20px}
-.sig-row{display:flex;gap:32px}
-.sig-field{flex:1}
-.sig-label{font-size:12px;color:#444;margin-bottom:22px}
-.sig-line{border-bottom:1px solid #333}
-.pgnum{position:fixed;bottom:18px;right:40px;font-size:10px;color:#bbb}
-@media print{body{padding:20px 30px}}
+.cb{display:inline-block;width:17px;height:17px;border:1.5px solid #aaa;border-radius:3px}
+.instr{font-style:italic;font-size:11px;color:#888;padding:12px 0;border-top:1px dashed #ccc;margin-top:8px}
+.pgnum{position:fixed;bottom:14px;right:36px;font-size:10px;color:#bbb}
+
+@media print{
+  body{padding:16px 24px}
+  .header-wrap{border-bottom:2.5px solid #1a6e34 !important}
+  .created-date-box{
+    border:2.5px solid #1a6e34 !important;
+    background-color:#f0fdf4 !important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .store,.doc-id,.date-box-label,.date-box-val,.section-header{
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .section-header{
+    background-color:#f4f6f4 !important;
+    border-left:4px solid #1a6e34 !important;
+  }
+}
 </style></head><body>
-<div class="store">${esc(po.store)}</div>
-<div class="title">ЗАЯВКА НА ЗАКАЗ (СВЕРКА ПРИЕМКИ)</div>
-<div class="cat">Категория: Снабжение кафе / Контроль поставок</div>
-<hr>
+<div class="header-wrap">
+  <div class="header-left">
+    <div class="store">${esc(po.store)}</div>
+    <div class="title">ЗАЯВКА НА ЗАКАЗ <span class="doc-id">№ ${esc(po.id)}</span></div>
+    <div class="cat">Категория: Снабжение кафе / Контроль поставок ${po.fromLocation && po.toLocation ? `· Перемещение: <b>${esc(po.fromLocation)}</b> → <b>${esc(po.toLocation)}</b>` : ''}</div>
+  </div>
+  <div class="created-date-box">
+    <div class="date-box-label">📅 ДАТА СОЗДАНИЯ ЗАЯВКИ:</div>
+    <div class="date-box-val">${ruDate.formatted}</div>
+    <div class="date-box-sub">${ruDate.dayOfWeek ? `${ruDate.dayOfWeek}, ` : ''}${ruDate.numeric}</div>
+  </div>
+</div>
+
 <div class="sig-box">
   <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
   <div class="sig-row">
@@ -382,7 +470,7 @@ td{padding:10px 12px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
     <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
   </div>
 </div>
-<hr>
+
 ${sectionsHtml}
 <div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
 <div class="pgnum">Страница 1</div>
