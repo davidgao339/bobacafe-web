@@ -1,16 +1,17 @@
 import { useState, useRef, Fragment } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
+import { PRODUCT_TYPES, getProductType, getRoundStep, detectProductType } from '../utils/productTypes'
 
 // ─── Ingredients Tab ──────────────────────────────────────────────────────────
 
 function IngredientsTab() {
   const { config, setConfig } = useConfig()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [editingId,       setEditingId]       = useState(null)
   const [editVals,        setEditVals]        = useState({})
   const [adding,          setAdding]          = useState(false)
-  const [newIng,          setNewIng]          = useState({ name: '', unit: '', supplierId: null })
+  const [newIng,          setNewIng]          = useState({ name: '', unit: '', supplierId: null, productType: '' })
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [search,          setSearch]          = useState('')
   const [sortDir,         setSortDir]         = useState(null)
@@ -19,15 +20,25 @@ function IngredientsTab() {
   const si = sortDir === 'asc' ? ' ↑' : sortDir === 'desc' ? ' ↓' : ''
   const suppliers = config.suppliers ?? []
   const hasSuppliers = suppliers.length > 0
+  const isRu = lang === 'ru'
 
-  const startEdit = (ing) => { setEditingId(ing.id); setEditVals({ name: ing.name, unit: ing.unit }) }
+  const startEdit = (ing) => {
+    setEditingId(ing.id)
+    setEditVals({ name: ing.name, unit: ing.unit, productType: ing.productType || '', customStep: ing.customStep || '' })
+  }
 
   const saveEdit = () => {
     if (!editVals.name?.trim()) return
     setConfig(prev => ({
       ...prev,
       ingredients: prev.ingredients.map(i =>
-        i.id === editingId ? { ...i, name: editVals.name.trim(), unit: editVals.unit.trim() } : i
+        i.id === editingId ? {
+          ...i,
+          name: editVals.name.trim(),
+          unit: editVals.unit.trim(),
+          productType: editVals.productType || null,
+          customStep: editVals.customStep ? Number(editVals.customStep) : null,
+        } : i
       ),
     }))
     setEditingId(null)
@@ -37,6 +48,13 @@ function IngredientsTab() {
     setConfig(prev => ({
       ...prev,
       ingredients: prev.ingredients.map(i => i.id === id ? { ...i, supplierId } : i),
+    }))
+  }
+
+  const setIngProductType = (id, productType) => {
+    setConfig(prev => ({
+      ...prev,
+      ingredients: prev.ingredients.map(i => i.id === id ? { ...i, productType: productType || null } : i),
     }))
   }
 
@@ -58,10 +76,19 @@ function IngredientsTab() {
     if (!newIng.name.trim()) return
     setConfig(prev => ({
       ...prev,
-      ingredients: [...prev.ingredients, { id: prev._nextIngId, name: newIng.name.trim(), unit: newIng.unit.trim(), supplierId: newIng.supplierId ?? null }],
+      ingredients: [
+        ...prev.ingredients,
+        {
+          id: prev._nextIngId,
+          name: newIng.name.trim(),
+          unit: newIng.unit.trim(),
+          supplierId: newIng.supplierId ?? null,
+          productType: newIng.productType || null,
+        },
+      ],
       _nextIngId: prev._nextIngId + 1,
     }))
-    setNewIng({ name: '', unit: '', supplierId: null })
+    setNewIng({ name: '', unit: '', supplierId: null, productType: '' })
     setAdding(false)
   }
 
@@ -92,8 +119,9 @@ function IngredientsTab() {
         <thead>
           <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
             <th className="px-6 py-3 font-medium cursor-pointer select-none hover:text-gray-700" onClick={cycleSort}>{t('common.name')}{si}</th>
-            <th className="px-4 py-3 font-medium w-32">{t('common.unit')}</th>
-            {hasSuppliers && <th className="px-4 py-3 font-medium w-44">{t('recipes.supplier')}</th>}
+            <th className="px-4 py-3 font-medium w-28">{t('common.unit')}</th>
+            <th className="px-4 py-3 font-medium w-52">{t('recipes.productType')}</th>
+            {hasSuppliers && <th className="px-4 py-3 font-medium w-40">{t('recipes.supplier')}</th>}
             <th className="px-4 py-3 w-28"></th>
           </tr>
         </thead>
@@ -103,6 +131,11 @@ function IngredientsTab() {
               .filter(([, recipe]) => (recipe[ing.id] ?? 0) > 0)
               .map(([product, recipe]) => ({ product, qty: recipe[ing.id] }))
             const isExpanded = expandedIngId === ing.id
+            const effectivePt = getProductType(ing)
+            const step = getRoundStep(ing)
+            const isExplicit = Boolean(ing.productType)
+            const detected = detectProductType(ing.name, ing.unit)
+
             return (<Fragment key={ing.id}>
             <tr className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
               <td className="px-6 py-2.5">
@@ -133,6 +166,42 @@ function IngredientsTab() {
                       onKeyDown={e => e.key === 'Enter' && saveEdit()}
                       className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
                   : <span className="text-gray-500">{ing.unit}</span>
+                }
+              </td>
+              <td className="px-4 py-2.5">
+                {editingId === ing.id
+                  ? <select value={editVals.productType ?? ''}
+                      onChange={e => setEditVals(v => ({ ...v, productType: e.target.value }))}
+                      className="border border-blue-300 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full">
+                      <option value="">
+                        {detected
+                          ? `✨ ${isRu ? detected.nameRu : detected.nameEn} (${detected.roundStep})`
+                          : t('recipes.typeAuto')}
+                      </option>
+                      {PRODUCT_TYPES.filter(pt => pt.id !== 'other').map(pt => (
+                        <option key={pt.id} value={pt.id}>
+                          {isRu ? pt.nameRu : pt.nameEn} ({pt.roundStep} {pt.defaultUnit || ing.unit})
+                        </option>
+                      ))}
+                      <option value="other">{isRu ? 'Другое (без кратности)' : 'Other (1)'}</option>
+                    </select>
+                  : <select value={ing.productType ?? ''}
+                      onChange={e => setIngProductType(ing.id, e.target.value)}
+                      className={`border rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 w-full ${
+                        isExplicit ? 'border-blue-300 text-blue-800 font-medium' : 'border-gray-200 text-gray-600'
+                      }`}>
+                      <option value="">
+                        {detected
+                          ? `✨ ${isRu ? detected.nameRu : detected.nameEn} (${detected.roundStep})`
+                          : t('recipes.typeAuto')}
+                      </option>
+                      {PRODUCT_TYPES.filter(pt => pt.id !== 'other').map(pt => (
+                        <option key={pt.id} value={pt.id}>
+                          {isRu ? pt.nameRu : pt.nameEn} ({pt.roundStep} {pt.defaultUnit || ing.unit})
+                        </option>
+                      ))}
+                      <option value="other">{isRu ? 'Другое (без кратности)' : 'Other (1)'}</option>
+                    </select>
                 }
               </td>
               {hasSuppliers && (
@@ -167,7 +236,7 @@ function IngredientsTab() {
             </tr>
             {isExpanded && (
               <tr className="bg-blue-50/60 border-b border-blue-100">
-                <td colSpan={hasSuppliers ? 4 : 3} className="px-10 py-2.5">
+                <td colSpan={hasSuppliers ? 5 : 4} className="px-10 py-2.5">
                   {usedIn.length === 0 ? (
                     <p className="text-xs text-gray-400 italic">{t('recipes.notUsedAnywhere')}</p>
                   ) : (
@@ -201,6 +270,19 @@ function IngredientsTab() {
                   onKeyDown={e => e.key === 'Enter' && addIngredient()}
                   className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </td>
+              <td className="px-4 py-2.5">
+                <select value={newIng.productType ?? ''}
+                  onChange={e => setNewIng(v => ({ ...v, productType: e.target.value }))}
+                  className="border border-blue-300 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full">
+                  <option value="">{t('recipes.typeAuto')}</option>
+                  {PRODUCT_TYPES.filter(pt => pt.id !== 'other').map(pt => (
+                    <option key={pt.id} value={pt.id}>
+                      {isRu ? pt.nameRu : pt.nameEn} ({pt.roundStep} {pt.defaultUnit || newIng.unit})
+                    </option>
+                  ))}
+                  <option value="other">{isRu ? 'Другое (без кратности)' : 'Other (1)'}</option>
+                </select>
+              </td>
               {hasSuppliers && (
                 <td className="px-4 py-2.5">
                   <select value={newIng.supplierId ?? ''} onChange={e => setNewIng(v => ({ ...v, supplierId: e.target.value ? Number(e.target.value) : null }))}
@@ -213,7 +295,7 @@ function IngredientsTab() {
               <td className="px-4 py-2.5 text-right">
                 <div className="flex gap-2 justify-end">
                   <button onClick={addIngredient} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('recipes.add')}</button>
-                  <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '', supplierId: null }) }}
+                  <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '', supplierId: null, productType: '' }) }}
                     className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                 </div>
               </td>

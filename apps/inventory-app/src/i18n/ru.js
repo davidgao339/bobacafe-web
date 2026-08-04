@@ -237,6 +237,10 @@ const ru = {
   'recipes.ingredientCount':  '{{count}} ингредиент',
   'recipes.ingredientsCount': '{{count}} ингредиентов',
   'recipes.notUsedAnywhere':  'Не используется ни в одной рецептуре',
+  'recipes.productType':      'Тип продукта (кратность PO)',
+  'recipes.roundStep':        'Кратность PO',
+  'recipes.autoDetected':     'Автоопределение: {{name}} (кратность {{step}})',
+  'recipes.typeAuto':         'Автоопределение по названию',
 
   // Purchase Orders
   'po.title':              'Заказы поставщикам',
@@ -266,7 +270,7 @@ const ru = {
   'po.confirmDelete':      'Удалить этот заказ?',
   'po.suggested':          'Рекоменд.',
   'po.orderQty':           'Кол-во заказа',
-  'po.suggestedNote':      'Рекоменд. = расход ×1.05 − корректировка',
+  'po.suggestedNote':      'Рекоменд. = расход ×1.05 − корректировка (округлено до кратности упаковки)',
   'po.applySuggested':     'Применить рекомендации',
   'po.saveDraft':          'Сохранить черновик',
   'po.newPOTitle':         'Новый заказ — {{id}}',
@@ -291,7 +295,7 @@ const ru = {
 
   // Replenishment Report
   'report.title':            'Отчёт по закупкам',
-  'report.subtitle':         'Период: {{from}} – {{to}} · Формула: расход × 1.05 − корр.',
+  'report.subtitle':         'Период: {{from}} – {{to}} · Формула: расход × 1.05 − корр. (с округлением по типам продуктов)',
   'report.hideZero':         'Скрыть нулевые строки',
   'report.exportCSV':        'Экспорт CSV',
   'report.print':            'Печать',
@@ -307,7 +311,7 @@ const ru = {
   'report.orderQty':         'К заказу',
   'report.itemsToOrder':     'Позиций к заказу',
   'report.ingredientsLabel': 'ингредиентов',
-  'report.formula':          'К заказу = max(0, ⌈Расход × 1.05⌉ − Тек. остаток)',
+  'report.formula':          'К заказу = max(0, ⌈Расход × 1.05⌉ − Тек. остаток), с округлением вверх до кратности упаковки типа продукта',
 
   // Variance Report
   'variance.title':           'Необъяснимые потери',

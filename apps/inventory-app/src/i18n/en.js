@@ -237,6 +237,10 @@ const en = {
   'recipes.ingredientCount':  '{{count}} ingredient',
   'recipes.ingredientsCount': '{{count}} ingredients',
   'recipes.notUsedAnywhere':  'Not used in any recipes yet',
+  'recipes.productType':      'Product type (PO step)',
+  'recipes.roundStep':        'PO Rounding',
+  'recipes.autoDetected':     'Auto-detected: {{name}} (step: {{step}})',
+  'recipes.typeAuto':         'Auto-detect from name',
 
   // Purchase Orders
   'po.title':              'Purchase Orders',
@@ -266,7 +270,7 @@ const en = {
   'po.confirmDelete':      'Delete this PO?',
   'po.suggested':          'Suggested',
   'po.orderQty':           'Order qty',
-  'po.suggestedNote':      'Suggested = consumed ×1.05 − inventory adjustment',
+  'po.suggestedNote':      'Suggested = consumed ×1.05 − inventory adjustment (rounded up to pack size)',
   'po.applySuggested':     'Apply suggested',
   'po.saveDraft':          'Save Draft',
   'po.newPOTitle':         'New Purchase Order — {{id}}',
@@ -291,7 +295,7 @@ const en = {
 
   // Replenishment Report
   'report.title':            'Replenishment Report',
-  'report.subtitle':         'Period: {{from}} – {{to}} · Formula: consumed × 1.05 − adj delta',
+  'report.subtitle':         'Period: {{from}} – {{to}} · Formula: consumed × 1.05 − adj delta (with product type rounding)',
   'report.hideZero':         'Hide zero rows',
   'report.exportCSV':        'Export CSV',
   'report.print':            'Print',
@@ -307,7 +311,7 @@ const en = {
   'report.orderQty':         'Order Qty',
   'report.itemsToOrder':     'Items to order',
   'report.ingredientsLabel': 'ingredients',
-  'report.formula':          'Order Qty = max(0, ⌈Consumed × 1.05⌉ − Current Stock)',
+  'report.formula':          'Order Qty = max(0, ⌈Consumed × 1.05⌉ − Current Stock), rounded up to product type pack size',
 
   // Variance Report
   'variance.title':           'Unexplained Losses',

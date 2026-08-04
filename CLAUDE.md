@@ -94,6 +94,22 @@ npm run build # production build
 
 ---
 
+## Inventory app (React)
+
+Source: `apps/inventory-app/` · Vite + React inventory and replenishment management system.
+
+Detailed architecture, formulas, product type pack rounding rules, and troubleshooting guide:
+👉 See [apps/inventory-app/README.md](file:///d:/Github/bobacafe-web/apps/inventory-app/README.md)
+
+```powershell
+cd apps/inventory-app
+npm install   # first time only
+npm run dev   # dev server
+npm run build # production build
+```
+
+---
+
 ## Key facts
 
 - The `site/internal/` portal uses PIN auth stored in `sessionStorage` (clears on tab close).

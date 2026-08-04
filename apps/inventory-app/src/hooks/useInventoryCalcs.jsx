@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useConfig } from '../context/ConfigContext'
+import { roundOrderQty } from '../utils/productTypes'
 
 export function useCalcs() {
   const { config, sales, posWaste, data, stores } = useConfig()
@@ -66,8 +67,11 @@ export function useCalcs() {
         .reduce((sum, t) => sum + t.quantity, 0)
     }
 
-    const getOrderQty = (store, ingredientId, days = 7, bufferPct = 5) =>
-      Math.max(0, Math.ceil(getDailyAvg(store, ingredientId) * days * (1 + bufferPct / 100)) - estimateCurrentStock(store, ingredientId))
+    const getOrderQty = (store, ingredientId, days = 7, bufferPct = 5) => {
+      const ing = ingredients.find(i => i.id === ingredientId)
+      const rawNeeded = getDailyAvg(store, ingredientId) * days * (1 + bufferPct / 100) - estimateCurrentStock(store, ingredientId)
+      return roundOrderQty(rawNeeded, ing)
+    }
 
     const estimateCurrentStock = (store, ingredientId) => {
       // Use the most recent audit that actually counted this ingredient.
