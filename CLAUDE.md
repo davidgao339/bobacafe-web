@@ -34,15 +34,15 @@ bobacafe-web/
 
 ## Deployment
 
-GitHub Pages only — no Netlify or Vercel.
+Cloudflare Pages.
 
 **Trigger:** every push to `main` (or manual `workflow_dispatch`).
 
-**Pipeline (`deploy-pages.yml`):**
-1. Build React app: `cd apps/schedule-app && npm ci && npm run build`
+**Pipeline (`deploy-cloudflare.yml`):**
+1. Build React apps: Schedule App and Inventory App
 2. Mint a Databricks embedded dashboard token via OAuth and inject it into `site/internal/dashboard.html`
-3. Assemble `deploy/` with: `site/index.html`, `site/internal/`, `site/internal/schedule/` (React build), `site/internal/reports/`
-4. Upload and deploy to GitHub Pages
+3. Assemble `deploy/` with: `site/index.html`, `site/internal/`, `site/internal/schedule/` (React build), `site/internal/inventory/` (React build), `site/internal/reports/`
+4. Upload and deploy to Cloudflare Pages via `cloudflare/pages-action`
 
 ---
 
