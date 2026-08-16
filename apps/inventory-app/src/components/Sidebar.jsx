@@ -79,7 +79,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
     if (onMobileClose) onMobileClose()
   }
 
-  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, importConfig } = useConfig()
+  const { listCloudBackups, saveCloudBackup, restoreCloudBackup, stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, importConfig, settings, saveSettings } = useConfig()
 
   const handleDownloadJson = () => {
     const payload = { exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
@@ -129,7 +129,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { savedAt } = await saveCloudBackup()
+      const { savedAt } = await saveCloudBackup(true)
       flash('ok', `Saved — ${new Date(savedAt).toLocaleTimeString()}`)
       // Invalidate cached list so next open re-fetches
       setBackups(null)
@@ -281,32 +281,45 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
               <p className="px-3 py-3 text-xs text-slate-400">{t('backup.loading')}</p>
             ) : backups?.length === 0 ? (
               <p className="px-3 py-3 text-xs text-slate-400">{t('backup.noBackups')}</p>
-            ) : backups?.map(b => (
-              <div key={b.id} className="border-b border-slate-700 last:border-0">
-                {confirmId === b.id ? (
-                  <div className="px-3 py-2 flex items-center gap-2">
-                    <span className="text-xs text-slate-300 flex-1">{t('backup.restoreThis')}</span>
-                    <button
-                      onClick={() => handleRestore(b.id)}
-                      disabled={restoring}
-                      className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-                      {restoring ? t('backup.restoring') : t('common.yes')}
-                    </button>
-                    <button onClick={() => setConfirmId(null)}
-                      className="text-xs text-slate-400 hover:text-slate-200">{t('common.no')}</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmId(b.id)}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-700 transition-colors">
-                    <p className="text-xs text-slate-200 font-medium">{fmt(b.savedAt)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {t('backup.meta', { ingredients: b.ingredientCount, audits: b.auditCount, pos: b.poCount })}
-                    </p>
-                  </button>
-                )}
+            ) : (
+              <div className="divide-y divide-slate-700">
+                {['Manual Saves', 'Auto Saves'].map((section, idx) => {
+                  const sectionBackups = backups.filter(b => (idx === 0 ? b.isManual : !b.isManual))
+                  if (sectionBackups.length === 0) return null
+                  return (
+                    <div key={section}>
+                      <p className="px-3 py-1.5 bg-slate-800 text-xs font-semibold text-slate-300 uppercase tracking-wider">{section}</p>
+                      {sectionBackups.map(b => (
+                        <div key={b.id} className="border-t border-slate-700 first:border-0">
+                          {confirmId === b.id ? (
+                            <div className="px-3 py-2 flex items-center gap-2">
+                              <span className="text-xs text-slate-300 flex-1">{t('backup.restoreThis')}</span>
+                              <button
+                                onClick={() => handleRestore(b.id)}
+                                disabled={restoring}
+                                className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                                {restoring ? t('backup.restoring') : t('common.yes')}
+                              </button>
+                              <button onClick={() => setConfirmId(null)}
+                                className="text-xs text-slate-400 hover:text-slate-200">{t('common.no')}</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmId(b.id)}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-700 transition-colors">
+                              <p className="text-xs text-slate-200 font-medium">{fmt(b.savedAt)}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {t('backup.meta', { ingredients: b.ingredientCount, audits: b.auditCount, pos: b.poCount })}
+                              </p>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
               </div>
-            ))}
+            )}
           </div>
         )}
 
@@ -330,6 +343,15 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
                 Upload JSON (debug)
               </button>
               <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+              <label className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={!!settings?.autoSaveCloud} 
+                  onChange={e => saveSettings({ ...settings, autoSaveCloud: e.target.checked })}
+                  className="rounded border-gray-600 bg-slate-800 text-blue-500 focus:ring-blue-500" 
+                />
+                Auto-save to Cloud
+              </label>
               <button onClick={handleSave} disabled={saving}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50">
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>

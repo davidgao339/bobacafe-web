@@ -1,6 +1,7 @@
 const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
 const ORIGIN      = 'https://bobacafe.net'
-const MAX_BACKUPS = 5
+const MAX_AUTO_BACKUPS = 5
+const MAX_MANUAL_BACKUPS = 10
 
 export default {
   async fetch(request, env) {
@@ -92,6 +93,7 @@ async function handleSaveBackup(request, env) {
     ingredientCount: body.config?.ingredients?.length ?? 0,
     auditCount:      body.data?.audits?.length          ?? 0,
     poCount:         body.data?.purchaseOrders?.length  ?? 0,
+    isManual:        body.isManual === true,
   }
 
   // Write full payload with metadata
@@ -103,10 +105,17 @@ async function handleSaveBackup(request, env) {
     .filter(k => k.metadata)
     .sort((a, b) => b.metadata.savedAt.localeCompare(a.metadata.savedAt))
 
-  if (backups.length > MAX_BACKUPS) {
-    const evicted = backups.slice(MAX_BACKUPS)
-    for (const old of evicted) {
-      // Don't wait for deletions so the response is fast
+  const autoBackups = backups.filter(k => !k.metadata.isManual)
+  const manualBackups = backups.filter(k => k.metadata.isManual)
+
+  if (autoBackups.length > MAX_AUTO_BACKUPS) {
+    for (const old of autoBackups.slice(MAX_AUTO_BACKUPS)) {
+      env.BACKUP_STORE.delete(old.name).catch(() => {})
+    }
+  }
+
+  if (manualBackups.length > MAX_MANUAL_BACKUPS) {
+    for (const old of manualBackups.slice(MAX_MANUAL_BACKUPS)) {
       env.BACKUP_STORE.delete(old.name).catch(() => {})
     }
   }

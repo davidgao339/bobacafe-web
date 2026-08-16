@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '../data/fakeData'
 import { fetchDatabricksSales, fetchCloudBackupsList, pushCloudBackup, fetchCloudBackupData } from '../services/api'
 import { useCalcs } from '../hooks/useInventoryCalcs'
@@ -186,11 +186,47 @@ export function ConfigProvider({ children }) {
     setData(prev => ({ ...prev, purchaseOrders: [po, ...prev.purchaseOrders], _nextPoId: prev._nextPoId + 1 }))
   }, [setData])
 
-  const updatePurchaseOrder = useCallback((id, changes) => {
-    setData(prev => ({
-      ...prev,
-      purchaseOrders: prev.purchaseOrders.map(po => po.id === id ? { ...po, ...changes } : po),
-    }))
+  const updatePurchaseOrder = useCallback((id, changes, logMsg) => {
+    setData(prev => {
+      const po = prev.purchaseOrders.find(p => p.id === id)
+      if (!po) return prev
+
+      const editHistory = logMsg 
+        ? [...(po.editHistory || []), { date: new Date().toISOString(), msg: logMsg }]
+        : po.editHistory
+
+      const updatedPo = { ...po, ...changes, editHistory }
+
+      let newTxns = prev.transactions
+      let nextTxId = prev._nextTxId
+
+      // If the PO is already 'received' and is (or was) a transfer, we must resync its transactions
+      if (po.status === 'received') {
+        const wasTransfer = po.fromLocation && po.toLocation
+        const isTransfer = updatedPo.fromLocation && updatedPo.toLocation
+
+        if (wasTransfer || isTransfer) {
+          newTxns = newTxns.filter(t => t.poId !== id)
+
+          if (isTransfer) {
+            updatedPo.lines.forEach(l => {
+              const qty = l.received ?? l.ordered
+              if (qty > 0) {
+                newTxns.push({ id: `T-${String(nextTxId++).padStart(3, '0')}`, ingredientId: l.ingredientId, store: updatedPo.fromLocation, date: updatedPo.receivedDate, type: 'adjustment', quantity: -qty, poId: id })
+                newTxns.push({ id: `T-${String(nextTxId++).padStart(3, '0')}`, ingredientId: l.ingredientId, store: updatedPo.toLocation, date: updatedPo.receivedDate, type: 'adjustment', quantity: qty, poId: id })
+              }
+            })
+          }
+        }
+      }
+
+      return {
+        ...prev,
+        purchaseOrders: prev.purchaseOrders.map(p => p.id === id ? updatedPo : p),
+        transactions: newTxns,
+        _nextTxId: nextTxId,
+      }
+    })
   }, [setData])
 
   const deletePurchaseOrder = useCallback((id) => {
@@ -273,8 +309,8 @@ export function ConfigProvider({ children }) {
     return fetchCloudBackupsList()
   }, [])
 
-  const saveCloudBackup = useCallback(async () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), config, data }
+  const saveCloudBackup = useCallback(async (isManual = false) => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), config, data, isManual }
     return pushCloudBackup(payload)
   }, [config, data])
 
@@ -296,6 +332,24 @@ export function ConfigProvider({ children }) {
       }
     }
   }, [setConfig, setData, clearSalesCache])
+
+  // ─── Auto-save to Cloud ──────────────────────────────────────────────────────
+
+  const firstRender = useRef(true)
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    if (!settings.autoSaveCloud) return
+
+    const timer = setTimeout(() => {
+      saveCloudBackup(false).catch(err => console.error('Auto-save failed:', err))
+    }, 60000)
+
+    return () => clearTimeout(timer)
+  }, [config, data, settings.autoSaveCloud, saveCloudBackup])
 
   // ─── Config export/import ───────────────────────────────────────────────────
 
