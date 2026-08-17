@@ -1,7 +1,7 @@
 import { useState, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { TrashIcon, DuplicateIcon, BeakerIcon } from '../icons'
+
 import DraftForm from '../components/PurchaseOrders/DraftForm'
 
 
@@ -690,6 +690,8 @@ export default function PurchaseOrders({ initialCreate }) {
                                         className="px-2.5 py-1 border border-gray-200 text-gray-400 text-xs rounded-md hover:text-gray-600">{t('po.revertSent')}</button>
                                     </>
                                 )}
+                                <button onClick={e => { e.stopPropagation(); setEditingId(po.id); setExpanded(po.id) }}
+                                  className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50">{t('common.edit')}</button>
                                 <button onClick={e => { e.stopPropagation(); exportPO(po, config) }}
                                   className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs rounded-md hover:bg-gray-50 flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
