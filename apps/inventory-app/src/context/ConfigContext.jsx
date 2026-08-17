@@ -285,9 +285,13 @@ export function ConfigProvider({ children }) {
     const newRows = await fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 
     // Extract and update distinct stores from data
-    const uniqueStores = [...new Set(newRows.map(r => r.store))].sort()
+    const uniqueStores = [...new Set(newRows.map(r => r.store))]
     if (uniqueStores.length > 0) {
-      setStoresState(uniqueStores)
+      setStoresState(prev => {
+        const merged = Array.from(new Set([...prev, ...uniqueStores]))
+        // Optional: keep original order for STORES, append new ones sorted
+        return merged
+      })
     }
 
     // Merge — deduplicate by date+store+product+topping flag
