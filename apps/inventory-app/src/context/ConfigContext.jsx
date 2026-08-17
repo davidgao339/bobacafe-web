@@ -65,6 +65,50 @@ function migrateConfig(raw) {
   }
 }
 
+// ─── IndexedDB helpers (for large data like sales cache) ───────────────
+
+const DB_NAME = 'bobacafe_db'
+const STORE_NAME = 'cache'
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbGet(key) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).get(key)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbSet(key, val) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const req = tx.objectStore(STORE_NAME).put(val, key)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbRemove(key) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const req = tx.objectStore(STORE_NAME).delete(key)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const ConfigContext = createContext(null)
@@ -74,13 +118,33 @@ export function ConfigProvider({ children }) {
     migrateConfig(loadFromStorage(STORAGE_KEY)) ?? { ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 }
   )
   const [data,       setDataState]       = useState(() => loadFromStorage(DATA_KEY)        ?? DEFAULT_DATA)
-  const [salesCache, setSalesCacheState] = useState(() => loadFromStorage(SALES_CACHE_KEY))
+  const [salesCache, setSalesCacheState] = useState(null)
   const [settings,   setSettingsState]   = useState(() => {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
     return { token: '', warehouseId: '', ...stored }
   })
   const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
   const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
+
+  // Async load sales cache from IDB
+  useEffect(() => {
+    async function initSalesCache() {
+      try {
+        let cache = await idbGet(SALES_CACHE_KEY)
+        if (!cache) {
+          cache = loadFromStorage(SALES_CACHE_KEY)
+          if (cache) {
+            await idbSet(SALES_CACHE_KEY, cache)
+            localStorage.removeItem(SALES_CACHE_KEY)
+          }
+        }
+        if (cache) setSalesCacheState(cache)
+      } catch (err) {
+        console.error('Failed to load sales cache from IDB', err)
+      }
+    }
+    initSalesCache()
+  }, [])
 
   // Sync state when another browser tab writes to localStorage
   useEffect(() => {
@@ -119,7 +183,7 @@ export function ConfigProvider({ children }) {
 
   const clearSalesCache = useCallback(() => {
     setSalesCacheState(null)
-    localStorage.removeItem(SALES_CACHE_KEY)
+    idbRemove(SALES_CACHE_KEY).catch(console.error)
   }, [])
 
   const toggleStoreVisibility = useCallback((store) => {
@@ -302,7 +366,7 @@ export function ConfigProvider({ children }) {
 
     const newCache = { rows: merged, lastRefreshDate: toDate }
     setSalesCacheState(newCache)
-    saveToStorage(SALES_CACHE_KEY, newCache)
+    idbSet(SALES_CACHE_KEY, newCache).catch(console.error)
 
     return { upToDate: false, newRows: newRows.length, fromDate, toDate }
   }, [salesCache])
@@ -330,7 +394,7 @@ export function ConfigProvider({ children }) {
     if (parsed.salesCache !== undefined) {
       if (parsed.salesCache) {
         setSalesCacheState(parsed.salesCache)
-        saveToStorage(SALES_CACHE_KEY, parsed.salesCache)
+        idbSet(SALES_CACHE_KEY, parsed.salesCache).catch(console.error)
       } else {
         clearSalesCache()
       }
