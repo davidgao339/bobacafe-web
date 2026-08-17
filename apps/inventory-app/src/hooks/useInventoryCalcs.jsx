@@ -211,13 +211,41 @@ export function useCalcs() {
       const base = lastIngAudit?.counts[ingredientId] ?? 0
       return r1(base - (salesSinceLastAudit[store]?.[ingredientId] || 0) + (txSinceLastAudit[store]?.[ingredientId] || 0) + (poSinceLastAudit[store]?.[ingredientId] || 0))
     }
+    const getConsumedForDays = (store, ingredientId, days) => {
+      let total = 0
+      const toDate = sales.length > 0 ? sales[0].date : new Date().toISOString().slice(0, 10)
+      const cut = new Date(toDate + 'T12:00:00')
+      cut.setDate(cut.getDate() - days)
+      const fromDate = cut.toISOString().slice(0, 10)
+      
+      for (const s of [...sales, ...posWaste]) {
+        if (s.store === store && s.date > fromDate && s.date <= toDate) {
+          const recipe = recipes[s.product]
+          if (recipe && recipe[ingredientId]) {
+            total += s.quantity * recipe[ingredientId]
+          }
+        }
+      }
+      
+      for (const t of data.transactions) {
+        if (t.store === store && t.ingredientId === ingredientId && t.date > fromDate && t.date <= toDate && t.type !== 'adjustment') {
+          total += t.quantity
+        }
+      }
+      return total
+    }
 
-    const getDailyAvg = (store, ingredientId) => r1(getConsumed7d(store, ingredientId) / 7)
+    const getDailyAvg = (store, ingredientId, days = 7) => {
+      if (days === 7) return r1(getConsumed7d(store, ingredientId) / 7)
+      return r1(getConsumedForDays(store, ingredientId, days) / days)
+    }
+
     const isLowStock  = (store, ingredientId) => estimateCurrentStock(store, ingredientId) < getDailyAvg(store, ingredientId) * 3
 
     const getOrderQty = (store, ingredientId, days = 7, bufferPct = 5) => {
       const ing = ingredients.find(i => i.id === ingredientId)
-      const rawNeeded = getDailyAvg(store, ingredientId) * days * (1 + bufferPct / 100) - estimateCurrentStock(store, ingredientId)
+      const consumedPeriod = days === 7 ? getConsumed7d(store, ingredientId) : getConsumedForDays(store, ingredientId, days)
+      const rawNeeded = consumedPeriod * (1 + bufferPct / 100) - estimateCurrentStock(store, ingredientId)
       return roundOrderQty(rawNeeded, ing)
     }
 
