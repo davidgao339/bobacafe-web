@@ -162,6 +162,38 @@ export const PRODUCT_TYPES = [
     keywords: [/сахар/i, /sugar/i, /фруктоз/i, /fructose/i, /глюкоз/i],
   },
   {
+    id: 'lids',
+    nameRu: 'Крышки',
+    nameEn: 'Lids',
+    roundStep: 50,
+    defaultUnit: 'шт',
+    keywords: [/крышк/i, /lid/i],
+  },
+  {
+    id: 'straws',
+    nameRu: 'Трубочки',
+    nameEn: 'Straws',
+    roundStep: 250,
+    defaultUnit: 'шт',
+    keywords: [/трубочк/i, /straw/i],
+  },
+  {
+    id: 'marshmallow',
+    nameRu: 'Маршмеллоу',
+    nameEn: 'Marshmallow',
+    roundStep: 100,
+    defaultUnit: 'г',
+    keywords: [/маршмеллоу/i, /marshmallow/i],
+  },
+  {
+    id: 'cheese_powder',
+    nameRu: 'Сырный порошок',
+    nameEn: 'Cheese powder',
+    roundStep: 1000,
+    defaultUnit: 'г',
+    keywords: [/сырн.*порошок/i, /cheese.*powder/i, /порошок.*сырн/i],
+  },
+  {
     id: 'other',
     nameRu: 'Другое (без кратности)',
     nameEn: 'Other (no rounding)',
@@ -223,6 +255,9 @@ export function detectProductType(name = '', unit = '') {
   if (/какао/i.test(cleanName) || /cocoa/i.test(cleanName)) {
     return PRODUCT_TYPE_MAP['cocoa']
   }
+  if (/сырн.*порошок/i.test(cleanName) || /cheese.*powder/i.test(cleanName) || /порошок.*сырн/i.test(cleanName)) {
+    return PRODUCT_TYPE_MAP['cheese_powder']
+  }
   if (/сухое\s*молок/i.test(cleanName) || /сухие\s*сливк/i.test(cleanName) || /порошок/i.test(cleanName) || /порошков/i.test(cleanName) || /powder/i.test(cleanName) || /пудра/i.test(cleanName) || /матча/i.test(cleanName) || /matcha/i.test(cleanName)) {
     return PRODUCT_TYPE_MAP['powder']
   }
@@ -270,6 +305,17 @@ export function detectProductType(name = '', unit = '') {
   // 14. Toppings
   if (/топпинг/i.test(cleanName) || /topping/i.test(cleanName) || /желе/i.test(cleanName) || /jelly/i.test(cleanName) || /алоэ/i.test(cleanName) || /aloe/i.test(cleanName) || /боба/i.test(cleanName) || /boba/i.test(cleanName) || /nata/i.test(cleanName) || /тапиок/i.test(cleanName) || /tapioca/i.test(cleanName)) {
     return PRODUCT_TYPE_MAP['topping']
+  }
+
+  // 15. Packaging and Miscellaneous
+  if (/крышк/i.test(cleanName) || /lid/i.test(cleanName)) {
+    return PRODUCT_TYPE_MAP['lids']
+  }
+  if (/трубочк/i.test(cleanName) || /straw/i.test(cleanName)) {
+    return PRODUCT_TYPE_MAP['straws']
+  }
+  if (/маршмеллоу/i.test(cleanName) || /marshmallow/i.test(cleanName)) {
+    return PRODUCT_TYPE_MAP['marshmallow']
   }
 
   return null
