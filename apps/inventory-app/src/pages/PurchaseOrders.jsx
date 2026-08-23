@@ -159,6 +159,7 @@ function exportPO(po, config) {
           <th class="col-name">НАИМЕНОВАНИЕ</th>
           <th class="col-qty">ЗАКАЗ</th>
           <th class="col-unit">ЕД. ИЗМ.</th>
+          <th class="col-expiry">СРОК ГОДН.</th>
         </tr></thead>
         <tbody>${g.lines.map(l => `
           <tr>
@@ -167,6 +168,7 @@ function exportPO(po, config) {
             <td class="col-name">${esc(l.name)}</td>
             <td class="col-qty">${l.ordered}</td>
             <td class="col-unit">${esc(l.unit)}</td>
+            <td class="col-expiry"><div class="line-blank"></div></td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -212,6 +214,8 @@ table.items-table tr{break-inside:avoid;page-break-inside:avoid}
 .col-cb{width:50px;text-align:center}
 .col-qty{width:90px;text-align:right;font-weight:700}
 .col-unit{width:80px;color:#888;font-size:12px}
+.col-expiry{width:110px;}
+.line-blank{border-bottom:1px solid #ccc;height:14px;width:100%;}
 .cb{display:inline-block;width:17px;height:17px;border:1.5px solid #aaa;border-radius:3px}
 .instr{font-style:italic;font-size:11px;color:#888;padding:12px 0;border-top:1px dashed #ccc;margin-top:8px;break-inside:avoid;page-break-inside:avoid}
 
@@ -282,6 +286,7 @@ table.items-table tr{break-inside:avoid;page-break-inside:avoid}
             <div class="sig-field"><div class="sig-label">Товар принял (ФИО сотрудника):</div><div class="sig-line"></div></div>
             <div class="sig-field"><div class="sig-label">Подпись:</div><div class="sig-line"></div></div>
             <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
+            <div class="sig-field" style="flex: 0.5;"><div class="sig-label">Всего страниц:</div><div class="sig-line"></div></div>
           </div>
         </div>
 
