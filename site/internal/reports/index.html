@@ -1,432 +1,239 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <script>
-      if (sessionStorage.getItem('bc_pin_reports') !== '1') {
-        window.location.replace('/internal/');
-      }
-    </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Отчёты — Боба Кролик</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg:            #F5F5F7;
-            --surface:       #FFFFFF;
-            --border-light:  #E5E5EA;
-            --border-strong: #D1D1D6;
-            --text-1:        #111111;
-            --text-2:        #48484A;
-            --text-3:        #8E8E93;
-            --brand:         #784D38;
-            --brand-light:   #F7F2EF;
-            --accent-green:  #197A3B;
-            --accent-green-bg:#EBF6ED;
-            --shadow-sm:     0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
-            --shadow-md:     0 10px 25px rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.03);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text-1);
-            min-height: 100vh;
-            font-size: 15px;
-            line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        nav {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border-light);
-            height: 64px;
-            padding: 0 32px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .nav-back {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--brand);
-            text-decoration: none;
-            transition: color 0.15s ease;
-        }
-        .nav-back:hover { color: #4E3123; text-decoration: underline; }
-
-        .nav-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 17px;
-            font-weight: 700;
-            color: var(--text-1);
-        }
-
-        .page {
-            max-width: 920px;
-            margin: 0 auto;
-            padding: 48px 24px 80px;
-        }
-
-        .page-header {
-            margin-bottom: 36px;
-        }
-
-        .page-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 34px;
-            font-weight: 700;
-            color: var(--text-1);
-            letter-spacing: -0.03em;
-            margin-bottom: 8px;
-        }
-
-        .page-sub {
-            font-size: 15px;
-            color: var(--text-2);
-        }
-
-        .section-label {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--text-3);
-            margin: 32px 0 14px 4px;
-        }
-
-        .report-list {
-            background: var(--surface);
-            border: 1px solid var(--border-light);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .report-item {
-            display: flex;
-            align-items: center;
-            padding: 16px 20px;
-            text-decoration: none;
-            color: inherit;
-            border-bottom: 1px solid var(--border-light);
-            transition: background 0.15s ease;
-        }
-        .report-item:last-child {
-            border-bottom: none;
-        }
-        .report-item:hover {
-            background: var(--brand-light);
-        }
-
-        .report-icon {
-            font-size: 20px;
-            margin-right: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: var(--bg);
-            border: 1px solid var(--border-light);
-        }
-
-        .report-info {
-            flex: 1;
-        }
-
-        .report-name {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text-1);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .new-badge {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--accent-green);
-            background: var(--accent-green-bg);
-            padding: 2px 8px;
-            border-radius: 999px;
-            border: 1px solid rgba(25,122,59,0.2);
-            text-transform: uppercase;
-        }
-
-        .report-date {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
-            color: var(--text-3);
-            margin-top: 2px;
-        }
-
-        .report-arrow {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-3);
-            transition: transform 0.15s ease, color 0.15s ease;
-        }
-        .report-item:hover .report-arrow {
-            color: var(--brand);
-            transform: translateX(4px);
-        }
-
-        footer {
-            text-align: center;
-            padding: 32px 24px;
-            font-size: 13px;
-            color: var(--text-3);
-            border-top: 1px solid var(--border-light);
-            margin-top: 48px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boba Cafe — Reports</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #24292e;
+      background: #f6f8fa;
+      margin: 0;
+      padding: 24px;
+    }
+    #content {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      padding: 40px 48px;
+    }
+    h1 {
+      font-size: 1.9em;
+      border-bottom: 2px solid #d0d7de;
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 1.1em;
+      color: #57606a;
+      font-weight: 500;
+      margin-top: 0;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 2em 0 0;
+    }
+    li {
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      transition: box-shadow 0.15s;
+    }
+    li:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    li a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      text-decoration: none;
+      color: #0969da;
+      font-weight: 500;
+    }
+    li a:hover { text-decoration: underline; }
+    .icon { font-size: 1.2em; flex-shrink: 0; }
+    .label { flex: 1; }
+    .badge {
+      font-size: 0.75em;
+      background: #ddf4ff;
+      color: #0969da;
+      border: 1px solid #b6e3ff;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-weight: 500;
+    }
+    .badge.product { background: #fff8c5; color: #9a6700; border-color: #e3b341; }
+    footer {
+      margin-top: 2.5em;
+      padding-top: 1.2em;
+      border-top: 1px solid #eaecef;
+      font-size: 0.85em;
+      color: #57606a;
+    }
+  </style>
 </head>
 <body>
-
-<nav>
-    <a href="/internal/" class="nav-back">← Портал</a>
-    <div class="nav-title">Боба Кролик</div>
-    <div style="width: 60px;"></div>
-</nav>
-
-<div class="page">
-    <div class="page-header">
-        <h1 class="page-title">Отчёты</h1>
-        <p class="page-sub">Внутренняя бизнес-аналитика — обновляется автоматически</p>
-    </div>
-
-    <div class="section-label">Еженедельные отчеты</div>
-    <div class="report-list">
-        <a href="2026-08-24_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт <span class="new-badge">Новый</span></div>
-                <div class="report-date">24 августа 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+  <div id="content">
+    <h1>Boba Cafe Reports</h1>
+    <h2>Weekly and product health analysis</h2>
+    <ul>
+      <li>
+        <a href="2026-08-24_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Aug 24, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-08-17_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">17 августа 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-08-17_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Aug 17, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-08-10_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">10 августа 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-08-10_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Aug 10, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-08-03_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">3 августа 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-08-03_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Aug 03, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-07-27_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">27 июля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-07-27_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jul 27, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-07-13_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">13 июля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-07-13_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jul 13, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-07-06_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">6 июля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-07-06_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jul 06, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-06-29_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">29 июня 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-06-29_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jun 29, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-06-22_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">22 июня 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-06-22_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jun 22, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-06-15_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">15 июня 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-06-15_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jun 15, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-06-08_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">8 июня 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-06-08_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jun 08, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-06-01_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">1 июня 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-06-01_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Jun 01, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-05-25_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">25 мая 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-05-25_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — May 25, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-05-18_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">18 мая 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-05-18_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — May 18, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-05-11_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">11 мая 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-05-11_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — May 11, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-05-04_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">4 мая 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-05-04_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — May 04, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-04-27_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">27 апреля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-04-27_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Apr 27, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-04-20_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">20 апреля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-04-20_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Apr 20, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-04-13_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">13 апреля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-04-13_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Apr 13, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-04-06_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">6 апреля 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-04-06_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Apr 06, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-        <a href="2026-03-30_weekly_report.html" class="report-item">
-            <div class="report-icon">📈</div>
-            <div class="report-info">
-                <div class="report-name">Еженедельный отчёт </div>
-                <div class="report-date">30 марта 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
+      </li>
+      <li>
+        <a href="2026-03-30_weekly_report.html">
+          <span class="icon">📊</span>
+          <span class="label">Weekly Report — Mar 30, 2026</span>
+          <span class="badge">Weekly</span>
         </a>
-    </div>
-
-    <div class="section-label">Ежемесячная аналитика</div>
-    <div class="report-list">
-        <a href="2026-06_product_health.html" class="report-item">
-            <div class="report-icon">📊</div>
-            <div class="report-info">
-                <div class="report-name">Product Health </div>
-                <div class="report-date">Июнь 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
-        </a>
-        <a href="2026-05_product_health.html" class="report-item">
-            <div class="report-icon">📊</div>
-            <div class="report-info">
-                <div class="report-name">Product Health </div>
-                <div class="report-date">Май 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
-        </a>
-        <a href="2026-04_product_health.html" class="report-item">
-            <div class="report-icon">📊</div>
-            <div class="report-info">
-                <div class="report-name">Product Health </div>
-                <div class="report-date">Апрель 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
-        </a>
-        <a href="2026-03_product_health.html" class="report-item">
-            <div class="report-icon">📊</div>
-            <div class="report-info">
-                <div class="report-name">Product Health </div>
-                <div class="report-date">Март 2026</div>
-            </div>
-            <span class="report-arrow">→</span>
-        </a>
-    </div>
-
-</div>
-
-<footer>
-    Боба Кролик &copy; 2026 &nbsp;·&nbsp; Служебный раздел аналитики
-</footer>
-
+      </li>
+    </ul>
+    <footer>Boba Cafe — internal analytics</footer>
+  </div>
 </body>
 </html>
