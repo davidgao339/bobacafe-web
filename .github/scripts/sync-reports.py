@@ -59,9 +59,16 @@ for obj in html_files:
 
     try:
         with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            import base64
-            html_content = base64.b64decode(data['content'])
+            raw_bytes = response.read()
+            raw_text = raw_bytes.decode('utf-8', errors='ignore').lstrip()
+            
+            if raw_text.startswith('{"content"'):
+                import json, base64
+                data = json.loads(raw_text)
+                html_content = base64.b64decode(data['content'])
+            else:
+                html_content = raw_bytes
+                
             dest_path = os.path.join(dest_dir, file_name)
             with open(dest_path, "wb") as f:
                 f.write(html_content)
