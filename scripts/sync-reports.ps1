@@ -1,4 +1,4 @@
-# sync-reports.ps1
+﻿# sync-reports.ps1
 # Copies generated HTML reports from boba-cafe-databricks into internal/reports/
 # and regenerates the index. Run this after pulling boba-cafe-databricks.
 #

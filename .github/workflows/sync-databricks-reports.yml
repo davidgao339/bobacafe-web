@@ -4,6 +4,8 @@ on:
   schedule:
     # Every Monday at 09:00 UTC (after typical analysis completion)
     - cron: "0 9 * * 1"
+    # 1st of every month at 09:00 UTC for monthly reports
+    - cron: "0 9 1 * *"
   workflow_dispatch:
 
 permissions:
@@ -36,9 +38,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Only commit if there are changes
-          if ! git diff --quiet internal/reports/; then
-            git add internal/reports/
-            git commit -m "sync: update weekly reports from Databricks" -m "Downloaded latest analysis reports and updated index.html" -m "Co-Authored-By: Databricks Analysis <noreply@databricks.com>"
+          if ! git diff --quiet site/internal/reports/; then
+            git add site/internal/reports/
+            git commit -m "sync: update reports from Databricks" -m "Downloaded latest analysis reports and updated index.html" -m "Co-Authored-By: Databricks Analysis <noreply@databricks.com>"
             git push
           else
             echo "No changes to commit"

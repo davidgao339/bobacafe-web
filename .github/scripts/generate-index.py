@@ -6,7 +6,7 @@ import os
 import re
 from datetime import datetime
 
-dest_dir = "internal/reports"
+dest_dir = "site/internal/reports"
 
 # Get all HTML files except index.html, sorted by date (newest first)
 html_files = sorted(

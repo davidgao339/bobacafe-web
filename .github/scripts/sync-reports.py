@@ -11,7 +11,7 @@ import urllib.parse
 workspace = os.environ["DATABRICKS_WORKSPACE"]
 token = os.environ["DATABRICKS_TOKEN"]
 src_path = "/Workspace/Users/davidgao734@gmail.com/boba-cafe/weekly-analysis/analysis-html"
-dest_dir = "internal/reports"
+dest_dir = "site/internal/reports"
 
 headers = {
     "Authorization": f"Bearer {token}",
