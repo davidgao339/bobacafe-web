@@ -110,15 +110,19 @@ index_html = """<!DOCTYPE html>
 
 # Parse filenames and create links
 for filename in html_files:
-    # Extract date from filename (e.g., 2026-04-20_weekly_report.html)
-    match = re.match(r"(\d{4}-\d{2}-\d{2})_(.+)\.html", filename)
+    # Extract date from filename (e.g., 2026-04-20_weekly_report.html or 2026-08_product_health.html)
+    match = re.match(r"(\d{4}-\d{2}(?:-\d{2})?)_(.+)\.html", filename)
     if match:
         date_str = match.group(1)
         report_type = match.group(2)
 
         # Format date for display
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        formatted_date = date_obj.strftime("%b %d, %Y")
+        if len(date_str) == 7:  # YYYY-MM
+            date_obj = datetime.strptime(date_str, "%Y-%m")
+            formatted_date = date_obj.strftime("%b %Y")
+        else:  # YYYY-MM-DD
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            formatted_date = date_obj.strftime("%b %d, %Y")
 
         # Determine icon and badge
         if "weekly_report" in report_type:
@@ -128,7 +132,7 @@ for filename in html_files:
         elif "product_health" in report_type:
             icon = "🧋"
             badge = "Product Health"
-            label = f"Product Health — {date_obj.strftime('%B %Y')}"
+            label = f"Product Health — {formatted_date}"
         else:
             icon = "📄"
             badge = "Report"
