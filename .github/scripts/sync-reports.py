@@ -59,10 +59,12 @@ for obj in html_files:
 
     try:
         with urllib.request.urlopen(req) as response:
-            content = response.read()
+            data = json.loads(response.read().decode('utf-8'))
+            import base64
+            html_content = base64.b64decode(data['content'])
             dest_path = os.path.join(dest_dir, file_name)
             with open(dest_path, "wb") as f:
-                f.write(content)
+                f.write(html_content)
             downloaded.append(file_name)
             print(f"  ✓ {file_name}")
     except urllib.error.HTTPError as e:
