@@ -4,7 +4,6 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Sidebar from './components/Sidebar'
 import InventoryAudit from './pages/InventoryAudit'
 import Transactions from './pages/Transactions'
-import ReplenishmentReport from './pages/ReplenishmentReport'
 import TapiocaCookingPlan from './pages/TapiocaCookingPlan'
 import Recipes from './pages/Recipes'
 import VarianceReport from './pages/VarianceReport'
@@ -226,7 +225,6 @@ function AppContent({ role, onLogout }) {
             <Route path="/audit/:tab?" element={<AuditWrapper />} />
             <Route path="/transactions/:tab?" element={<TransactionsWrapper />} />
             <Route path="/tapioca" element={<TapiocaCookingPlan />} />
-            <Route path="/report" element={<ReplenishmentReport onNavigate={(pageId) => navigate(`/${pageId}`)} />} />
             <Route path="/recipes/:tab?" element={<RecipesWrapper />} />
             <Route path="/variance" element={<VarianceReport />} />
             <Route path="/purchases" element={<PurchaseOrdersWrapper />} />

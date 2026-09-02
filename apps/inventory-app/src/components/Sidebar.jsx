@@ -4,30 +4,46 @@ import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { DashIcon, AuditIcon, InventoryIcon, TxIcon, TapiocaIcon, RecipeIcon, VarianceIcon, POIcon, ReportIcon, UsageIcon } from '../icons'
 
-const STAFF_NAV = [
-  { id: 'audit',     labelKey: 'nav.countStock', icon: AuditIcon, children: [
-    { id: 'count',   labelKey: 'audit.tabCount' },
-    { id: 'history', labelKey: 'audit.tabHistory' },
-    { id: 'import',  labelKey: 'audit.tabImport' },
-  ]},
-]
-
-const MANAGER_NAV = [
-  { id: 'inventory',    labelKey: 'nav.inventory',     icon: InventoryIcon },
-  { id: 'transactions', labelKey: 'nav.transactions',  icon: TxIcon, children: [
-    { id: 'sales',  labelKey: 'tx.tabSales' },
-    { id: 'waste',  labelKey: 'tx.tabWaste' },
-  ]},
-  { id: 'tapioca',  labelKey: 'nav.tapioca', icon: TapiocaIcon },
-  { id: 'recipes', labelKey: 'nav.recipes', icon: RecipeIcon, children: [
-    { id: 'ingredients', labelKey: 'recipes.tabIngredients' },
-    { id: 'recipes',     labelKey: 'recipes.tabRecipes' },
-    { id: 'suppliers',   labelKey: 'recipes.tabSuppliers' },
-  ]},
-  { id: 'variance',  labelKey: 'nav.losses',        icon: VarianceIcon },
-  { id: 'purchases', labelKey: 'nav.purchases',     icon: POIcon },
-  { id: 'report',    labelKey: 'nav.replenishment', icon: ReportIcon },
-  { id: 'usage',     labelKey: 'nav.usage',         icon: UsageIcon },
+const NAV_GROUPS = [
+  {
+    titleKey: 'nav.group.coreOps',
+    items: [
+      { id: 'inventory',    labelKey: 'nav.inventory',     icon: InventoryIcon },
+      { id: 'purchases',    labelKey: 'nav.purchases',     icon: POIcon },
+      { id: 'usage',        labelKey: 'nav.usage',         icon: UsageIcon },
+    ]
+  },
+  {
+    titleKey: 'nav.group.reconciliation',
+    items: [
+      { id: 'audit',     labelKey: 'nav.countStock', icon: AuditIcon, children: [
+        { id: 'count',   labelKey: 'audit.tabCount' },
+        { id: 'history', labelKey: 'audit.tabHistory' },
+        { id: 'import',  labelKey: 'audit.tabImport' },
+      ]},
+      { id: 'variance',  labelKey: 'nav.losses',        icon: VarianceIcon },
+    ]
+  },
+  {
+    titleKey: 'nav.group.masterData',
+    items: [
+      { id: 'recipes', labelKey: 'nav.recipes', icon: RecipeIcon, children: [
+        { id: 'ingredients', labelKey: 'recipes.tabIngredients' },
+        { id: 'recipes',     labelKey: 'recipes.tabRecipes' },
+        { id: 'suppliers',   labelKey: 'recipes.tabSuppliers' },
+      ]},
+      { id: 'transactions', labelKey: 'nav.transactions',  icon: TxIcon, children: [
+        { id: 'sales',  labelKey: 'tx.tabSales' },
+        { id: 'waste',  labelKey: 'tx.tabWaste' },
+      ]},
+    ]
+  },
+  {
+    titleKey: 'nav.group.retailOps',
+    items: [
+      { id: 'tapioca',  labelKey: 'nav.tapioca', icon: TapiocaIcon },
+    ]
+  }
 ]
 
 function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, onNavigate }) {
@@ -153,15 +169,14 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
       })()}
 
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
-        {STAFF_NAV.map(item => (
-          <NavItem key={item.id} {...item} currentPage={currentPage} currentTab={currentTab} onNavigate={onNavigate} />
-        ))}
-
-        <div className="my-3 border-t border-slate-700" />
-        <p className="px-3 text-slate-500 text-xs font-medium uppercase tracking-wider mb-1">{t('nav.manager')}</p>
-
-        {MANAGER_NAV.map(item => (
-          <NavItem key={item.id} {...item} currentPage={currentPage} currentTab={currentTab} onNavigate={onNavigate} />
+        {NAV_GROUPS.map((group, i) => (
+          <div key={group.titleKey}>
+            {i > 0 && <div className="my-2 border-t border-slate-700" />}
+            <p className="px-3 text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1 mt-1">{t(group.titleKey)}</p>
+            {group.items.map(item => (
+              <NavItem key={item.id} {...item} currentPage={currentPage} currentTab={currentTab} onNavigate={onNavigate} />
+            ))}
+          </div>
         ))}
       </nav>
 

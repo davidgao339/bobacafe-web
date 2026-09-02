@@ -14,6 +14,10 @@ const en = {
   'nav.noSalesData':   'No sales data — sync',
   'nav.refreshHint':   'Estimates depend on the last sales sync. Click to refresh.',
   'nav.manager':       'Manager',
+  'nav.group.coreOps': 'Core Operations',
+  'nav.group.reconciliation': 'Reconciliation',
+  'nav.group.masterData': 'Master Data & Setup',
+  'nav.group.retailOps': 'Retail Ops',
 
   // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Select an ingredient from the list',

@@ -14,6 +14,10 @@ const ru = {
   'nav.noSalesData':   'Нет данных — обновить',
   'nav.refreshHint':   'Оценки зависят от последней синхронизации продаж. Нажмите, чтобы обновить.',
   'nav.manager':       'Менеджер',
+  'nav.group.coreOps': 'Основные операции',
+  'nav.group.reconciliation': 'Сверка',
+  'nav.group.masterData': 'Справочники и Настройки',
+  'nav.group.retailOps': 'Розница',
 
   // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Выберите ингредиент из списка',
