@@ -240,12 +240,6 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
           </details>
         )}
 
-        {msg && (
-          <p className={`px-3 text-xs ${msg.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
-            {msg.text}
-          </p>
-        )}
-
         {onLogout && (
           <button onClick={onLogout}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
