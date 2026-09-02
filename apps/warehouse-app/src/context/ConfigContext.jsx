@@ -104,8 +104,8 @@ export function ConfigProvider({ children }) {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
     return { token: '', warehouseId: '', ...stored }
   })
-  const [stores, setStoresState] = useState(() => STORES)
-  const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
+  const [stores, setStoresState] = useState(() => ['Warehouse'])
+  const [suppressedStores, setSuppressedStores] = useState([])
 
   // ─── D1 Data Loading ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -113,7 +113,7 @@ export function ConfigProvider({ children }) {
       try {
         const [ingRes, recRes, suppRes, txRes, poRes, audRes] = await Promise.all([
           queryD1('SELECT * FROM ingredients'),
-          queryD1("SELECT * FROM recipes WHERE type = 'retail'"),
+          queryD1("SELECT * FROM recipes WHERE type = 'production'"),
           queryD1('SELECT * FROM suppliers'),
           queryD1('SELECT * FROM transactions'),
           queryD1('SELECT * FROM purchase_orders'),
@@ -177,18 +177,7 @@ export function ConfigProvider({ children }) {
     idbRemove(SALES_CACHE_KEY).catch(console.error)
   }, [])
 
-  const toggleStoreVisibility = useCallback((store) => {
-    setSuppressedStores(prev => {
-      const next = prev.includes(store) ? prev.filter(s => s !== store) : [...prev, store]
-      saveToStorage(SUPPRESSED_STORES_KEY, next)
-      return next
-    })
-  }, [])
-
-  const visibleStores = useMemo(() => {
-    if (!stores || !suppressedStores) return stores || []
-    return stores.filter(s => !suppressedStores.includes(s))
-  }, [stores, suppressedStores])
+  const visibleStores = ['Warehouse']
 
   // ─── Operational data mutations (Optimistic + D1) ───────────────────────────
 
@@ -358,7 +347,7 @@ export function ConfigProvider({ children }) {
       if (next.recipes !== prev.recipes) {
         for (const [product, mapping] of Object.entries(next.recipes)) {
           if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product])) {
-            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
+            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
           }
         }
       }
@@ -483,9 +472,9 @@ export function ConfigProvider({ children }) {
             await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null])
           }
           
-          await queryD1(`DELETE FROM recipes WHERE type = 'retail'`)
+          await queryD1(`DELETE FROM recipes WHERE type = 'production'`)
           for (const [product, mapping] of Object.entries(conf.recipes)) {
-            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)])
+            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)])
           }
           
           await queryD1(`DELETE FROM suppliers`)
@@ -534,9 +523,18 @@ export function ConfigProvider({ children }) {
     })
   , [])
 
+  const filteredData = useMemo(() => {
+    if (!data) return data
+    return {
+      ...data,
+      purchaseOrders: (data.purchaseOrders || []).filter(po => po.store === 'Warehouse' || po.fromLocation === 'Warehouse' || po.toLocation === 'Warehouse'),
+      transactions: (data.transactions || []).filter(tx => tx.store === 'Warehouse'),
+      audits: (data.audits || []).filter(a => a.store === 'Warehouse')
+    }
+  }, [data])
+
   // If not loaded, we can return null to avoid crashing child components that expect full data,
   // or return the context. For now, children expect data to be defined. It starts as DEFAULT_DATA.
-  
   if (!isD1Loaded) {
     return <div className="flex h-screen items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
   }
@@ -544,11 +542,11 @@ export function ConfigProvider({ children }) {
   return (
     <ConfigContext.Provider value={{
       config, setConfig,
-      data, setData,
+      data: filteredData, setData,
       addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
-      stores, visibleStores, suppressedStores, toggleStoreVisibility,
+      stores, visibleStores, suppressedStores, toggleStoreVisibility: () => {},
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,

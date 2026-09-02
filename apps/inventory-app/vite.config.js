@@ -5,6 +5,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   base: mode === 'development' ? '/demo/inventory-app/' : '/internal/inventory/',
   server: {
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/databricks-proxy': {
         target: 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com',
