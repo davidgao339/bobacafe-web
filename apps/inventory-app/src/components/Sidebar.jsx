@@ -5,7 +5,6 @@ import { useLanguage } from '../context/LanguageContext'
 import { DashIcon, AuditIcon, InventoryIcon, TxIcon, TapiocaIcon, RecipeIcon, VarianceIcon, POIcon, ReportIcon, UsageIcon } from '../icons'
 
 const STAFF_NAV = [
-  { id: 'dashboard', labelKey: 'nav.home',      icon: DashIcon },
   { id: 'audit',     labelKey: 'nav.countStock', icon: AuditIcon, children: [
     { id: 'count',   labelKey: 'audit.tabCount' },
     { id: 'history', labelKey: 'audit.tabHistory' },
@@ -72,7 +71,7 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
 export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const currentPage = location.pathname.split('/')[1] || 'dashboard'
+  const currentPage = location.pathname.split('/')[1] || 'inventory'
   const currentTab = location.pathname.split('/')[2] || null
   const onNavigate = (pageId, tabId = null) => {
     navigate(`/${pageId}${tabId ? '/' + tabId : ''}`)

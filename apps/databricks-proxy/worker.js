@@ -34,7 +34,7 @@ export default {
     }
     
     // ── D1 Direct Query (for warehouse app eventually) ────────────────────────
-    if (path === '/d1/query' && request.method === 'POST') {
+    if (path === '/d1/execute' && request.method === 'POST') {
       return handleD1Query(request, env)
     }
 

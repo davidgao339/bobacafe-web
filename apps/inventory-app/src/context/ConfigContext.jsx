@@ -140,7 +140,7 @@ export function ConfigProvider({ children }) {
         setIsD1Loaded(true)
       } catch (err) {
         console.error("Failed to load from D1:", err)
-        alert("Could not load database. Running empty.")
+        alert(`Could not load database. Running empty. Error: ${err.message}`)
         setIsD1Loaded(true)
       }
     }

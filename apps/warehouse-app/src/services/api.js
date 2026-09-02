@@ -1,5 +1,5 @@
 const SALES_TABLE = 'workspace.default.transactions'
-const BACKUP_BASE = import.meta.env.DEV ? 'http://localhost:8787' : 'https://bobacafe-proxy.davidgao734.workers.dev'
+const BACKUP_BASE = 'https://bobacafe-proxy.davidgao734.workers.dev'
 
 export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate) {
   if (!fromDate || !toDate) return []
@@ -41,7 +41,7 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 }
 
 export async function queryD1(sql, params = []) {
-  const resp = await fetch(`${BACKUP_BASE}/d1/query`, {
+  const resp = await fetch(`${BACKUP_BASE}/d1/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sql, params }),

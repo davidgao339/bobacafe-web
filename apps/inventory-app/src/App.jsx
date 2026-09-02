@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { ConfigProvider, useConfig } from './context/ConfigContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Sidebar from './components/Sidebar'
-import Dashboard from './pages/Dashboard'
 import InventoryAudit from './pages/InventoryAudit'
 import Transactions from './pages/Transactions'
 import ReplenishmentReport from './pages/ReplenishmentReport'
@@ -223,8 +222,7 @@ function AppContent({ role, onLogout }) {
         </div>
         <div className="flex-1 overflow-auto">
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard onNavigate={(pageId, tabId) => navigate(`/${pageId}${tabId ? '/' + tabId : ''}`)} />} />
+            <Route path="/" element={<Navigate to="/inventory" replace />} />
             <Route path="/audit/:tab?" element={<AuditWrapper />} />
             <Route path="/transactions/:tab?" element={<TransactionsWrapper />} />
             <Route path="/tapioca" element={<TapiocaCookingPlan />} />
@@ -242,7 +240,7 @@ function AppContent({ role, onLogout }) {
               }
             }} />} />
             <Route path="/usage" element={<UsageReportWrapper />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/inventory" replace />} />
           </Routes>
         </div>
       </main>
