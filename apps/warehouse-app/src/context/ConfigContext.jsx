@@ -350,6 +350,29 @@ export function ConfigProvider({ children }) {
             queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
           }
         }
+        const nextProducts = new Set(Object.keys(next.recipes))
+        for (const product of Object.keys(prev.recipes)) {
+          if (!nextProducts.has(product)) {
+            queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'production'`, [product]).catch(console.error)
+          }
+        }
+      }
+
+      // Compute delta for ingredients
+      if (next.ingredients !== prev.ingredients) {
+        for (const ing of next.ingredients) {
+          const oldIng = prev.ingredients.find(i => i.id === ing.id)
+          if (!oldIng || JSON.stringify(oldIng) !== JSON.stringify(ing)) {
+            queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, 
+              [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null]).catch(console.error)
+          }
+        }
+        const nextIds = new Set(next.ingredients.map(i => i.id))
+        for (const oldIng of prev.ingredients) {
+          if (!nextIds.has(oldIng.id)) {
+            queryD1(`DELETE FROM ingredients WHERE id = ?`, [oldIng.id]).catch(console.error)
+          }
+        }
       }
       
       return next
