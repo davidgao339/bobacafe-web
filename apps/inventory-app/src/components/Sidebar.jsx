@@ -102,9 +102,9 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
       const file = e.target.files?.[0]
       if (!file) return
       await importConfig(file)
-      flash('ok', 'Data imported successfully')
+      alert('Data imported successfully')
     } catch (err) {
-      flash('err', 'Failed to import JSON')
+      alert('Failed to import JSON: ' + err.message)
     }
     // reset input so same file can be uploaded again if needed
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -112,9 +112,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
 
   const { lang, setLang, t } = useLanguage()
 
-
-
-
+  const [storesOpen, setStoresOpen] = useState(false)
   return (
     <>
       {mobileOpen && (
