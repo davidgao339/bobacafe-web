@@ -111,17 +111,31 @@ const DEFAULT_TABS = {
 }
 
 function LogisticsView({ onLogout }) {
-  const { config } = useConfig()
+  const { config, listCloudBackups, restoreCloudBackup } = useConfig()
   const { t } = useLanguage()
+  const [loadState, setLoadState] = useState(null) // null | 'loading' | 'done' | 'error'
   const [activeTab, setActiveTab] = useState('levels') // 'levels' | 'ledger'
   const [ledgerStore, setLedgerStore] = useState(null)
   const [ledgerIngredientId, setLedgerIngredientId] = useState(null)
 
   const hasData = (config.ingredients ?? []).length > 0
 
-  const handleLoad = () => {
-    window.location.reload()
+  const handleLoad = async () => {
+    setLoadState('loading')
+    try {
+      const backups = await listCloudBackups()
+      if (!backups || backups.length === 0) throw new Error('No backups found')
+      const latest = backups.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))[0]
+      await restoreCloudBackup(latest.id)
+      setLoadState('done')
+    } catch {
+      setLoadState('error')
+    }
   }
+
+  useEffect(() => {
+    if (!hasData && loadState === null) handleLoad()
+  }, [])
 
   const handleNavigateFromLevels = (pageId, tabId, params) => {
     if (pageId === 'usage') {
@@ -163,7 +177,16 @@ function LogisticsView({ onLogout }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {hasData && (
+          {loadState === 'loading' && (
+            <span className="text-xs text-gray-400">Загрузка...</span>
+          )}
+          {loadState === 'error' && (
+            <button onClick={handleLoad}
+              className="text-xs text-red-600 hover:text-red-700 px-2.5 py-1 border border-red-200 rounded-md transition-colors">
+              Повторить
+            </button>
+          )}
+          {(loadState === null || loadState === 'done') && hasData && (
             <button onClick={handleLoad}
               className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors">
               Обновить данные
@@ -176,7 +199,11 @@ function LogisticsView({ onLogout }) {
         </div>
       </header>
       <div className="flex-1 overflow-auto">
-        {activeTab === 'levels' ? (
+        {loadState === 'loading' && !hasData ? (
+          <div className="flex items-center justify-center h-full text-sm text-gray-400">
+            Загрузка данных...
+          </div>
+        ) : activeTab === 'levels' ? (
           <InventoryLevels onNavigate={handleNavigateFromLevels} />
         ) : (
           <UsageReport

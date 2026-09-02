@@ -1,8 +1,10 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '../data/fakeData'
-import { fetchDatabricksSales, queryD1 } from '../services/api'
+import { fetchDatabricksSales, fetchCloudBackupsList, pushCloudBackup, fetchCloudBackupData } from '../services/api'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 
+const STORAGE_KEY           = 'bobacafe_inventory_config'
+const DATA_KEY              = 'bobacafe_inventory_data'
 const SALES_CACHE_KEY       = 'bobacafe_sales_cache'
 const SETTINGS_KEY          = 'bobacafe_settings'
 const SUPPRESSED_STORES_KEY = 'bobacafe_suppressed_stores'
@@ -22,6 +24,7 @@ export const DEFAULT_DATA = {
   _nextTxId:    1,
   _nextPoId:    1,
 }
+
 
 // ─── Sales row normaliser ─────────────────────────────────────────────────────
 
@@ -43,6 +46,23 @@ function loadFromStorage(key) {
 }
 function saveToStorage(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+}
+
+// ─── Config migration (handle old format with menuItems/productMap) ───────────
+
+function migrateConfig(raw) {
+  if (!raw) return null
+  const ingredients = raw.ingredients ?? DEFAULT_INGREDIENTS
+  const suppliers   = raw.suppliers   ?? []
+  const maxIngId  = ingredients.reduce((m, i) => Math.max(m, i.id), 0)
+  const maxSuppId = suppliers.reduce((m, s) => Math.max(m, s.id), 0)
+  return {
+    ingredients,
+    recipes:          raw.recipes          ?? DEFAULT_RECIPES,
+    suppliers,
+    _nextIngId:       raw._nextIngId       ?? maxIngId  + 1,
+    _nextSupplierId:  raw._nextSupplierId  ?? maxSuppId + 1,
+  }
 }
 
 // ─── IndexedDB helpers (for large data like sales cache) ───────────────
@@ -94,58 +114,17 @@ async function idbRemove(key) {
 const ConfigContext = createContext(null)
 
 export function ConfigProvider({ children }) {
-  // Initialize with empty defaults, will populate from D1
-  const [config, setConfigState] = useState({ ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 })
-  const [data, setDataState] = useState(DEFAULT_DATA)
-  
-  const [isD1Loaded, setIsD1Loaded] = useState(false)
+  const [config, setConfigState] = useState(() =>
+    migrateConfig(loadFromStorage(STORAGE_KEY)) ?? { ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 }
+  )
+  const [data,       setDataState]       = useState(() => loadFromStorage(DATA_KEY)        ?? DEFAULT_DATA)
   const [salesCache, setSalesCacheState] = useState(null)
-  const [settings, setSettingsState] = useState(() => {
+  const [settings,   setSettingsState]   = useState(() => {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
     return { token: '', warehouseId: '', ...stored }
   })
-  const [stores, setStoresState] = useState(() => STORES)
+  const [stores,     setStoresState]     = useState(() => STORES) // Start with defaults, update from Databricks
   const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
-
-  // ─── D1 Data Loading ────────────────────────────────────────────────────────
-  useEffect(() => {
-    async function loadFromD1() {
-      try {
-        const [ingRes, recRes, suppRes, txRes, poRes, audRes] = await Promise.all([
-          queryD1('SELECT * FROM ingredients'),
-          queryD1("SELECT * FROM recipes WHERE type = 'retail'"),
-          queryD1('SELECT * FROM suppliers'),
-          queryD1('SELECT * FROM transactions'),
-          queryD1('SELECT * FROM purchase_orders'),
-          queryD1('SELECT * FROM audits')
-        ])
-        
-        setConfigState({
-          ingredients: ingRes,
-          recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
-          suppliers: suppRes,
-          _nextIngId: Math.max(0, ...ingRes.map(i => i.id)) + 1,
-          _nextSupplierId: Math.max(0, ...suppRes.map(s => s.id)) + 1,
-        })
-        
-        setDataState({
-          transactions: txRes,
-          purchaseOrders: poRes.map(po => ({...po, lines: JSON.parse(po.lines)})),
-          audits: audRes.map(a => ({...a, counts: JSON.parse(a.counts)})),
-          _nextTxId: Math.max(0, ...txRes.map(t => parseInt(t.id.replace('T-', '')) || 0)) + 1,
-          _nextPoId: Math.max(0, ...poRes.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '')) || 0)) + 1,
-          _nextAuditId: Math.max(0, ...audRes.map(a => parseInt(a.id.replace('A-', '')) || 0)) + 1,
-        })
-        
-        setIsD1Loaded(true)
-      } catch (err) {
-        console.error("Failed to load from D1:", err)
-        alert("Could not load database. Running empty.")
-        setIsD1Loaded(true)
-      }
-    }
-    loadFromD1()
-  }, [])
 
   // Async load sales cache from IDB
   useEffect(() => {
@@ -167,6 +146,36 @@ export function ConfigProvider({ children }) {
     initSalesCache()
   }, [])
 
+  // Sync state when another browser tab writes to localStorage
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === DATA_KEY && e.newValue) {
+        try { setDataState(JSON.parse(e.newValue)) } catch {}
+      }
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try { setConfigState(migrateConfig(JSON.parse(e.newValue))) } catch {}
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  const setConfig = useCallback((updater) => {
+    setConfigState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveToStorage(STORAGE_KEY, next)
+      return next
+    })
+  }, [])
+
+  const setData = useCallback((updater) => {
+    setDataState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      saveToStorage(DATA_KEY, next)
+      return next
+    })
+  }, [])
+
   const saveSettings = useCallback((s) => {
     setSettingsState(s)
     saveToStorage(SETTINGS_KEY, s)
@@ -179,7 +188,9 @@ export function ConfigProvider({ children }) {
 
   const toggleStoreVisibility = useCallback((store) => {
     setSuppressedStores(prev => {
-      const next = prev.includes(store) ? prev.filter(s => s !== store) : [...prev, store]
+      const next = prev.includes(store)
+        ? prev.filter(s => s !== store)
+        : [...prev, store]
       saveToStorage(SUPPRESSED_STORES_KEY, next)
       return next
     })
@@ -190,73 +201,57 @@ export function ConfigProvider({ children }) {
     return stores.filter(s => !suppressedStores.includes(s))
   }, [stores, suppressedStores])
 
-  // ─── Operational data mutations (Optimistic + D1) ───────────────────────────
+  // ─── Operational data mutations ─────────────────────────────────────────────
 
   const addAudit = useCallback((store, date, counts, timestamp) => {
-    setDataState(prev => {
+    setData(prev => {
       const existing = prev.audits.find(a => a.store === store && a.date === date)
       if (existing) {
-        queryD1(`UPDATE audits SET counts = ?, timestamp = ? WHERE id = ?`, [JSON.stringify(counts), timestamp || new Date().toISOString(), existing.id]).catch(console.error)
         return {
           ...prev,
-          audits: prev.audits.map(a => a.id === existing.id ? { ...a, counts: { ...a.counts, ...counts }, ...(timestamp && { timestamp }) } : a),
+          audits: prev.audits.map(a =>
+            a.id === existing.id ? { ...a, counts: { ...a.counts, ...counts }, ...(timestamp && { timestamp }) } : a
+          ),
         }
       }
       const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
-      queryD1(`INSERT INTO audits (id, store, date, counts, timestamp) VALUES (?, ?, ?, ?, ?)`, [id, store, date, JSON.stringify(counts), timestamp || new Date().toISOString()]).catch(console.error)
       return { ...prev, audits: [...prev.audits, { id, store, date, counts, ...(timestamp && { timestamp }) }], _nextAuditId: prev._nextAuditId + 1 }
     })
-  }, [])
+  }, [setData])
 
   const deleteAudit = useCallback((id) => {
-    queryD1(`DELETE FROM audits WHERE id = ?`, [id]).catch(console.error)
-    setDataState(prev => ({ ...prev, audits: prev.audits.filter(a => a.id !== id) }))
-  }, [])
+    setData(prev => ({ ...prev, audits: prev.audits.filter(a => a.id !== id) }))
+  }, [setData])
 
   const updateAudit = useCallback((id, counts) => {
-    queryD1(`UPDATE audits SET counts = ? WHERE id = ?`, [JSON.stringify(counts), id]).catch(console.error)
-    setDataState(prev => ({
+    setData(prev => ({
       ...prev,
       audits: prev.audits.map(a => a.id === id ? { ...a, counts } : a),
     }))
-  }, [])
+  }, [setData])
 
   const addTransaction = useCallback((tx) => {
-    setDataState(prev => {
+    setData(prev => {
       const id = `T-${String(prev._nextTxId).padStart(3, '0')}`
-      const newTx = { id, ...tx, timestamp: tx.timestamp || new Date().toISOString() }
-      queryD1(
-        `INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newTx.id, newTx.store, newTx.date, newTx.type, newTx.ingredientId, newTx.quantity, newTx.poId || null, newTx.reason || null, newTx.timestamp]
-      ).catch(console.error)
-      return { ...prev, transactions: [...prev.transactions, newTx], _nextTxId: prev._nextTxId + 1 }
+      return { ...prev, transactions: [...prev.transactions, { id, ...tx }], _nextTxId: prev._nextTxId + 1 }
     })
-  }, [])
+  }, [setData])
 
   const deleteTransaction = useCallback((id) => {
-    setDataState(prev => {
+    setData(prev => {
       const tx = prev.transactions.find(t => t.id === id)
+      // A transfer's two legs (same PO + ingredient) must go together, or stock is created/lost
       const isPairedLeg = t => tx?.poId != null && t.poId === tx.poId && t.ingredientId === tx.ingredientId
-      
-      const toDelete = prev.transactions.filter(t => t.id === id || isPairedLeg(t))
-      toDelete.forEach(d => queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error))
-      
       return { ...prev, transactions: prev.transactions.filter(t => t.id !== id && !isPairedLeg(t)) }
     })
-  }, [])
+  }, [setData])
 
   const addPurchaseOrder = useCallback((po) => {
-    setDataState(prev => {
-      queryD1(
-        `INSERT INTO purchase_orders (id, store, status, receivedAt, lines) VALUES (?, ?, ?, ?, ?)`,
-        [po.id, po.store, po.status, po.receivedAt || null, JSON.stringify(po.lines || [])]
-      ).catch(console.error)
-      return { ...prev, purchaseOrders: [po, ...prev.purchaseOrders], _nextPoId: prev._nextPoId + 1 }
-    })
-  }, [])
+    setData(prev => ({ ...prev, purchaseOrders: [po, ...prev.purchaseOrders], _nextPoId: prev._nextPoId + 1 }))
+  }, [setData])
 
   const updatePurchaseOrder = useCallback((id, changes, logMsg) => {
-    setDataState(prev => {
+    setData(prev => {
       const po = prev.purchaseOrders.find(p => p.id === id)
       if (!po) return prev
 
@@ -265,35 +260,24 @@ export function ConfigProvider({ children }) {
         : po.editHistory
 
       const updatedPo = { ...po, ...changes, editHistory }
-      
-      queryD1(`UPDATE purchase_orders SET status = ?, receivedAt = ?, lines = ? WHERE id = ?`, 
-        [updatedPo.status, updatedPo.receivedAt || null, JSON.stringify(updatedPo.lines), id]).catch(console.error)
 
       let newTxns = prev.transactions
       let nextTxId = prev._nextTxId
 
+      // If the PO is already 'received' and is (or was) a transfer, we must resync its transactions
       if (po.status === 'received') {
         const wasTransfer = po.fromLocation && po.toLocation
         const isTransfer = updatedPo.fromLocation && updatedPo.toLocation
 
         if (wasTransfer || isTransfer) {
-          // Delete old transfer txns
-          const oldTxns = newTxns.filter(t => t.poId === id)
-          oldTxns.forEach(t => queryD1(`DELETE FROM transactions WHERE id = ?`, [t.id]).catch(console.error))
-          
           newTxns = newTxns.filter(t => t.poId !== id)
 
           if (isTransfer) {
             updatedPo.lines.forEach(l => {
               const qty = l.received ?? l.ordered
               if (qty > 0) {
-                const tx1 = { id: `T-${String(nextTxId++).padStart(3, '0')}`, ingredientId: l.ingredientId, store: updatedPo.fromLocation, date: updatedPo.receivedDate, type: 'adjustment', quantity: -qty, poId: id, timestamp: new Date().toISOString() }
-                const tx2 = { id: `T-${String(nextTxId++).padStart(3, '0')}`, ingredientId: l.ingredientId, store: updatedPo.toLocation, date: updatedPo.receivedDate, type: 'adjustment', quantity: qty, poId: id, timestamp: new Date().toISOString() }
-                
-                queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx1.id, tx1.store, tx1.date, tx1.type, tx1.ingredientId, tx1.quantity, tx1.poId, tx1.timestamp]).catch(console.error)
-                queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx2.id, tx2.store, tx2.date, tx2.type, tx2.ingredientId, tx2.quantity, tx2.poId, tx2.timestamp]).catch(console.error)
-                
-                newTxns.push(tx1, tx2)
+                newTxns.push({ id: `T-${String(nextTxId++).padStart(3, '0')}`, ingredientId: l.ingredientId, store: updatedPo.fromLocation, date: updatedPo.receivedDate, type: 'adjustment', quantity: -qty, poId: id })
+                newTxns.push({ id: `T-${String(nextTxId++).padStart(3, '0')}`, ingredientId: l.ingredientId, store: updatedPo.toLocation, date: updatedPo.receivedDate, type: 'adjustment', quantity: qty, poId: id })
               }
             })
           }
@@ -307,24 +291,19 @@ export function ConfigProvider({ children }) {
         _nextTxId: nextTxId,
       }
     })
-  }, [])
+  }, [setData])
 
   const deletePurchaseOrder = useCallback((id) => {
-    queryD1(`DELETE FROM purchase_orders WHERE id = ?`, [id]).catch(console.error)
-    queryD1(`DELETE FROM transactions WHERE poId = ?`, [id]).catch(console.error)
-    
-    setDataState(prev => ({
+    setData(prev => ({
       ...prev,
       purchaseOrders: prev.purchaseOrders.filter(po => po.id !== id),
       transactions:   prev.transactions.filter(t => t.poId !== id),
     }))
-  }, [])
+  }, [setData])
 
+  // Atomically move a received PO's date and any transfer transactions it created
   const updatePoReceivedDate = useCallback((id, receivedDate, receivedAt) => {
-    queryD1(`UPDATE purchase_orders SET receivedAt = ? WHERE id = ?`, [receivedAt, id]).catch(console.error)
-    queryD1(`UPDATE transactions SET date = ? WHERE poId = ?`, [receivedDate, id]).catch(console.error)
-    
-    setDataState(prev => ({
+    setData(prev => ({
       ...prev,
       purchaseOrders: prev.purchaseOrders.map(po =>
         po.id === id ? { ...po, receivedDate, receivedAt } : po
@@ -333,93 +312,18 @@ export function ConfigProvider({ children }) {
         t.poId === id ? { ...t, date: receivedDate } : t
       ),
     }))
-  }, [])
+  }, [setData])
 
+  // Atomically revert a received PO back to sent and remove its transfer transactions
   const revertPoToSent = useCallback((id) => {
-    queryD1(`UPDATE purchase_orders SET status = 'sent', receivedAt = NULL WHERE id = ?`, [id]).catch(console.error)
-    queryD1(`DELETE FROM transactions WHERE poId = ?`, [id]).catch(console.error)
-    
-    setDataState(prev => ({
+    setData(prev => ({
       ...prev,
       purchaseOrders: prev.purchaseOrders.map(po =>
         po.id === id ? { ...po, status: 'sent', receivedDate: null, receivedAt: undefined } : po
       ),
       transactions: prev.transactions.filter(t => t.poId !== id),
     }))
-  }, [])
-  
-  // ─── Config mutations ───────────────────────────────────────────────────────
-  
-  const setConfig = useCallback((updater) => {
-    setConfigState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      
-      // Compute delta for recipes
-      if (next.recipes !== prev.recipes) {
-        for (const [product, mapping] of Object.entries(next.recipes)) {
-          if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product])) {
-            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
-          }
-        }
-        const nextProducts = new Set(Object.keys(next.recipes))
-        for (const product of Object.keys(prev.recipes)) {
-          if (!nextProducts.has(product)) {
-            queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'retail'`, [product]).catch(console.error)
-          }
-        }
-      }
-
-      // Compute delta for ingredients
-      if (next.ingredients !== prev.ingredients) {
-        for (const ing of next.ingredients) {
-          const oldIng = prev.ingredients.find(i => i.id === ing.id)
-          if (!oldIng || JSON.stringify(oldIng) !== JSON.stringify(ing)) {
-            queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, 
-              [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null]).catch(console.error)
-          }
-        }
-        const nextIds = new Set(next.ingredients.map(i => i.id))
-        for (const oldIng of prev.ingredients) {
-          if (!nextIds.has(oldIng.id)) {
-            queryD1(`DELETE FROM ingredients WHERE id = ?`, [oldIng.id]).catch(console.error)
-          }
-        }
-      }
-      
-      return next
-    })
-  }, [])
-
-  const addSupplier = useCallback((name) => {
-    setConfigState(prev => {
-      const id = prev._nextSupplierId ?? 1
-      queryD1(`INSERT INTO suppliers (id, name) VALUES (?, ?)`, [id, name]).catch(console.error)
-      return {
-        ...prev,
-        suppliers: [...(prev.suppliers ?? []), { id, name }],
-        _nextSupplierId: id + 1,
-      }
-    })
-  }, [])
-
-  const updateSupplier = useCallback((id, name) => {
-    queryD1(`UPDATE suppliers SET name = ? WHERE id = ?`, [name, id]).catch(console.error)
-    setConfigState(prev => ({ ...prev, suppliers: (prev.suppliers ?? []).map(s => s.id === id ? { ...s, name } : s) }))
-  }, [])
-
-  const deleteSupplier = useCallback((id) => {
-    queryD1(`DELETE FROM suppliers WHERE id = ?`, [id]).catch(console.error)
-    queryD1(`UPDATE ingredients SET supplierId = NULL WHERE supplierId = ?`, [id]).catch(console.error)
-    setConfigState(prev => ({
-      ...prev,
-      suppliers: (prev.suppliers ?? []).filter(s => s.id !== id),
-      ingredients: prev.ingredients.map(i => i.supplierId === id ? { ...i, supplierId: null } : i),
-    }))
-  }, [])
-  
-  const setData = useCallback((updater) => {
-    setDataState(updater)
-  }, [])
+  }, [setData])
 
   // ─── Sales — reactive to cache (set by refresh) ──────────────────────────────
 
@@ -444,14 +348,17 @@ export function ConfigProvider({ children }) {
 
     const newRows = await fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 
+    // Extract and update distinct stores from data
     const uniqueStores = [...new Set(newRows.map(r => r.store))]
     if (uniqueStores.length > 0) {
       setStoresState(prev => {
         const merged = Array.from(new Set([...prev, ...uniqueStores]))
+        // Optional: keep original order for STORES, append new ones sorted
         return merged
       })
     }
 
+    // Merge — deduplicate by date+store+product+topping flag
     const keyOf = r => `${r.date}|${r.store}|${r.product}|${r.transaction_type}|${r.is_topping}`
     const map = new Map(currentRows.map(r => [keyOf(r), r]))
     newRows.forEach(r => map.set(keyOf(r), r))
@@ -464,7 +371,56 @@ export function ConfigProvider({ children }) {
     return { upToDate: false, newRows: newRows.length, fromDate, toDate }
   }, [salesCache])
 
-  // Removed cloud backups logic, D1 is now the source of truth
+  // ─── Cloud backup ────────────────────────────────────────────────────────────
+
+  const listCloudBackups = useCallback(async () => {
+    return fetchCloudBackupsList()
+  }, [])
+
+  const saveCloudBackup = useCallback(async (isManual = false) => {
+    const payload = { version: 1, exportedAt: new Date().toISOString(), config, data, isManual }
+    return pushCloudBackup(payload)
+  }, [config, data])
+
+  const restoreCloudBackup = useCallback(async (id) => {
+    const parsed = await fetchCloudBackupData(id)
+    if (!parsed.config || !parsed.data) throw new Error('Invalid backup')
+    restoreFromJson(parsed)
+  }, [])
+
+  const restoreFromJson = useCallback((parsed) => {
+    setConfig(migrateConfig(parsed.config))
+    setData({ ...DEFAULT_DATA, ...parsed.data })
+    if (parsed.salesCache !== undefined) {
+      if (parsed.salesCache) {
+        setSalesCacheState(parsed.salesCache)
+        idbSet(SALES_CACHE_KEY, parsed.salesCache).catch(console.error)
+      } else {
+        clearSalesCache()
+      }
+    }
+  }, [setConfig, setData, clearSalesCache])
+
+  // ─── Auto-save to Cloud ──────────────────────────────────────────────────────
+
+  const firstRender = useRef(true)
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    if (!settings.autoSaveCloud) return
+
+    const timer = setTimeout(() => {
+      saveCloudBackup(false).catch(err => console.error('Auto-save failed:', err))
+    }, 60000)
+
+    return () => clearTimeout(timer)
+  }, [config, data, settings.autoSaveCloud, saveCloudBackup])
+
+  // ─── Config export/import ───────────────────────────────────────────────────
+
   const exportConfig = useCallback(() => {
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
     const url  = URL.createObjectURL(blob)
@@ -476,93 +432,44 @@ export function ConfigProvider({ children }) {
   const importConfig = useCallback((file) =>
     new Promise((resolve, reject) => {
       const reader = new FileReader()
-      reader.onload = async (e) => {
+      reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target.result)
-          let nextConfig, nextData
-          
           if (parsed.config && parsed.data) {
-            nextConfig = parsed.config
-            nextData = parsed.data
+            // Full debug export — restore everything
+            restoreFromJson(parsed)
+            resolve()
           } else if (parsed.ingredients && parsed.recipes) {
-            nextConfig = parsed
-            nextData = null
+            setConfig(migrateConfig(parsed))
+            resolve()
           } else {
-            return reject(new Error('Invalid config file'))
+            reject(new Error('Invalid config file'))
           }
-
-          // Generate next IDs
-          const conf = {
-            ingredients: nextConfig.ingredients || [],
-            recipes: nextConfig.recipes || {},
-            suppliers: nextConfig.suppliers || [],
-            _nextIngId: Math.max(0, ...(nextConfig.ingredients || []).map(i => i.id)) + 1,
-            _nextSupplierId: Math.max(0, ...(nextConfig.suppliers || []).map(s => s.id)) + 1,
-          }
-
-          // Sync Config to D1
-          await queryD1(`DELETE FROM ingredients`)
-          for (const ing of conf.ingredients) {
-            await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null])
-          }
-          
-          await queryD1(`DELETE FROM recipes WHERE type = 'retail'`)
-          for (const [product, mapping] of Object.entries(conf.recipes)) {
-            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)])
-          }
-          
-          await queryD1(`DELETE FROM suppliers`)
-          for (const supp of conf.suppliers) {
-            await queryD1(`INSERT INTO suppliers (id, name) VALUES (?, ?)`, [supp.id, supp.name])
-          }
-
-          setConfigState(conf)
-
-          // Sync Data to D1 if present
-          if (nextData) {
-            const d = {
-              transactions: nextData.transactions || [],
-              purchaseOrders: nextData.purchaseOrders || [],
-              audits: nextData.audits || [],
-            }
-            d._nextTxId = Math.max(0, ...d.transactions.map(t => parseInt(t.id.replace('T-', '')) || 0)) + 1
-            d._nextPoId = Math.max(0, ...d.purchaseOrders.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '')) || 0)) + 1
-            d._nextAuditId = Math.max(0, ...d.audits.map(a => parseInt(a.id.replace('A-', '')) || 0)) + 1
-
-            await queryD1(`DELETE FROM transactions`)
-            for (const tx of d.transactions) {
-              await queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-                [tx.id, tx.store, tx.date, tx.type, tx.ingredientId, tx.quantity, tx.poId || null, tx.reason || null, tx.timestamp || new Date().toISOString()])
-            }
-
-            await queryD1(`DELETE FROM purchase_orders`)
-            for (const po of d.purchaseOrders) {
-              await queryD1(`INSERT INTO purchase_orders (id, store, status, receivedAt, lines) VALUES (?, ?, ?, ?, ?)`, 
-                [po.id, po.store, po.status, po.receivedAt || null, JSON.stringify(po.lines || [])])
-            }
-
-            await queryD1(`DELETE FROM audits`)
-            for (const audit of d.audits) {
-              await queryD1(`INSERT INTO audits (id, store, date, counts, timestamp) VALUES (?, ?, ?, ?, ?)`, 
-                [audit.id, audit.store, audit.date, JSON.stringify(audit.counts || {}), audit.timestamp || new Date().toISOString()])
-            }
-
-            setDataState(d)
-          }
-
-          resolve()
         } catch (err) { reject(err) }
       }
       reader.readAsText(file)
     })
-  , [])
+  , [restoreFromJson, setConfig])
 
-  // If not loaded, we can return null to avoid crashing child components that expect full data,
-  // or return the context. For now, children expect data to be defined. It starts as DEFAULT_DATA.
-  
-  if (!isD1Loaded) {
-    return <div className="flex h-screen items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
-  }
+  const addSupplier = useCallback((name) => {
+    setConfig(prev => ({
+      ...prev,
+      suppliers: [...(prev.suppliers ?? []), { id: prev._nextSupplierId ?? 1, name }],
+      _nextSupplierId: (prev._nextSupplierId ?? 1) + 1,
+    }))
+  }, [setConfig])
+
+  const updateSupplier = useCallback((id, name) => {
+    setConfig(prev => ({ ...prev, suppliers: (prev.suppliers ?? []).map(s => s.id === id ? { ...s, name } : s) }))
+  }, [setConfig])
+
+  const deleteSupplier = useCallback((id) => {
+    setConfig(prev => ({
+      ...prev,
+      suppliers: (prev.suppliers ?? []).filter(s => s.id !== id),
+      ingredients: prev.ingredients.map(i => i.supplierId === id ? { ...i, supplierId: null } : i),
+    }))
+  }, [setConfig])
 
   return (
     <ConfigContext.Provider value={{
@@ -575,6 +482,7 @@ export function ConfigProvider({ children }) {
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,
+      saveCloudBackup, restoreCloudBackup, listCloudBackups, restoreFromJson,
       addSupplier, updateSupplier, deleteSupplier,
     }}>
       {children}

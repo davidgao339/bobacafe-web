@@ -1,5 +1,5 @@
 const SALES_TABLE = 'workspace.default.transactions'
-const BACKUP_BASE = import.meta.env.DEV ? 'http://localhost:8787' : 'https://bobacafe-proxy.davidgao734.workers.dev'
+const BACKUP_BASE = 'https://bobacafe-proxy.davidgao734.workers.dev'
 
 export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate) {
   if (!fromDate || !toDate) return []
@@ -40,16 +40,24 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
   )
 }
 
-export async function queryD1(sql, params = []) {
-  const resp = await fetch(`${BACKUP_BASE}/d1/query`, {
-    method: 'POST',
+export async function fetchCloudBackupsList() {
+  const resp = await fetch(`${BACKUP_BASE}/backups`)
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return resp.json() // [{ id, savedAt, ingredientCount, auditCount, poCount }]
+}
+
+export async function pushCloudBackup(payload) {
+  const resp = await fetch(`${BACKUP_BASE}/backups`, {
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql, params }),
+    body:    JSON.stringify(payload),
   })
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '')
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`)
-  }
-  const data = await resp.json()
-  return data.results || []
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return resp.json() // { id, savedAt }
+}
+
+export async function fetchCloudBackupData(id) {
+  const resp = await fetch(`${BACKUP_BASE}/backups/${id}`)
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return resp.json()
 }
