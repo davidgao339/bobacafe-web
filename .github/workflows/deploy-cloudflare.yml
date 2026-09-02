@@ -2,7 +2,7 @@ name: Deploy Website and Web App
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * *"   # 03:00 UTC nightly — refreshes POS sales data
