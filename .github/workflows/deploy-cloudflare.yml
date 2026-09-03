@@ -46,6 +46,12 @@ jobs:
           npm ci
           npm run build
 
+      - name: Build Warehouse App
+        run: |
+          cd apps/warehouse-app
+          npm ci
+          npm run build
+
       - name: Mint Databricks Embedded Dashboard Token
         id: databricks_token
         env:
@@ -110,7 +116,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ steps.databricks_token.outputs.token }}
         run: |
           # 1. Create output directories
-          mkdir -p deploy/internal/schedule deploy/internal/inventory deploy/internal/reports
+          mkdir -p deploy/internal/schedule deploy/internal/inventory deploy/internal/warehouse deploy/internal/reports
 
           # 2. Public site root
           cp site/index.html deploy/index.html
@@ -126,6 +132,7 @@ jobs:
           # 4. Fresh React builds
           cp -r apps/schedule-app/build/*   deploy/internal/schedule/
           cp -r apps/inventory-app/dist/*   deploy/internal/inventory/
+          cp -r apps/warehouse-app/dist/*   deploy/internal/warehouse/
 
           # 5. Reports
           cp -r site/internal/reports/. deploy/internal/reports/
