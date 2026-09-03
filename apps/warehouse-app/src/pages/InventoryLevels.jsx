@@ -1,7 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-
 
 const STATUS_RANK = { depleted: 0, critical: 1, low: 2, ok: 3, unknown: 4 }
 
@@ -19,15 +19,20 @@ function Sparkline({ values }) {
   )
 }
 
-export default function InventoryLevels({ onNavigate }) {
-  const { config, data, sales, posWaste, visibleStores } = useConfig()
+export default function InventoryLevels() {
+  const navigate = useNavigate()
+  const { config, data, sales, posWaste } = useConfig()
   const { estimateCurrentStock, getDailyAvg, getLastAudit, getOrderQty } = useCalcs()
   const { t } = useLanguage()
-
+  
+  const selectedStore = 'Warehouse'
+  const store = 'Warehouse'
+  const filteredStores = ['Warehouse']
+  
   const [issuesOnly,    setIssuesOnly]    = useState(false)
   const [search,        setSearch]        = useState('')
-  const [sortKey,       setSortKey]       = useState(null)
-  const [sortDir,       setSortDir]       = useState('asc')
+  const [sortKey,       setSortKey]       = useState('qty')
+  const [sortDir,       setSortDir]       = useState('desc')
   const [page,          setPage]          = useState(0)
 
   const handleSort = key => {
@@ -37,7 +42,6 @@ export default function InventoryLevels({ onNavigate }) {
   }
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
-  const store = 'Warehouse'
   const { ingredients } = config
 
   if (ingredients.length === 0) {
@@ -65,7 +69,14 @@ export default function InventoryLevels({ onNavigate }) {
     return { qty: Math.max(0, qty), daily, daysLeft, status, hasData }
   }
 
+  // ── Shared header ────────────────────────────────────────────────────────────
+
+  const q = search.toLowerCase()
+
   // ── Single-store view ────────────────────────────────────────────────────────
+
+  if (filteredStores.length === 1) {
+    const store     = filteredStores[0]
     const lastAudit = getLastAudit(store)
     const auditLabel = lastAudit ? t('levels.lastAudit', { date: lastAudit.date }) : t('levels.noAudit')
 
@@ -128,158 +139,149 @@ export default function InventoryLevels({ onNavigate }) {
     }
 
     return (
-      <>
-        <div className="p-4 md:p-8 max-w-3xl">
-          {/* Title */}
-          <div className="mb-4">
-            <h1 className="text-2xl font-semibold text-gray-900">{t('levels.title')}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{auditLabel}</p>
+      <div className="p-4 md:p-8 max-w-3xl">
+        {/* Title */}
+        <div className="mb-4">
+          <h1 className="text-2xl font-semibold text-gray-900">{t('levels.title')}</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{auditLabel}</p>
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
+          <div className="relative flex-1 min-w-40 max-w-xs">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
+              onChange={e => { setSearch(e.target.value); setPage(0) }}
+              className="w-full border border-gray-300 rounded-lg pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
           </div>
+          {issueCount > 0 && (
+            <button onClick={() => { setIssuesOnly(v => !v); setPage(0) }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                issuesOnly
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}>
+              <span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>
+              {issueCount} {issueCount === 1 ? 'issue' : 'issues'}
+              {issuesOnly && <span className="ml-1 text-xs font-normal opacity-70">· show all</span>}
+            </button>
+          )}
+        </div>
 
-
-
-          {/* Filter bar */}
-          <div className="flex items-center gap-2 mb-5 flex-wrap">
-            <div className="relative flex-1 min-w-40 max-w-xs">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
-                onChange={e => { setSearch(e.target.value); setPage(0) }}
-                className="w-full border border-gray-300 rounded-lg pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
-              )}
-            </div>
-            {issueCount > 0 && (
-              <button onClick={() => { setIssuesOnly(v => !v); setPage(0) }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                  issuesOnly
-                    ? 'bg-red-50 text-red-700 border-red-200'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                }`}>
-                <span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>
-                {issueCount} {issueCount === 1 ? 'issue' : 'issues'}
-                {issuesOnly && <span className="ml-1 text-xs font-normal opacity-70">· show all</span>}
-              </button>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {visibleRows.map(({ ing, qty, daily, daysLeft, status, orderQty }) => (
+              <div key={ing.id}
+                onClick={() => navigate(`/ledger?ingredientId=${ing.id}`)}
+                className={`px-4 py-3.5 cursor-pointer ${rowBg(status)}`}>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div>
+                    <p className="font-medium text-gray-900 leading-snug">{ing.name}</p>
+                    <p className="text-xs text-gray-400">{ing.unit}</p>
+                  </div>
+                  <StatusBadge status={status} />
+                </div>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className={`text-2xl tabular-nums leading-none ${qtyColor(status)}`}>{qty}</span>
+                  <span className="text-sm text-gray-400">{ing.unit}</span>
+                  {daysLeft !== null && status !== 'unknown' && (
+                    <span className={`text-xs ml-1 ${daysColor(status)}`}>
+                      {daysLeft < 1 ? '< 1 day' : `~${Math.round(daysLeft)}d left`}
+                    </span>
+                  )}
+                  {daily > 0 && <span className="text-xs text-gray-300 ml-auto tabular-nums">{daily}/day</span>}
+                </div>
+                {orderQty > 0 && (
+                  <p className="text-xs text-blue-600 mt-1.5 tabular-nums">
+                    {t('levels.colOrder')}: <span className="font-semibold">{orderQty} {ing.unit}</span>
+                  </p>
+                )}
+              </div>
+            ))}
+            {visibleRows.length === 0 && (
+              <p className="px-5 py-8 text-center text-sm text-gray-400">{issuesOnly ? t('levels.noIssues') : t('audit.noMatch', { query: search })}</p>
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Mobile cards */}
-            <div className="md:hidden divide-y divide-gray-100">
-              {visibleRows.map(({ ing, qty, daily, daysLeft, status, orderQty }) => (
-                <div key={ing.id}
-                  onClick={() => onNavigate?.('usage', null, { store, ingredientId: ing.id })}
-                  className={`px-4 py-3.5 ${onNavigate ? 'cursor-pointer' : ''} ${rowBg(status)}`}>
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <div>
-                      <p className="font-medium text-gray-900 leading-snug">{ing.name}</p>
-                      <p className="text-xs text-gray-400">{ing.unit}</p>
-                    </div>
-                    <StatusBadge status={status} />
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className={`text-2xl tabular-nums leading-none ${qtyColor(status)}`}>{qty}</span>
-                    <span className="text-sm text-gray-400">{ing.unit}</span>
-                    {daysLeft !== null && status !== 'unknown' && (
-                      <span className={`text-xs ml-1 ${daysColor(status)}`}>
-                        {daysLeft < 1 ? '< 1 day' : `~${Math.round(daysLeft)}d left`}
-                      </span>
-                    )}
-                    {daily > 0 && <span className="text-xs text-gray-300 ml-auto tabular-nums">{daily}/day</span>}
-                  </div>
-                  {orderQty > 0 && (
-                    <p className="text-xs text-blue-600 mt-1.5 tabular-nums">
-                      {t('levels.colOrder')}: <span className="font-semibold">{orderQty} {ing.unit}</span>
-                    </p>
-                  )}
-                </div>
-              ))}
-              {visibleRows.length === 0 && (
-                <p className="px-5 py-8 text-center text-sm text-gray-400">{issuesOnly ? t('levels.noIssues') : t('audit.noMatch', { query: search })}</p>
-              )}
-            </div>
-
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/60">
-                    <th className="px-5 py-3 font-medium cursor-pointer select-none hover:text-gray-700 w-full" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
-                    <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700 whitespace-nowrap" onClick={() => handleSort('qty')}>{t('levels.estStock')}{si('qty')}</th>
-                    <th className="px-4 py-3 font-medium text-right whitespace-nowrap">{t('levels.colDaily')}</th>
-                    <th className="px-4 py-3 font-medium text-center whitespace-nowrap">{t('levels.col7d')}</th>
-                    <th className="px-4 py-3 font-medium text-right whitespace-nowrap">{t('levels.daysLeft')}</th>
-                    <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700 whitespace-nowrap" onClick={() => handleSort('order')}>{t('levels.colOrder')}{si('order')}</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">{t('common.status')}</th>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-5 py-3 font-medium cursor-pointer select-none hover:text-gray-700 w-full" onClick={() => handleSort('name')}>{t('common.ingredient')}{si('name')}</th>
+                  <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700 whitespace-nowrap" onClick={() => handleSort('qty')}>{t('levels.estStock')}{si('qty')}</th>
+                  <th className="px-4 py-3 font-medium text-right whitespace-nowrap">{t('levels.colDaily')}</th>
+                  <th className="px-4 py-3 font-medium text-center whitespace-nowrap">{t('levels.col7d')}</th>
+                  <th className="px-4 py-3 font-medium text-right whitespace-nowrap">{t('levels.daysLeft')}</th>
+                  <th className="px-4 py-3 font-medium text-right cursor-pointer select-none hover:text-gray-700 whitespace-nowrap" onClick={() => handleSort('order')}>{t('levels.colOrder')}{si('order')}</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap">{t('common.status')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {visibleRows.map(({ ing, qty, daily, daysLeft, status, orderQty, spark }) => (
+                  <tr key={ing.id}
+                    onClick={() => navigate(`/ledger?ingredientId=${ing.id}`)}
+                    title={t('levels.openLedger')}
+                    className={`transition-colors cursor-pointer ${rowBg(status)}`}>
+                    <td className="px-5 py-3">
+                      <p className="font-medium text-gray-900">{ing.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{ing.unit}</p>
+                    </td>
+                    <td className={`px-4 py-3 text-right tabular-nums text-base ${qtyColor(status)}`}>{qty}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-sm text-gray-500">
+                      {daily > 0 ? daily : <span className="text-gray-200">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Sparkline values={spark} />
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-sm">
+                      {status === 'unknown' || daysLeft === null
+                        ? <span className="text-gray-200">—</span>
+                        : daysLeft < 1
+                          ? <span className="text-red-600 font-semibold">&lt;1d</span>
+                          : <span className={daysColor(status)}>{Math.round(daysLeft)}d</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-sm">
+                      {orderQty > 0
+                        ? <span className="font-semibold text-blue-700">{orderQty} <span className="text-blue-300 text-xs font-normal">{ing.unit}</span></span>
+                        : <span className="text-gray-200">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={status} />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {visibleRows.map(({ ing, qty, daily, daysLeft, status, orderQty, spark }) => (
-                    <tr key={ing.id}
-                      onClick={() => onNavigate?.('usage', null, { store, ingredientId: ing.id })}
-                      title={t('levels.openLedger')}
-                      className={`transition-colors ${onNavigate ? 'cursor-pointer' : ''} ${rowBg(status)}`}>
-                      <td className="px-5 py-3">
-                        <p className="font-medium text-gray-900">{ing.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{ing.unit}</p>
-                      </td>
-                      <td className={`px-4 py-3 text-right tabular-nums text-base ${qtyColor(status)}`}>{qty}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-sm text-gray-500">
-                        {daily > 0 ? daily : <span className="text-gray-200">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Sparkline values={spark} />
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-sm">
-                        {status === 'unknown' || daysLeft === null
-                          ? <span className="text-gray-200">—</span>
-                          : daysLeft < 1
-                            ? <span className="text-red-600 font-semibold">&lt;1d</span>
-                            : <span className={daysColor(status)}>{Math.round(daysLeft)}d</span>
-                        }
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-sm">
-                        {orderQty > 0
-                          ? <span className="font-semibold text-blue-700">{orderQty} <span className="text-blue-300 text-xs font-normal">{ing.unit}</span></span>
-                          : <span className="text-gray-200">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={status} />
-                      </td>
-                    </tr>
-                  ))}
-                  {visibleRows.length === 0 && (
-                    <tr><td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-400">
-                      {issuesOnly ? t('levels.noIssues') : t('audit.noMatch', { query: search })}
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                ))}
+                {visibleRows.length === 0 && (
+                  <tr><td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-400">
+                    {issuesOnly ? t('levels.noIssues') : t('audit.noMatch', { query: search })}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          {totalPages > 1 && (
-            <div className="mt-4 flex items-center gap-2 mx-auto md:mx-0 w-full justify-end">
-              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
-                ←
-              </button>
-              <span className="text-xs text-gray-500 tabular-nums">
-                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, visibleRowsAll.length)} / {visibleRowsAll.length}
-              </span>
-              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
-                →
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-4 mt-8 px-4 text-xs text-gray-400 flex-wrap">
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>{t('levels.legendDepleted')}</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>{t('levels.legendLow')}</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block"/>{t('levels.ok')}</span>
-          <span>{t('levels.legendNote')}</span>
-        </div>
-      </>
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center gap-2 mx-auto md:mx-0 w-full justify-end">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              ←
+            </button>
+            <span className="text-xs text-gray-500 tabular-nums">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, visibleRowsAll.length)} / {visibleRowsAll.length}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              →
+            </button>
+          </div>
+        )}
+      </div>
     )
+  }
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { PlusCircle, Package, ArrowDown, ArrowUp, X, CheckCircle, AlertTriangle } from 'lucide-react'
-import { getProductType } from '../utils/productTypes'
+
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
@@ -14,7 +14,7 @@ export default function Production() {
   const [isOpen, setIsOpen] = useState(false)
 
   const ingredients = config.ingredients || []
-  const products = ingredients.filter(i => getProductType(i) === 'product')
+  const products = ingredients.filter(i => config.recipes?.[i.name])
 
   const selectedProduct = ingredients.find(i => i.id === Number(outputId))
   const recipe = selectedProduct ? config.recipes?.[selectedProduct.name] : null
@@ -32,7 +32,7 @@ export default function Production() {
       ingredientId: Number(outputId),
       store: 'Warehouse',
       date: TODAY,
-      type: 'production',
+      type: 'adjustment',
       quantity: qtyNum,
       reason: 'Produced in warehouse'
     })
@@ -45,7 +45,7 @@ export default function Production() {
         ingredientId: ingId,
         store: 'Warehouse',
         date: TODAY,
-        type: 'production',
+        type: 'adjustment',
         quantity: -inputQty,
         reason: `Consumed for producing ${selectedProduct.name}`
       })
@@ -61,8 +61,8 @@ export default function Production() {
     <div className="p-4 pb-20">
       <h1 className="text-xl font-bold text-gray-900 mb-6">Production</h1>
       
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-        <div className="px-4 py-3 bg-green-50 border-b border-green-100 flex items-center gap-2">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+        <div className="px-4 py-3 bg-green-50 border-b border-green-100 flex items-center gap-2 rounded-t-xl">
           <ArrowUp className="w-4 h-4 text-green-600" />
           <h2 className="text-sm font-semibold text-green-800">Output (Finished Good)</h2>
         </div>
@@ -141,8 +141,8 @@ export default function Production() {
       </div>
 
       {selectedProduct && hasRecipe && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-          <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+          <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2 rounded-t-xl">
             <ArrowDown className="w-4 h-4 text-blue-600" />
             <h2 className="text-sm font-semibold text-blue-800">Inputs (Automatically Calculated)</h2>
           </div>

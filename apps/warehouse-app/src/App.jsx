@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { ConfigProvider, useConfig } from './context/ConfigContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'
-import { ClipboardList, Package, PlusCircle, Factory, RefreshCw, Settings, LogOut } from 'lucide-react'
+import { ClipboardList, Package, PlusCircle, Factory, RefreshCw, Settings, LogOut, Layers } from 'lucide-react'
+import InventoryLevels from './pages/InventoryLevels'
 import PurchaseOrders from './pages/PurchaseOrders'
 import Production from './pages/Production'
 import Adjustments from './pages/Adjustments'
@@ -108,7 +109,8 @@ function AppContent({ role, onLogout }) {
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto">
         <Routes>
-          <Route path="/" element={<Navigate to="/pos" replace />} />
+          <Route path="/" element={<Navigate to="/inventory" replace />} />
+          <Route path="/inventory" element={<InventoryLevels />} />
           <Route path="/pos" element={<PurchaseOrders />} />
           <Route path="/production" element={<Production />} />
           <Route path="/adjustments" element={<Adjustments />} />
@@ -120,6 +122,7 @@ function AppContent({ role, onLogout }) {
 
       {/* Mobile Bottom Navigation */}
       <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex items-center overflow-x-auto pb-safe custom-scrollbar">
+        <NavItem to="/inventory" icon={<Layers className="w-5 h-5" />} label="Inventory" />
         <NavItem to="/pos" icon={<ClipboardList className="w-5 h-5" />} label="Receive" />
         <NavItem to="/production" icon={<Package className="w-5 h-5" />} label="Produce" />
         <NavItem to="/audit" icon={<ClipboardList className="w-5 h-5" />} label="Audit" />

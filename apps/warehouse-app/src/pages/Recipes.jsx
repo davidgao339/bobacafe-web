@@ -418,28 +418,9 @@ function RecipesTab() {
   const [ingOpen,    setIngOpen]    = useState(false)
   const [creating,   setCreating]   = useState(false)
   const [newIngDef,  setNewIngDef]  = useState({ name: '', unit: '' })
-  const [addingProduct, setAddingProduct] = useState(false)
-  const [newProductName, setNewProductName] = useState('')
+  const allProducts = [...new Set(config.ingredients.map(i => i.name))].sort()
 
-  const salesProducts = new Set(sales.map(s => s.product))
-  const wasteProducts = new Set(posWaste.map(s => s.product))
-  const recipeProducts = Object.keys(config.recipes)
-  const allProducts   = [...new Set([...salesProducts, ...wasteProducts, ...recipeProducts])].sort()
 
-  const handleAddProduct = () => {
-    if (!newProductName.trim()) return
-    const name = newProductName.trim()
-    if (!config.recipes[name]) {
-      setConfig(prev => ({
-        ...prev,
-        recipes: { ...prev.recipes, [name]: {} }
-      }))
-    }
-    setNewProductName('')
-    setAddingProduct(false)
-    setSelected(name)
-  }
-  const isWasteOnly   = (p) => wasteProducts.has(p) && !salesProducts.has(p)
   const hasRecipe     = (p) => Object.values(config.recipes[p] ?? {}).some(q => q > 0)
 
   const displayed = allProducts.filter(p => {
@@ -568,7 +549,6 @@ function RecipesTab() {
                     }`}>
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-gray-800 truncate leading-snug">{p}</p>
-                      {isWasteOnly(p) && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Waste</span>}
                     </div>
                     {count > 0
                       ? <p className="text-xs text-green-600 mt-0.5">{count !== 1 ? t('recipes.ingredientsCount', { count }) : t('recipes.ingredientCount', { count })}</p>
@@ -585,20 +565,6 @@ function RecipesTab() {
             <p className="text-xs text-gray-400">{displayed.length} / {allProducts.length}</p>
             {noRecipeCount > 0 && <p className="text-xs text-amber-500">{t('recipes.missing', { count: noRecipeCount })}</p>}
           </div>
-          {addingProduct ? (
-            <div className="flex gap-2">
-              <input type="text" autoFocus placeholder="Product Name..." value={newProductName}
-                onChange={e => setNewProductName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddProduct()}
-                className="flex-1 border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-              <button onClick={handleAddProduct} className="text-xs bg-blue-600 text-white px-2 rounded hover:bg-blue-700">Add</button>
-              <button onClick={() => { setAddingProduct(false); setNewProductName('') }} className="text-xs text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-          ) : (
-            <button onClick={() => setAddingProduct(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium text-left">
-              + Add Product
-            </button>
-          )}
         </div>
       </div>
 
@@ -614,8 +580,8 @@ function RecipesTab() {
                 <h3 className="font-semibold text-gray-900">{selected}</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {editing
-                    ? t('recipes.editingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })
-                    : t('recipes.viewingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })}
+                    ? 'Editing Production Recipe'
+                    : 'Viewing Production Recipe'}
                 </p>
               </div>
             </div>
