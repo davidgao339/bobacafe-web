@@ -9,4 +9,4 @@ export default defineConfig(({ mode }) => ({
     port: 5174,
     strictPort: true,
   },
-})
+}))
