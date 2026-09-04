@@ -1,5 +1,8 @@
 const SALES_TABLE = 'workspace.default.transactions'
-const BACKUP_BASE = 'https://bobacafe-proxy.davidgao734.workers.dev'
+const isDevDeploy = window.location.hostname.startsWith('dev.') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const BACKUP_BASE = isDevDeploy 
+  ? 'https://bobacafe-proxy-dev.davidgao734.workers.dev' 
+  : 'https://bobacafe-proxy.davidgao734.workers.dev'
 
 export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate) {
   if (!fromDate || !toDate) return []
@@ -16,7 +19,7 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 
   const apiPath = import.meta.env.DEV
     ? '/databricks-proxy/api/2.0/sql/statements'
-    : 'https://bobacafe-proxy.davidgao734.workers.dev'
+    : BACKUP_BASE
     
   const resp = await fetch(apiPath, {
     method: 'POST',

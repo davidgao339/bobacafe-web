@@ -12,3 +12,15 @@ id = "e71a118bed4d4653a0ccc0c1c1adec24"
 binding = "DB"
 database_name = "bobacafe-db"
 database_id = "3528b4d3-899d-4dbf-b6b3-52281e06e71f"
+
+[env.dev]
+name = "bobacafe-proxy-dev"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "bobacafe-db-dev"
+database_id = "abcbff16-7d27-4470-93b6-a249796d7144"
+
+[[env.dev.kv_namespaces]]
+binding = "BACKUP_STORE"
+id = "e71a118bed4d4653a0ccc0c1c1adec24"

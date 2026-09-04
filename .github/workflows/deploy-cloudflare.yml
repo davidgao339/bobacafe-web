@@ -158,4 +158,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: 'apps/databricks-proxy'
-          command: deploy
+          command: deploy ${{ github.ref == 'refs/heads/dev' && '--env dev' || '' }}
