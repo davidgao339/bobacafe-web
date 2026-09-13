@@ -4,7 +4,7 @@ const MAX_AUTO_BACKUPS = 5
 const MAX_MANUAL_BACKUPS = 10
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url  = new URL(request.url)
     const path = url.pathname
 
@@ -24,7 +24,7 @@ export default {
 
     // ── Backup: save ─────────────────────────────────────────────────────────
     if (path === '/backups' && request.method === 'POST') {
-      return handleSaveBackup(request, env)
+      return handleSaveBackup(request, env, ctx)
     }
 
     // ── Backup: get one ───────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ async function handleListBackups(env) {
   return json(backups)
 }
 
-async function handleSaveBackup(request, env) {
+async function handleSaveBackup(request, env, ctx) {
   let body
   try { body = await request.json() } catch {
     return new Response('Bad request', { status: 400, headers: cors() })
@@ -107,7 +107,7 @@ async function handleSaveBackup(request, env) {
   // Asynchronously mirror to D1 (Dual-Write)
   if (env.DB) {
     env.DB.batch([]).catch(() => {}) // warm up
-    syncToD1(env.DB, body).catch(e => console.error('D1 Sync Error:', e.message))
+    ctx.waitUntil(syncToD1(env.DB, body).catch(e => console.error('D1 Sync Error:', e.message)))
   }
 
   // Clean up old backups based on list
@@ -121,13 +121,13 @@ async function handleSaveBackup(request, env) {
 
   if (autoBackups.length > MAX_AUTO_BACKUPS) {
     for (const old of autoBackups.slice(MAX_AUTO_BACKUPS)) {
-      env.BACKUP_STORE.delete(old.name).catch(() => {})
+      ctx.waitUntil(env.BACKUP_STORE.delete(old.name).catch(() => {}))
     }
   }
 
   if (manualBackups.length > MAX_MANUAL_BACKUPS) {
     for (const old of manualBackups.slice(MAX_MANUAL_BACKUPS)) {
-      env.BACKUP_STORE.delete(old.name).catch(() => {})
+      ctx.waitUntil(env.BACKUP_STORE.delete(old.name).catch(() => {}))
     }
   }
 
