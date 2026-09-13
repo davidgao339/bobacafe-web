@@ -139,10 +139,11 @@ jobs:
 
           # 5b. Cloudflare Pages Client-Side Routing Redirects
           cat > deploy/_redirects << 'EOF'
-/internal/warehouse/* /internal/warehouse/index.html 200
-/internal/inventory/* /internal/inventory/index.html 200
-/internal/schedule/* /internal/schedule/index.html 200
-EOF
+          /internal/warehouse/* /internal/warehouse/index.html 200
+          /internal/inventory/* /internal/inventory/index.html 200
+          /internal/schedule/* /internal/schedule/index.html 200
+          EOF
+          sed -i 's/^[ \t]*//' deploy/_redirects
 
           # 6. Prevent Jekyll from ignoring underscore files
           touch deploy/.nojekyll
