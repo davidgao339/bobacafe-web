@@ -241,8 +241,8 @@ export function ConfigProvider({ children }) {
   const addPurchaseOrder = useCallback((po) => {
     setDataState(prev => {
       queryD1(
-        `INSERT INTO purchase_orders (id, store, status, receivedAt, lines) VALUES (?, ?, ?, ?, ?)`,
-        [po.id, po.store, po.status, po.receivedAt || null, JSON.stringify(po.lines || [])]
+        `INSERT INTO purchase_orders (id, store, status, receivedAt, fromLocation, toLocation, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [po.id, po.store, po.status, po.receivedAt || null, po.fromLocation || null, po.toLocation || null, JSON.stringify(po.lines || [])]
       ).catch(console.error)
       return { ...prev, purchaseOrders: [po, ...prev.purchaseOrders], _nextPoId: prev._nextPoId + 1 }
     })
@@ -259,8 +259,8 @@ export function ConfigProvider({ children }) {
 
       const updatedPo = { ...po, ...changes, editHistory }
       
-      queryD1(`UPDATE purchase_orders SET status = ?, receivedAt = ?, lines = ? WHERE id = ?`, 
-        [updatedPo.status, updatedPo.receivedAt || null, JSON.stringify(updatedPo.lines), id]).catch(console.error)
+      queryD1(`UPDATE purchase_orders SET status = ?, receivedAt = ?, fromLocation = ?, toLocation = ?, lines = ? WHERE id = ?`, 
+        [updatedPo.status, updatedPo.receivedAt || null, updatedPo.fromLocation || null, updatedPo.toLocation || null, JSON.stringify(updatedPo.lines), id]).catch(console.error)
 
       let newTxns = prev.transactions
       let nextTxId = prev._nextTxId
@@ -530,8 +530,8 @@ export function ConfigProvider({ children }) {
 
             await queryD1(`DELETE FROM purchase_orders`)
             for (const po of d.purchaseOrders) {
-              await queryD1(`INSERT INTO purchase_orders (id, store, status, receivedAt, lines) VALUES (?, ?, ?, ?, ?)`, 
-                [po.id, po.store, po.status, po.receivedAt || null, JSON.stringify(po.lines || [])])
+              await queryD1(`INSERT INTO purchase_orders (id, store, status, receivedAt, fromLocation, toLocation, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
+                [po.id, po.store, po.status, po.receivedAt || null, po.fromLocation || null, po.toLocation || null, JSON.stringify(po.lines || [])])
             }
 
             await queryD1(`DELETE FROM audits`)

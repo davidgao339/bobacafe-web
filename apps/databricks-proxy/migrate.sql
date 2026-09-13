@@ -11,3 +11,6 @@ SELECT product_name, 'retail', ingredient_mapping FROM recipes;
 DROP TABLE recipes;
 
 ALTER TABLE recipes_new RENAME TO recipes;
+
+ALTER TABLE purchase_orders ADD COLUMN fromLocation TEXT;
+ALTER TABLE purchase_orders ADD COLUMN toLocation TEXT;

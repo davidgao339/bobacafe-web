@@ -192,8 +192,8 @@ async function syncToD1(db, payload) {
     statements.push(db.prepare(`DELETE FROM purchase_orders`))
     for (const po of data.purchaseOrders) {
       statements.push(db.prepare(
-        `INSERT INTO purchase_orders (id, store, status, receivedAt, lines) VALUES (?, ?, ?, ?, ?)`
-      ).bind(po.id, po.store, po.status, po.receivedAt || null, JSON.stringify(po.lines || [])))
+        `INSERT INTO purchase_orders (id, store, status, receivedAt, fromLocation, toLocation, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(po.id, po.store, po.status, po.receivedAt || null, po.fromLocation || null, po.toLocation || null, JSON.stringify(po.lines || [])))
     }
   }
 
