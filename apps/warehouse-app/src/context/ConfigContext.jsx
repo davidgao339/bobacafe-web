@@ -104,7 +104,7 @@ export function ConfigProvider({ children }) {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
     return { token: '', warehouseId: '', ...stored }
   })
-  const [stores, setStoresState] = useState(() => ['Warehouse'])
+  const [stores, setStoresState] = useState(() => STORES)
   const [suppressedStores, setSuppressedStores] = useState([])
 
   // ─── D1 Data Loading ────────────────────────────────────────────────────────
@@ -552,10 +552,9 @@ export function ConfigProvider({ children }) {
 
   const filteredData = useMemo(() => {
     if (!data) return data
-      const warehouseTxPoIds = new Set((data.transactions || []).filter(tx => tx.store === 'Warehouse').map(tx => tx.poId))
       return {
         ...data,
-        purchaseOrders: (data.purchaseOrders || []).filter(po => po.store === 'Warehouse' || po.fromLocation === 'Warehouse' || po.toLocation === 'Warehouse' || warehouseTxPoIds.has(po.id)),
+        purchaseOrders: data.purchaseOrders || [],
         transactions: (data.transactions || []).filter(tx => tx.store === 'Warehouse'),
         audits: (data.audits || []).filter(a => a.store === 'Warehouse')
       }
