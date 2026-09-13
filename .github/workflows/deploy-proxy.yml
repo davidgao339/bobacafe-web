@@ -17,12 +17,13 @@ jobs:
           node-version: 20
       - run: npm install -g wrangler
       - name: Initialize Dev D1 Schema
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           cd apps/databricks-proxy
-          wrangler d1 execute bobacafe-db-dev --file schema.sql --remote
+          wrangler d1 execute bobacafe-db-dev --file schema.sql --remote || true
           wrangler d1 execute bobacafe-db-dev --file migrate.sql --remote || true
       - name: Deploy Worker to Dev
         env:
@@ -42,12 +43,13 @@ jobs:
           node-version: 20
       - run: npm install -g wrangler
       - name: Initialize Prod D1 Schema
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           cd apps/databricks-proxy
-          wrangler d1 execute bobacafe-db --file schema.sql --remote
+          wrangler d1 execute bobacafe-db --file schema.sql --remote || true
           wrangler d1 execute bobacafe-db --file migrate.sql --remote || true
       - name: Deploy Worker to Prod
         env:
