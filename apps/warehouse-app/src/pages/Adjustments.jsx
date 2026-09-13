@@ -38,7 +38,7 @@ export default function Adjustments({ role }) {
 
   const adjustmentEvents = useMemo(() => {
     return data.transactions
-      .filter(t => t.type === 'adjustment' && (!t.poId || String(t.poId).startsWith('ADJ-')))
+      .filter(t => t.type === 'adjustment' && t.poId && String(t.poId).startsWith('ADJ-'))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
   }, [data.transactions])
 
