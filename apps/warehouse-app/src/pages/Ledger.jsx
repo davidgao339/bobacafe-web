@@ -117,12 +117,14 @@ export default function DailyLedger({ initialIngredientId }) {
 
         ensure(t.date)
         if (t.type === 'adjustment') {
-          if (t.quantity < 0 && t.poId) {
-            byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId, time })
-          } else if (t.quantity > 0 && t.poId) {
-            byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId, time })
+          if (t.poId && String(t.poId).startsWith('PO-')) {
+            if (t.quantity < 0) {
+              byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId, time })
+            } else {
+              byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId, time })
+            }
           } else {
-            byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity, time })
+            byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity, adjId: t.poId, time })
           }
         } else if (t.type === 'production') {
           if (t.quantity > 0) {
@@ -449,7 +451,7 @@ export default function DailyLedger({ initialIngredientId }) {
                                          d.kind === 'po'           ? `PO-${d.poId}` :
                                          d.kind === 'production-yield' ? `YIELD (${d.prodId})` :
                                          d.kind === 'production-usage' ? `USAGE (${d.prodId})` :
-                                         d.kind === 'adjustment'   ? t('ledger.kindAdj') :
+                                         d.kind === 'adjustment'   ? (d.adjId ? `ADJ (${d.adjId})` : t('ledger.kindAdj')) :
                                          d.kind === 'audit'        ? t('ledger.kindAudit') :
                                          d.kind === 'transfer-out' ? t('ledger.kindTransferOut') :
                                          d.kind === 'transfer-in'  ? t('ledger.kindTransferIn') :
