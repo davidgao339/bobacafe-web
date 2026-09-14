@@ -5,13 +5,16 @@ import { PlusCircle, Package, ArrowDown, ArrowUp, X, CheckCircle, AlertTriangle,
 const TODAY = new Date().toISOString().slice(0, 10)
 
 export default function Production({ role }) {
-  const { config, data, addTransaction, deleteProductionEvent } = useConfig()
+  const { config, data, addTransaction, deleteProductionEvent, updateProductionEvent } = useConfig()
   
   const [isCreating, setIsCreating] = useState(false)
+  const [editingEventId, setEditingEventId] = useState(null)
   const [expanded, setExpanded] = useState({})
   
   const [outputId, setOutputId] = useState('')
   const [outputQty, setOutputQty] = useState('')
+  const [prodDate, setProdDate] = useState(TODAY)
+  const [prodTime, setProdTime] = useState(() => new Date().toTimeString().slice(0, 5))
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
 
@@ -29,35 +32,72 @@ export default function Production({ role }) {
   const handleSubmit = () => {
     if (!isValid) return
     
-    const prodId = `PROD-${Date.now()}`
+    const isEditing = !!editingEventId
+    const prodId = isEditing ? editingEventId : `PROD-${Date.now()}`
+    
+    // Combine Date and Time in local timezone, convert to ISO
+    let timestamp
+    try {
+      timestamp = new Date(`${prodDate}T${prodTime}`).toISOString()
+    } catch(e) {
+      timestamp = new Date().toISOString()
+    }
 
-    addTransaction({
+    const newTransactions = []
+    
+    newTransactions.push({
+      id: isEditing ? `T-${Date.now()}-1` : undefined, // addTransaction handles id generation if undefined
       ingredientId: Number(outputId),
       store: 'Warehouse',
-      date: TODAY,
+      date: prodDate,
       type: 'production',
       quantity: qtyNum,
       poId: prodId,
-      reason: selectedProduct.name
+      reason: selectedProduct.name,
+      timestamp
     })
 
-    Object.entries(recipe).forEach(([ingIdStr, qtyPerUnit]) => {
+    Object.entries(recipe).forEach(([ingIdStr, qtyPerUnit], idx) => {
       const ingId = Number(ingIdStr)
       const inputQty = qtyPerUnit * qtyNum
-      addTransaction({
+      newTransactions.push({
+        id: isEditing ? `T-${Date.now()}-2-${idx}` : undefined,
         ingredientId: ingId,
         store: 'Warehouse',
-        date: TODAY,
+        date: prodDate,
         type: 'production',
         quantity: -inputQty,
         poId: prodId,
-        reason: selectedProduct.name
+        reason: selectedProduct.name,
+        timestamp
       })
     })
 
+    if (isEditing) {
+      updateProductionEvent(prodId, newTransactions)
+    } else {
+      newTransactions.forEach(tx => addTransaction(tx))
+    }
+
     setOutputId('')
     setOutputQty('')
+    setProdDate(TODAY)
+    setProdTime(new Date().toTimeString().slice(0, 5))
     setIsCreating(false)
+    setEditingEventId(null)
+  }
+
+  const handleEdit = (ev) => {
+    setEditingEventId(ev.id)
+    if (ev.yield) {
+      setOutputId(String(ev.yield.ingredientId))
+      setOutputQty(String(ev.yield.quantity))
+    }
+    setProdDate(ev.date)
+    const dt = new Date(ev.timestamp)
+    const localTime = dt.toTimeString().slice(0, 5)
+    setProdTime(localTime)
+    setIsCreating(true)
   }
 
   const productionEvents = useMemo(() => {
@@ -85,7 +125,14 @@ export default function Production({ role }) {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900">Production History</h1>
         <button 
-          onClick={() => setIsCreating(true)}
+          onClick={() => {
+            setEditingEventId(null)
+            setOutputId('')
+            setOutputQty('')
+            setProdDate(TODAY)
+            setProdTime(new Date().toTimeString().slice(0, 5))
+            setIsCreating(true)
+          }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 text-sm font-medium rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
         >
           <PlusCircle className="w-4 h-4" />
@@ -127,18 +174,30 @@ export default function Production({ role }) {
                     </div>
                   </div>
                   {role !== 'cook' && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (window.confirm("Delete this production event? This will reverse the inventory changes.")) {
-                          deleteProductionEvent(ev.id)
-                        }
-                      }}
-                      className="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
-                      title="Delete event"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEdit(ev)
+                        }}
+                        className="text-gray-400 hover:text-blue-600 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                        title="Edit event"
+                      >
+                        <span className="text-xs font-medium">Edit</span>
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (window.confirm("Delete this production event? This will reverse the inventory changes.")) {
+                            deleteProductionEvent(ev.id)
+                          }
+                        }}
+                        className="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Delete event"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 
@@ -188,7 +247,7 @@ export default function Production({ role }) {
         <div className="fixed inset-0 bg-gray-900/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <h2 className="text-lg font-bold text-gray-900">Record Production</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editingEventId ? 'Edit Production' : 'Record Production'}</h2>
               <button onClick={() => setIsCreating(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
@@ -201,6 +260,26 @@ export default function Production({ role }) {
                   <h2 className="text-sm font-semibold text-green-800">Output (Finished Good)</h2>
                 </div>
                 <div className="p-4 space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Production Date</label>
+                      <input 
+                        type="date"
+                        value={prodDate}
+                        onChange={e => setProdDate(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Production Time</label>
+                      <input 
+                        type="time"
+                        value={prodTime}
+                        onChange={e => setProdTime(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                      />
+                    </div>
+                  </div>
                   <div className="relative">
                     <label className="block text-xs font-medium text-gray-500 mb-1">Select Product to Produce</label>
                     <div className="relative">

@@ -230,6 +230,27 @@ export function ConfigProvider({ children }) {
     })
   }, [])
 
+  const updateProductionEvent = useCallback((poId, newTransactions) => {
+    setDataState(prev => {
+      const toDelete = prev.transactions.filter(t => t.poId === poId && t.type === 'production')
+      toDelete.forEach(d => queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error))
+      
+      newTransactions.forEach(tx => {
+        queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+          [tx.id, tx.store, tx.date, tx.type, tx.ingredientId, tx.quantity, tx.poId || null, tx.reason || null, tx.timestamp]
+        ).catch(console.error)
+      })
+
+      return { 
+        ...prev, 
+        transactions: [
+          ...prev.transactions.filter(t => t.poId !== poId || t.type !== 'production'),
+          ...newTransactions
+        ] 
+      }
+    })
+  }, [])
+
   const deleteTransaction = useCallback((id) => {
     setDataState(prev => {
       const tx = prev.transactions.find(t => t.id === id)
@@ -580,7 +601,7 @@ export function ConfigProvider({ children }) {
     <ConfigContext.Provider value={{
       config, setConfig,
       data: filteredData, setData,
-      addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction, deleteProductionEvent,
+      addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction, deleteProductionEvent, updateProductionEvent,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility: () => {},
