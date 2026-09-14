@@ -105,7 +105,7 @@ export function ConfigProvider({ children }) {
     return { token: '', warehouseId: '', ...stored }
   })
   const [stores, setStoresState] = useState(() => STORES)
-  const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
+  const [suppressedStores, setSuppressedStores] = useState([])
 
   // ─── D1 Data Loading ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -113,7 +113,7 @@ export function ConfigProvider({ children }) {
       try {
         const [ingRes, recRes, suppRes, txRes, poRes, audRes] = await Promise.all([
           queryD1('SELECT * FROM ingredients'),
-          queryD1("SELECT * FROM recipes WHERE type = 'retail'"),
+          queryD1("SELECT * FROM recipes WHERE type = 'production'"),
           queryD1('SELECT * FROM suppliers'),
           queryD1('SELECT * FROM transactions'),
           queryD1('SELECT * FROM purchase_orders'),
@@ -177,18 +177,7 @@ export function ConfigProvider({ children }) {
     idbRemove(SALES_CACHE_KEY).catch(console.error)
   }, [])
 
-  const toggleStoreVisibility = useCallback((store) => {
-    setSuppressedStores(prev => {
-      const next = prev.includes(store) ? prev.filter(s => s !== store) : [...prev, store]
-      saveToStorage(SUPPRESSED_STORES_KEY, next)
-      return next
-    })
-  }, [])
-
-  const visibleStores = useMemo(() => {
-    if (!stores || !suppressedStores) return stores || []
-    return stores.filter(s => !suppressedStores.includes(s))
-  }, [stores, suppressedStores])
+  const visibleStores = ['Warehouse']
 
   // ─── Operational data mutations (Optimistic + D1) ───────────────────────────
 
@@ -222,14 +211,18 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const addTransaction = useCallback((tx) => {
+    const newTx = { ...tx, id: tx.id || `T-${Date.now()}`, timestamp: tx.timestamp || new Date().toISOString() }
+    queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+      [newTx.id, newTx.store, newTx.date, newTx.type, newTx.ingredientId, newTx.quantity, newTx.poId || null, newTx.reason || null, newTx.timestamp]
+    ).catch(console.error)
+    setDataState(prev => ({ ...prev, transactions: [...prev.transactions, newTx] }))
+  }, [])
+
+  const deleteProductionEvent = useCallback((poId) => {
     setDataState(prev => {
-      const id = `T-${String(prev._nextTxId).padStart(3, '0')}`
-      const newTx = { id, ...tx, timestamp: tx.timestamp || new Date().toISOString() }
-      queryD1(
-        `INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newTx.id, newTx.store, newTx.date, newTx.type, newTx.ingredientId, newTx.quantity, newTx.poId || null, newTx.reason || null, newTx.timestamp]
-      ).catch(console.error)
-      return { ...prev, transactions: [...prev.transactions, newTx], _nextTxId: prev._nextTxId + 1 }
+      const toDelete = prev.transactions.filter(t => t.poId === poId && t.type === 'production')
+      toDelete.forEach(d => queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error))
+      return { ...prev, transactions: prev.transactions.filter(t => t.poId !== poId || t.type !== 'production') }
     })
   }, [])
 
@@ -358,13 +351,13 @@ export function ConfigProvider({ children }) {
       if (next.recipes !== prev.recipes) {
         for (const [product, mapping] of Object.entries(next.recipes)) {
           if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product])) {
-            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
+            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
           }
         }
         const nextProducts = new Set(Object.keys(next.recipes))
         for (const product of Object.keys(prev.recipes)) {
           if (!nextProducts.has(product)) {
-            queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'retail'`, [product]).catch(console.error)
+            queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'production'`, [product]).catch(console.error)
           }
         }
       }
@@ -506,9 +499,9 @@ export function ConfigProvider({ children }) {
             await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null])
           }
           
-          await queryD1(`DELETE FROM recipes WHERE type = 'retail'`)
+          await queryD1(`DELETE FROM recipes WHERE type = 'production'`)
           for (const [product, mapping] of Object.entries(conf.recipes)) {
-            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)])
+            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)])
           }
           
           await queryD1(`DELETE FROM suppliers`)
@@ -557,9 +550,18 @@ export function ConfigProvider({ children }) {
     })
   , [])
 
+  const filteredData = useMemo(() => {
+    if (!data) return data
+      return {
+        ...data,
+        purchaseOrders: data.purchaseOrders || [],
+        transactions: (data.transactions || []).filter(tx => tx.store === 'Warehouse'),
+        audits: (data.audits || []).filter(a => a.store === 'Warehouse')
+      }
+  }, [data])
+
   // If not loaded, we can return null to avoid crashing child components that expect full data,
   // or return the context. For now, children expect data to be defined. It starts as DEFAULT_DATA.
-  
   if (!isD1Loaded) {
     return <div className="flex h-screen items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
   }
@@ -567,11 +569,11 @@ export function ConfigProvider({ children }) {
   return (
     <ConfigContext.Provider value={{
       config, setConfig,
-      data, setData,
-      addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction,
+      data: filteredData, setData,
+      addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction, deleteProductionEvent,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
-      stores, visibleStores, suppressedStores, toggleStoreVisibility,
+      stores, visibleStores, suppressedStores, toggleStoreVisibility: () => {},
       settings, saveSettings, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,

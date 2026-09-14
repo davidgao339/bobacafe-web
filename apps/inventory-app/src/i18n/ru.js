@@ -14,6 +14,10 @@ const ru = {
   'nav.noSalesData':   'Нет данных — обновить',
   'nav.refreshHint':   'Оценки зависят от последней синхронизации продаж. Нажмите, чтобы обновить.',
   'nav.manager':       'Менеджер',
+  'nav.group.coreOps': 'Основные операции',
+  'nav.group.reconciliation': 'Сверка',
+  'nav.group.masterData': 'Справочники и Настройки',
+  'nav.group.retailOps': 'Розница',
 
   // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Выберите ингредиент из списка',
@@ -167,6 +171,9 @@ const ru = {
   'tx.tabSales':        'Продажи',
   'tx.tabWaste':        'Нефискальные (Списания)',
   'tx.tabTransfers':    'Перемещения',
+  'tx.tabMonthly':      'Расход за месяц',
+  'tx.colMonth':        'Месяц',
+  'tx.colTotal':        'Итого',
   'tx.noTransfers':     'Нет записей о перемещениях',
   'tx.transferFrom':    'Откуда',
   'tx.transferTo':      'Куда',
