@@ -137,10 +137,8 @@ jobs:
           # 5. Reports
           cp -r site/internal/reports/. deploy/internal/reports/
 
-          # 5b. Cloudflare Pages Client-Side Routing Redirects
-          echo "/internal/warehouse/* /internal/warehouse/index.html 200" > deploy/_redirects
-          echo "/internal/inventory/* /internal/inventory/index.html 200" >> deploy/_redirects
-          echo "/internal/schedule/* /internal/schedule/index.html 200" >> deploy/_redirects
+          # 5b. Cloudflare Pages Client-Side Routing
+          # Handled by Edge Functions in functions/internal/
 
           # 6. Prevent Jekyll from ignoring underscore files
           touch deploy/.nojekyll

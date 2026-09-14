@@ -621,6 +621,9 @@ function MonthlyConsumptionTab() {
   const { t } = useLanguage()
 
   const [filterStore, setFilterStore] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortCol, setSortCol] = useState('name')
+  const [sortAsc, setSortAsc] = useState(true)
 
   // Calculate monthly consumption
   const data = useMemo(() => {
@@ -673,9 +676,44 @@ function MonthlyConsumptionTab() {
     return { months: sortedMonths, rows }
   }, [sales, posWaste, filterStore, config.ingredients, getSaleIngredientImpact])
 
+  const filteredAndSortedRows = useMemo(() => {
+    let result = data.rows
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(r => r.name.toLowerCase().includes(q))
+    }
+    result = [...result].sort((a, b) => {
+      let valA, valB
+      if (sortCol === 'name') {
+        valA = a.name
+        valB = b.name
+      } else if (sortCol === 'total') {
+        valA = a.total
+        valB = b.total
+      } else {
+        valA = a.amounts[sortCol] || 0
+        valB = b.amounts[sortCol] || 0
+      }
+      
+      if (valA < valB) return sortAsc ? -1 : 1
+      if (valA > valB) return sortAsc ? 1 : -1
+      return 0
+    })
+    return result
+  }, [data.rows, searchQuery, sortCol, sortAsc])
+
+  const handleSort = (col) => {
+    if (sortCol === col) {
+      setSortAsc(!sortAsc)
+    } else {
+      setSortCol(col)
+      setSortAsc(col === 'name' ? true : false)
+    }
+  }
+
   return (
     <>
-      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 flex gap-4 items-end">
+      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 flex gap-4 items-end flex-wrap">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
           <select value={filterStore} onChange={e => setFilterStore(e.target.value)}
@@ -684,28 +722,49 @@ function MonthlyConsumptionTab() {
             {stores.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.search')}</label>
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder={t('recipes.searchPlaceholder') || 'Search...'}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-3 font-medium">{t('common.ingredient')}</th>
-              <th className="px-4 py-3 font-medium text-right bg-blue-50/50">{t('tx.colTotal') || 'Total'}</th>
+              <th className="px-6 py-3 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>
+                <div className="flex items-center gap-1">
+                  {t('common.ingredient')}
+                  {sortCol === 'name' && <span className="text-gray-400">{sortAsc ? '↑' : '↓'}</span>}
+                </div>
+              </th>
+              <th className="px-4 py-3 font-medium text-right bg-blue-50/50 cursor-pointer hover:bg-blue-100/50 transition-colors" onClick={() => handleSort('total')}>
+                <div className="flex items-center justify-end gap-1">
+                  {t('tx.colTotal') || 'Total'}
+                  {sortCol === 'total' && <span className="text-gray-400">{sortAsc ? '↑' : '↓'}</span>}
+                </div>
+              </th>
               {data.months.map(m => (
-                <th key={m} className="px-4 py-3 font-medium text-right">{m}</th>
+                <th key={m} className="px-4 py-3 font-medium text-right cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort(m)}>
+                  <div className="flex items-center justify-end gap-1">
+                    {m}
+                    {sortCol === m && <span className="text-gray-400">{sortAsc ? '↑' : '↓'}</span>}
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {data.rows.length === 0 ? (
+            {filteredAndSortedRows.length === 0 ? (
               <tr>
                 <td colSpan={data.months.length + 2} className="px-6 py-10 text-center text-gray-400 text-sm">
                   {t('tx.noMatch')}
                 </td>
               </tr>
             ) : (
-              data.rows.map(r => (
+              filteredAndSortedRows.map(r => (
                 <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-6 py-2.5 text-gray-800 font-medium whitespace-nowrap">
                     {r.name} <span className="text-gray-400 text-xs font-normal ml-1">{r.unit}</span>

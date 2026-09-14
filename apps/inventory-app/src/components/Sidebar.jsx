@@ -35,6 +35,8 @@ const NAV_GROUPS = [
       { id: 'transactions', labelKey: 'nav.transactions',  icon: TxIcon, children: [
         { id: 'sales',  labelKey: 'tx.tabSales' },
         { id: 'waste',  labelKey: 'tx.tabWaste' },
+        { id: 'transfers', labelKey: 'tx.tabTransfers' },
+        { id: 'monthly', labelKey: 'tx.tabMonthly' },
       ]},
     ]
   },
