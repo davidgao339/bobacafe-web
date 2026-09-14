@@ -94,10 +94,16 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
 
         ensure(t.date)
         if (t.type === 'adjustment') {
+          const po = t.poId ? data.purchaseOrders.find(p => p.id === t.poId) : null
+          const isTransfer = po && po.fromLocation && po.toLocation
+          
           if (t.quantity < 0 && t.poId) {
             byDate[t.date].details.push({ kind: 'transfer-out', qty: Math.abs(t.quantity), poId: t.poId, time })
           } else if (t.quantity > 0 && t.poId) {
-            byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId, time })
+            if (isTransfer) {
+              byDate[t.date].details.push({ kind: 'transfer-in', qty: t.quantity, poId: t.poId, time })
+            }
+            // If not a transfer, skip pushing here, it is handled by the data.purchaseOrders loop
           } else {
             byDate[t.date].details.push({ kind: 'adjustment', qty: t.quantity, time })
           }

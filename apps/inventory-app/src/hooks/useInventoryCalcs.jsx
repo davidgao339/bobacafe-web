@@ -164,6 +164,8 @@ export function useCalcs() {
       if (!stores.includes(store)) continue
       const poTime = po.receivedAt ?? (po.receivedDate ? `${po.receivedDate}T12:00:00` : '2000-01-01T00:00:00')
       
+      const hasTx = data.transactions.some(t => t.poId === po.id)
+      
       for (const l of po.lines) {
         const ingId = l.ingredientId
         if (poInWindow[store][ingId] === undefined) continue
@@ -176,7 +178,7 @@ export function useCalcs() {
         const lastIngAudit = sortedAuditsByStore[store]?.filter(a => a.counts[ingId] != null)[0]
         const cutAudit = lastIngAudit?.date ?? '0000-00-00'
         const cutTime = (lastIngAudit?.timestamp && lastIngAudit.timestamp.startsWith(cutAudit)) ? lastIngAudit.timestamp : `${cutAudit}T23:59:59`
-        if (poTime > cutTime) {
+        if (poTime > cutTime && !hasTx) {
           poSinceLastAudit[store][ingId] += (l.received ?? l.ordered ?? 0)
         }
       }
