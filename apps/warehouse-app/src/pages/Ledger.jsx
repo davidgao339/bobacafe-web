@@ -75,7 +75,7 @@ export default function DailyLedger({ initialIngredientId }) {
     const startDate = baseAudit?.date ?? from
     const base      = baseAudit?.counts[selectedId] ?? 0
 
-    const baseAuditTime = baseAudit?.timestamp ?? '0000-00-00T23:59:59'
+    const baseAuditTime = (baseAudit?.timestamp && baseAudit.timestamp.startsWith(startDate)) ? baseAudit.timestamp : `${startDate}T23:59:59`
 
     // Build per-day activity map
     const byDate = {}
@@ -160,7 +160,7 @@ export default function DailyLedger({ initialIngredientId }) {
 
     const auditsByDate = new Map(
       storeAudits
-        .filter(a => a.date >= startDate && (a.timestamp ?? `${a.date}T23:59:59`) > baseAuditTime)
+        .filter(a => a.date >= startDate && ((a.timestamp && a.timestamp.startsWith(a.date)) ? a.timestamp : `${a.date}T23:59:59`) > baseAuditTime)
         .map(a => [a.date, a])
     )
 
@@ -182,7 +182,7 @@ export default function DailyLedger({ initialIngredientId }) {
         details.push({
           kind: 'audit',
           count: audit.counts[selectedId] ?? 0,
-          time: audit.timestamp ?? `${d}T23:59:59`
+          time: (audit.timestamp && audit.timestamp.startsWith(d)) ? audit.timestamp : `${d}T23:59:59`
         })
       }
 

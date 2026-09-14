@@ -94,7 +94,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
     if (onMobileClose) onMobileClose()
   }
 
-  const { stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, importConfig, settings, saveSettings } = useConfig()
+  const { stores, toggleStoreVisibility, suppressedStores, config, data, salesCache, settings, saveSettings } = useConfig()
 
   const handleDownloadJson = () => {
     const payload = { exportedAt: new Date().toISOString(), config, data, salesCache: salesCache ?? null }
@@ -106,24 +106,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
     a.click()
     URL.revokeObjectURL(url)
   }
-  const fileInputRef = useRef(null)
-  
-  const handleUploadJson = () => {
-    fileInputRef.current?.click()
-  }
 
-  const handleFileChange = async (e) => {
-    try {
-      const file = e.target.files?.[0]
-      if (!file) return
-      await importConfig(file)
-      alert('Data imported successfully')
-    } catch (err) {
-      alert('Failed to import JSON: ' + err.message)
-    }
-    // reset input so same file can be uploaded again if needed
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
 
   const { lang, setLang, t } = useLanguage()
 
@@ -241,12 +224,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                 Download JSON (debug)
               </button>
-              <button onClick={handleUploadJson}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
-                Upload JSON (debug)
-              </button>
-              <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+
 
             </div>
           </details>
