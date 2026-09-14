@@ -120,6 +120,7 @@ jobs:
 
           # 2. Public site root
           cp site/index.html deploy/index.html
+          cp site/index.css deploy/index.css
 
           # 3. Internal dashboard + static pages
           cp site/internal/index.html       deploy/internal/index.html
