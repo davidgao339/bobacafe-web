@@ -23,24 +23,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Mint Databricks OAuth Token
-        id: mint_token
-        env:
-          CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-        run: |
-          WORKSPACE=https://dbc-d5bd17fc-eaf4.cloud.databricks.com
-          OAUTH_TOKEN=$(curl -sf -X POST "${WORKSPACE}/oidc/v1/token" \
-            -u "${CLIENT_ID}:${CLIENT_SECRET}" \
-            -d "grant_type=client_credentials&scope=all-apis" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-          echo "::add-mask::$OAUTH_TOKEN"
-          echo "token=$OAUTH_TOKEN" >> "$GITHUB_OUTPUT"
-
       - name: Download reports from Databricks
         env:
           DATABRICKS_WORKSPACE: https://dbc-d5bd17fc-eaf4.cloud.databricks.com
-          DATABRICKS_TOKEN: ${{ steps.mint_token.outputs.token }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: python3 .github/scripts/sync-reports.py
 
       - name: Generate index.html
