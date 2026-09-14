@@ -101,7 +101,7 @@ export function useCalcs() {
 
     const getPoTime = (poId) => {
       const po = data.purchaseOrders.find(p => p.id === poId)
-      return po?.receivedAt ?? (po?.receivedDate ? `${po.receivedDate}T12:00:00` : '9999-12-31T23:59:59')
+      return po?.receivedAt ?? (po?.receivedDate ? `${po.receivedDate}T12:00:00` : '2000-01-01T00:00:00')
     }
 
     for (const t of data.transactions) {
@@ -162,7 +162,7 @@ export function useCalcs() {
       if (po.status !== 'received' || (po.fromLocation && po.toLocation)) continue
       const store = po.store
       if (!stores.includes(store)) continue
-      const poTime = po.receivedAt ?? (po.receivedDate ? `${po.receivedDate}T12:00:00` : '9999-12-31T23:59:59')
+      const poTime = po.receivedAt ?? (po.receivedDate ? `${po.receivedDate}T12:00:00` : '2000-01-01T00:00:00')
       
       for (const l of po.lines) {
         const ingId = l.ingredientId
