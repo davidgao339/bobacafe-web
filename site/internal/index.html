@@ -552,6 +552,15 @@
                 <div class="app-desc" data-ru="Инвентаризация, расход ингредиентов, заявки на закупку.">Real-time ingredient tracking, stock audits, and purchase order generation.</div>
                 <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
+            <div class="app-card" data-app="warehouse">
+                <div class="card-top">
+                    <div class="app-icon">📦</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Склад и производство">Warehouse & Production</div>
+                <div class="app-desc" data-ru="Центральный склад, поставки и логирование производства.">Central warehouse stock, supplier deliveries, and ingredient production logging.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
         </div>
     </div>
 
@@ -647,6 +656,13 @@
             labelRu: 'Банковские выписки',
             icon:   '🏦',
             target: '_blank',
+        },
+        'warehouse': {
+            url:    '/internal/warehouse/',
+            pin:    _P.warehouse || '8888',
+            label:  'Warehouse & Production',
+            labelRu: 'Склад и производство',
+            icon:   '📦',
         },
     };
 
