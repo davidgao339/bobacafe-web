@@ -1,6 +1,6 @@
 # Inventory & Replenishment App (apps/inventory-app)
 
-Internal web application for **Боба Кролик (Boba Rabbit)** bubble tea cafés to manage inventory, recipes, weekly replenishment calculations, purchase orders (POs), supplier grouping, and physical audit reconciliation.
+Internal web application for **Boba Cafe (Boba Rabbit)** bubble tea cafés to manage inventory, recipes, weekly replenishment calculations, purchase orders (POs), supplier grouping, and physical audit reconciliation.
 
 ---
 

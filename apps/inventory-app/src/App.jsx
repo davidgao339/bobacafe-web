@@ -134,7 +134,7 @@ function LogisticsView({ onLogout }) {
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 gap-4 flex-wrap">
         <div className="flex items-center gap-6">
           <div>
-            <p className="font-semibold text-gray-800 text-sm">Боба Кролик · Склад</p>
+            <p className="font-semibold text-gray-800 text-sm">Boba Cafe · Склад</p>
             <p className="text-xs text-gray-400">Менеджер</p>
           </div>
           <div className="flex items-center bg-gray-100 p-1 rounded-lg">

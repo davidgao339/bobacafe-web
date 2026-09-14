@@ -14,7 +14,7 @@ from config import (
 from data_access import read_responses, write_schedule
 from optimizer import get_stores_from_df, run_optimization, build_wide_table
 
-st.set_page_config(page_title="Schedule Optimizer — Боба Кролик", layout="wide")
+st.set_page_config(page_title="Schedule Optimizer — Boba Cafe", layout="wide")
 
 # ── Language ──────────────────────────────────────────────────────────────────
 if "lang" not in st.session_state:
@@ -36,7 +36,7 @@ if st.user.email not in ALLOWED_EMAILS:
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.title("Боба Кролик")
+    st.title("Boba Cafe")
     st.caption(st.user.email)
 
     lang_choice = st.radio(

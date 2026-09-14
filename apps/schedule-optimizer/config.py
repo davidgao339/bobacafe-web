@@ -113,7 +113,7 @@ STRINGS: dict[str, dict] = {
                    "July", "August", "September", "October", "November", "December"],
     },
     "ru": {
-        "app_title": "Оптимизация расписания — Боба Кролик",
+        "app_title": "Оптимизация расписания — Boba Cafe",
         "sign_in_desc": "Оптимизация расписания сотрудников с помощью CP-SAT.",
         "sign_in_btn": "Войти через Google",
         "access_denied": "Доступ запрещён. Ваш аккаунт не авторизован.",

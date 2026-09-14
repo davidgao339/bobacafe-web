@@ -125,7 +125,7 @@ def sync_reports():
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Отчёты — Боба Кролик</title>
+    <title>Отчёты — Boba Cafe</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -321,7 +321,7 @@ def sync_reports():
 
 <nav>
     <a href="/internal/" class="nav-back">← Портал</a>
-    <div class="nav-title">Боба Кролик</div>
+    <div class="nav-title">Boba Cafe</div>
     <div style="width: 60px;"></div>
 </nav>
 
@@ -338,7 +338,7 @@ def sync_reports():
 </div>
 
 <footer>
-    Боба Кролик &copy; 2026 &nbsp;·&nbsp; Служебный раздел аналитики
+    Boba Cafe &copy; 2026 &nbsp;·&nbsp; Служебный раздел аналитики
 </footer>
 
 </body>

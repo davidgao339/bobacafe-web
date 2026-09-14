@@ -3,259 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Боба Кролик | Премиум Bubble Tea</title>
+    <meta name="description" content="Boba Cafe - Премиум Bubble Tea. Найдите наши филиалы в Новороссийске и Краснодаре.">
+    <title>Boba Cafe | Премиум Bubble Tea</title>
+    <link rel="stylesheet" href="index.css">
     <script src="https://api-maps.yandex.ru/2.1/?apikey=8d381380-bced-4d5d-9c77-4ac6700ce366&lang=ru_RU" type="text/javascript"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #fdf6ec;
-            color: #5d4037;
-            line-height: 1.6;
-        }
-
-        header {
-            background: linear-gradient(135deg, #d7ccc8 0%, #8d6e63 100%);
-            color: white;
-            padding: 2rem 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        header h1 {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        header p {
-            text-align: center;
-            font-size: 1.1rem;
-            opacity: 0.95;
-        }
-
-        nav {
-            background-color: #8d6e63;
-            padding: 1rem;
-            text-align: center;
-        }
-
-        nav a {
-            color: white;
-            text-decoration: none;
-            margin: 0 1.5rem;
-            font-weight: 500;
-            transition: opacity 0.3s;
-        }
-
-        nav a:hover {
-            opacity: 0.8;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-
-        section {
-            padding: 3rem 0;
-            border-bottom: 2px solid #d7ccc8;
-        }
-
-        h2 {
-            font-size: 2rem;
-            margin-bottom: 2rem;
-            text-align: center;
-            color: #5d4037;
-        }
-
-        .products-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin-top: 2rem;
-        }
-
-        .product-card {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .product-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-        }
-
-        .product-image {
-            width: 100%;
-            height: 200px;
-            background: linear-gradient(135deg, #d7ccc8 0%, #8d6e63 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 3rem;
-            overflow: hidden;
-        }
-
-        .product-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .product-info {
-            padding: 1.5rem;
-        }
-
-        .product-info h3 {
-            color: #8d6e63;
-            margin-bottom: 0.5rem;
-            font-size: 1.3rem;
-        }
-
-        .product-info p {
-            color: #666;
-            font-size: 0.95rem;
-            margin-bottom: 1rem;
-        }
-
-        .map-container {
-            height: 500px;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            margin-top: 2rem;
-        }
-
-        #storeMap {
-            width: 100%;
-            height: 100%;
-        }
-
-        .location-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-
-        .location-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border-left: 4px solid #8d6e63;
-        }
-
-        .location-card h3 {
-            color: #8d6e63;
-            margin-bottom: 0.5rem;
-        }
-
-        .location-card p {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 0.3rem;
-        }
-
-        footer {
-            background-color: #5d4037;
-            color: white;
-            text-align: center;
-            padding: 2rem;
-            margin-top: 3rem;
-        }
-
-        footer a {
-            color: #d7ccc8;
-            text-decoration: none;
-            margin: 0 0.5rem;
-        }
-
-        footer a:hover {
-            text-decoration: underline;
-        }
-
-        .schedule-btn {
-            background-color: #8d6e63;
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 5px;
-            text-decoration: none;
-            display: inline-block;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.3s;
-        }
-
-        .schedule-btn:hover {
-            background-color: #5d4037;
-        }
-
-        @media (max-width: 768px) {
-            header h1 {
-                font-size: 2rem;
-            }
-
-            nav a {
-                display: block;
-                margin: 0.5rem 0;
-            }
-
-            .products-grid {
-                grid-template-columns: 1fr;
-            }
-
-            h2 {
-                font-size: 1.5rem;
-            }
-
-            .map-container {
-                height: 350px;
-            }
-        }
-    </style>
 </head>
 <body>
     <header>
-        <h1>🐰 Боба Кролик</h1>
-        <p>Премиум Bubble Tea</p>
+        <div class="header-content">
+            <h1>🐰 Boba Cafe</h1>
+            <nav>
+                <a href="#products">Наше Меню</a>
+                <a href="#locations">Найти Нас</a>
+            </nav>
+        </div>
     </header>
 
-    <nav>
-        <a href="#products">Наши Товары</a>
-        <a href="#locations">Найти Нас</a>
-    </nav>
-
-    <div class="container">
-        <section id="products">
-            <h2>Наше Меню</h2>
-            <div style="text-align: center; padding: 3rem 2rem; background: linear-gradient(135deg, rgba(215, 204, 200, 0.1) 0%, rgba(141, 110, 99, 0.1) 100%); border-radius: 12px; margin-top: 2rem;">
-                <div style="font-size: 4rem; margin-bottom: 1rem;">📋</div>
-                <h3 style="color: #8d6e63; font-size: 1.5rem; margin-bottom: 1rem;">Меню в разработке</h3>
-                <p style="color: #666; font-size: 1rem; max-width: 600px; margin: 0 auto;">Полное меню Боба Кролик скоро будет доступно. Следите за обновлениями!</p>
+    <main>
+        <section class="hero">
+            <h2>Откройте для себя идеальный вкус Bubble Tea</h2>
+            <p>Премиальные ингредиенты, уникальные рецепты и неповторимая атмосфера.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="#locations" class="btn">Найти ближайший филиал</a>
+                <a href="https://eda.yandex.ru/novorossijsk/r/boba_rabbit?placeSlug=boba_kafe_j5l7n" target="_blank" rel="noopener noreferrer" class="btn" style="background: var(--surface-solid); color: var(--primary); border: 2px solid var(--primary); box-shadow: none;">Заказать Доставку</a>
             </div>
         </section>
 
-        <section id="locations">
-            <h2>Наши Филиалы</h2>
-            <p style="text-align: center; margin-bottom: 1.5rem;">Найдите ближайший к вам филиал Боба Кролик</p>
+        <section id="products" class="container">
+            <h2 class="section-title">Наше Меню</h2>
+            <div class="menu-placeholder">
+                <span class="icon">📋</span>
+                <h3>Смотрите наше меню онлайн</h3>
+                <p>Мы тщательно отбираем лучшие вкусы для вас. Ознакомьтесь с полным меню и сделайте заказ прямо сейчас!</p>
+                <div style="margin-top: 2rem;">
+                    <a href="https://eda.yandex.ru/novorossijsk/r/boba_rabbit?placeSlug=boba_kafe_j5l7n" target="_blank" rel="noopener noreferrer" class="btn">Перейти в Яндекс Еду</a>
+                </div>
+            </div>
+        </section>
 
+        <section id="locations" class="container">
+            <h2 class="section-title">Наши Филиалы</h2>
+            
             <div class="map-container">
                 <div id="storeMap"></div>
             </div>
 
-            <div class="location-info">
+            <div class="location-grid">
                 <div class="location-card">
                     <h3>📍 Новороссийск</h3>
                     <p>Анапское шоссе, 39А</p>
@@ -289,39 +82,34 @@
                 </div>
             </div>
         </section>
-    </div>
+    </main>
 
     <footer>
-        <p>&copy; 2024 Боба Кролик. Все права защищены.</p>
-        <p>
-            <a href="#products">Товары</a> |
+        <div class="footer-links">
+            <a href="#products">Меню</a>
             <a href="#locations">Филиалы</a>
-        </p>
-        <p style="margin-top:1rem;opacity:0.5;font-size:0.8rem">
-            <a href="/internal/">Для сотрудников</a>
-        </p>
+        </div>
+        <p class="copyright">&copy; 2026 Boba Cafe. Все права защищены.</p>
+        <a href="/internal/" class="internal-link">Для сотрудников</a>
     </footer>
 
     <script type="text/javascript">
         ymaps.ready(init);
         function init() {
-            // Store locations with real coordinates
             const storeLocations = [
-                { name: 'Новороссийск', lat: 44.6745, lng: 37.7705, address: 'Анапское шоссе, 39А, Фуд-корт, 3 этаж' },
-                { name: 'Краснодар', lat: 45.0353, lng: 38.9755, address: 'Улица Дзержинского, 100' },
-                { name: 'Новороссийск', lat: 44.6650, lng: 37.7800, address: 'Улица Героев Десантников, 2' },
-                { name: 'Новороссийск', lat: 44.6710, lng: 37.7580, address: 'Анапское шоссе, 2' },
-                { name: 'Новороссийск', lat: 44.6520, lng: 37.7660, address: 'Улица Советов, 34' },
-                { name: 'Новороссийск', lat: 44.6590, lng: 37.7920, address: 'Набережная Адмирала Серебрякова, 27А, 1 этаж' }
+                { name: 'Новороссийск', lat: 44.7301, lng: 37.7568, address: 'Анапское шоссе, 39А, Фуд-корт, 3 этаж' },
+                { name: 'Краснодар', lat: 45.0683, lng: 38.9832, address: 'Улица Дзержинского, 100' },
+                { name: 'Новороссийск', lat: 44.6865, lng: 37.7850, address: 'Улица Героев Десантников, 2' },
+                { name: 'Новороссийск', lat: 44.7265, lng: 37.7601, address: 'Анапское шоссе, 2' },
+                { name: 'Новороссийск', lat: 44.7170, lng: 37.7785, address: 'Улица Советов, 34' },
+                { name: 'Новороссийск', lat: 44.7125, lng: 37.7901, address: 'Набережная Адмирала Серебрякова, 27А, 1 этаж' }
             ];
 
-            // Create map centered on Novorossiysk/Krasnodar region
             var map = new ymaps.Map('storeMap', {
-                center: [44.65, 37.77],
-                zoom: 10
+                center: [44.7200, 37.7700],
+                zoom: 11
             });
 
-            // Add placemarks for each store
             storeLocations.forEach(store => {
                 var placemark = new ymaps.Placemark(
                     [store.lat, store.lng],
@@ -336,9 +124,8 @@
                 map.geoObjects.add(placemark);
             });
 
-            // Add clusterer for multiple points
             var clusterer = new ymaps.Clusterer({
-                preset: 'islands#invertedBlueTinyClusterer'
+                preset: 'islands#invertedBrownClusterer'
             });
             map.geoObjects.add(clusterer);
         }

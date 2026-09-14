@@ -174,7 +174,7 @@ const App = () => {
               </div>
             </div>
 
-            <h1 className="text-2xl font-bold text-center text-slate-900 mb-2">Боба Кролик</h1>
+            <h1 className="text-2xl font-bold text-center text-slate-900 mb-2">Boba Cafe</h1>
             <p className="text-center text-slate-500 text-sm mb-6">График Работы</p>
 
 
@@ -225,7 +225,7 @@ const App = () => {
             <Calendar className="w-5 h-5" />
           </div>
           <div className="flex flex-col items-start">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">Боба Кролик</h1>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900">Boba Cafe</h1>
             <p className="text-xs text-slate-500 font-medium">График Работы</p>
           </div>
         </div>

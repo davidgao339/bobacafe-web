@@ -1,6 +1,6 @@
-# Боба Кролик — Web Platform
+# Boba Cafe — Web Platform
 
-Website and internal tooling for Боба Кролик (Boba Rabbit) bubble tea cafés.
+Website and internal tooling for Boba Cafe (Boba Rabbit) bubble tea cafés.
 
 **Live:** [bobacafe.net](https://bobacafe.net) · **Internal:** [bobacafe.net/internal](https://bobacafe.net/internal)
 

@@ -1,6 +1,6 @@
 # CLAUDE.md — bobacafe-web
 
-Website and internal tooling for Боба Кролик (Boba Rabbit) bubble tea cafés.
+Website and internal tooling for Boba Cafe (Boba Rabbit) bubble tea cafés.
 
 **Live:** https://bobacafe.net · **Internal:** https://bobacafe.net/internal
 
