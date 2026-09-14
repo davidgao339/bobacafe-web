@@ -71,7 +71,7 @@ export function useCalcs() {
         
         const lastIngAudit = sortedAuditsByStore[store]?.filter(a => a.counts[ingId] != null)[0]
         const cutAudit = lastIngAudit?.date ?? '0000-00-00'
-        const cutTime = lastIngAudit?.timestamp ?? `${cutAudit}T23:59:59`
+        const cutTime = (lastIngAudit?.timestamp && lastIngAudit.timestamp.startsWith(cutAudit)) ? lastIngAudit.timestamp : `${cutAudit}T23:59:59`
         if (date >= cutAudit && `${date}T23:59:58` > cutTime) {
            salesSinceLastAudit[store][ingId] += amt
         }
@@ -137,7 +137,7 @@ export function useCalcs() {
       
       const lastIngAudit = sortedAuditsByStore[store]?.filter(a => a.counts[ingId] != null)[0]
       const cutAudit = lastIngAudit?.date ?? '0000-00-00'
-      const cutTime = lastIngAudit?.timestamp ?? `${cutAudit}T23:59:59`
+      const cutTime = (lastIngAudit?.timestamp && lastIngAudit.timestamp.startsWith(cutAudit)) ? lastIngAudit.timestamp : `${cutAudit}T23:59:59`
       if (date >= cutAudit) {
         let time = `${date}T12:00:00`
         if (t.type === 'adjustment' && t.poId) time = getPoTime(t.poId)
@@ -175,7 +175,7 @@ export function useCalcs() {
         
         const lastIngAudit = sortedAuditsByStore[store]?.filter(a => a.counts[ingId] != null)[0]
         const cutAudit = lastIngAudit?.date ?? '0000-00-00'
-        const cutTime = lastIngAudit?.timestamp ?? `${cutAudit}T23:59:59`
+        const cutTime = (lastIngAudit?.timestamp && lastIngAudit.timestamp.startsWith(cutAudit)) ? lastIngAudit.timestamp : `${cutAudit}T23:59:59`
         if (poTime > cutTime) {
           poSinceLastAudit[store][ingId] += (l.received ?? l.ordered ?? 0)
         }

@@ -546,6 +546,12 @@ export function ConfigProvider({ children }) {
 
             setDataState(d)
           }
+          
+          // Import sales cache if present
+          if (parsed.salesCache) {
+            setSalesCacheState(parsed.salesCache)
+            idbSet(SALES_CACHE_KEY, parsed.salesCache).catch(console.error)
+          }
 
           resolve()
         } catch (err) { reject(err) }
