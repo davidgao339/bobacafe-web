@@ -1,11 +1,11 @@
 const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
-const ORIGIN      = '*'
+const ORIGIN = '*'
 const MAX_AUTO_BACKUPS = 5
 const MAX_MANUAL_BACKUPS = 10
 
 export default {
   async fetch(request, env, ctx) {
-    const url  = new URL(request.url)
+    const url = new URL(request.url)
     const path = url.pathname
 
     if (request.method === 'OPTIONS') {
@@ -32,7 +32,7 @@ export default {
     if (m && request.method === 'GET') {
       return handleGetBackup(m[1], env)
     }
-    
+
     // ── D1 Direct Query (for warehouse app eventually) ────────────────────────
     if (path === '/d1/execute' && request.method === 'POST') {
       return handleD1Query(request, env)
@@ -54,18 +54,18 @@ async function handleDatabricks(request) {
   }
   try {
     const resp = await fetch(DATABRICKS_TARGET, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': auth },
-      body:    request.body,
+      body: request.body,
     })
     const text = await resp.text()
     return new Response(text, {
-      status:  resp.status,
+      status: resp.status,
       headers: { 'Content-Type': 'application/json', ...cors() },
     })
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {
-      status:  502,
+      status: 502,
       headers: { 'Content-Type': 'application/json', ...cors() },
     })
   }
@@ -88,7 +88,7 @@ async function handleSaveBackup(request, env, ctx) {
     return new Response('Bad request', { status: 400, headers: cors() })
   }
 
-  const id      = new Date().toISOString().replace(/[:.]/g, '-')
+  const id = new Date().toISOString().replace(/[:.]/g, '-')
   const savedAt = new Date().toISOString()
 
   // Metadata stored directly on the KV key
@@ -96,17 +96,17 @@ async function handleSaveBackup(request, env, ctx) {
     id,
     savedAt,
     ingredientCount: body.config?.ingredients?.length ?? 0,
-    auditCount:      body.data?.audits?.length          ?? 0,
-    poCount:         body.data?.purchaseOrders?.length  ?? 0,
-    isManual:        body.isManual === true,
+    auditCount: body.data?.audits?.length ?? 0,
+    poCount: body.data?.purchaseOrders?.length ?? 0,
+    isManual: body.isManual === true,
   }
 
   // Write full payload with metadata
   await env.BACKUP_STORE.put(`backup:${id}`, JSON.stringify(body), { metadata: meta })
-  
+
   // Asynchronously mirror to D1 (Dual-Write)
   if (env.DB) {
-    env.DB.batch([]).catch(() => {}) // warm up
+    env.DB.batch([]).catch(() => { }) // warm up
     ctx.waitUntil(syncToD1(env.DB, body).catch(e => console.error('D1 Sync Error:', e.message)))
   }
 
@@ -121,13 +121,13 @@ async function handleSaveBackup(request, env, ctx) {
 
   if (autoBackups.length > MAX_AUTO_BACKUPS) {
     for (const old of autoBackups.slice(MAX_AUTO_BACKUPS)) {
-      ctx.waitUntil(env.BACKUP_STORE.delete(old.name).catch(() => {}))
+      env.BACKUP_STORE.delete(old.name).catch(() => { })
     }
   }
 
   if (manualBackups.length > MAX_MANUAL_BACKUPS) {
     for (const old of manualBackups.slice(MAX_MANUAL_BACKUPS)) {
-      ctx.waitUntil(env.BACKUP_STORE.delete(old.name).catch(() => {}))
+      env.BACKUP_STORE.delete(old.name).catch(() => { })
     }
   }
 
@@ -138,7 +138,7 @@ async function handleGetBackup(id, env) {
   const value = await env.BACKUP_STORE.get(`backup:${id}`)
   if (!value) return new Response('Not found', { status: 404, headers: cors() })
   return new Response(value, {
-    status:  200,
+    status: 200,
     headers: { 'Content-Type': 'application/json', ...cors() },
   })
 }
@@ -151,7 +151,7 @@ async function handleD1Query(request, env) {
     return new Response('Bad request', { status: 400, headers: cors() })
   }
   if (!body.sql) return new Response('Missing sql', { status: 400, headers: cors() })
-  
+
   try {
     const stmt = env.DB.prepare(body.sql).bind(...(body.params || []))
     const results = await stmt.all()
@@ -234,7 +234,7 @@ function json(data) {
 
 function cors() {
   return {
-    'Access-Control-Allow-Origin':  ORIGIN,
+    'Access-Control-Allow-Origin': ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   }
