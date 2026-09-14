@@ -41,6 +41,7 @@ jobs:
           if ! git diff --quiet site/internal/reports/; then
             git add site/internal/reports/
             git commit -m "sync: update reports from Databricks" -m "Downloaded latest analysis reports and updated index.html" -m "Co-Authored-By: Databricks Analysis <noreply@databricks.com>"
+            git pull --rebase origin main
             git push
           else
             echo "No changes to commit"
