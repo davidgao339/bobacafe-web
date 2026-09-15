@@ -5,11 +5,11 @@ import streamlit as st
 
 import config
 from data_access import (read_bonuses_raw, read_employees_raw, read_paid_raw,
-                          read_salary_raw, read_schedule_raw)
+                          read_salary_raw, read_schedule_raw, read_schedule_databricks)
 from payroll import (build_payment_rows, build_verification_rows,
                      calculate_payroll, calculate_verification,
                      enrich_shifts, parse_bonus_data, parse_paid_data,
-                     parse_schedule_data, build_employee_map, build_salary_map,
+                     parse_schedule_data, parse_databricks_schedule, build_employee_map, build_salary_map,
                      build_difference_waterfall, build_store_audit, build_employee_audit)
 from pdf_generator import generate_single_pdf
 from tests import run_all_tests
@@ -61,6 +61,8 @@ with st.sidebar:
         for label, url in config.SHEET_LINKS.items():
             st.markdown(f'[{label}]({url})')
     st.divider()
+    load_databricks = st.checkbox('Load schedule from Databricks snapshot')
+    st.divider()
     if st.button('Lock App', use_container_width=True):
         st.session_state.pop('auth_ok', None)
         st.rerun()
@@ -90,13 +92,17 @@ if run_tests_btn:
 if calc_btn:
     with st.spinner('Loading data and calculating...'):
         try:
-            raw_schedule  = read_schedule_raw()
+            if load_databricks:
+                raw_schedule = read_schedule_databricks(int(month), int(year))
+                shifts, warnings = parse_databricks_schedule(raw_schedule)
+            else:
+                raw_schedule = read_schedule_raw()
+                shifts, warnings = parse_schedule_data(raw_schedule, int(month), int(year))
+                
             raw_employees = read_employees_raw()
             raw_salary    = read_salary_raw()
             raw_bonuses   = read_bonuses_raw()
             raw_paid      = read_paid_raw()
-
-            shifts, warnings = parse_schedule_data(raw_schedule, int(month), int(year))
             employee_map, emp_warnings = build_employee_map(raw_employees)
             warnings.extend(emp_warnings)
             salary_map       = build_salary_map(raw_salary)

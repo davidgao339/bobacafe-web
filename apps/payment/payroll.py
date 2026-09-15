@@ -129,6 +129,42 @@ def parse_schedule_data(raw_data, month, year):
     return shifts, warnings
 
 
+def parse_databricks_schedule(rows):
+    shifts = []
+    warnings = []
+    
+    for r, row in enumerate(rows):
+        raw_date = str(row.get('date', '')).strip()
+        if not raw_date:
+            continue
+            
+        date = _parse_date(raw_date)
+        if date is None:
+            warnings.append(f'Databricks row {r + 1}: unparseable date "{raw_date}"')
+            continue
+            
+        day = date.day
+        date_str = _fmt_date(date)
+        
+        name = _norm_name(row.get('employee', ''))
+        store = str(row.get('store', '')).strip()
+        shift_type = str(row.get('shift', '')).strip()
+        
+        if not name or not store or not shift_type:
+            continue
+            
+        shifts.append({
+            'name':      name,
+            'dateStr':   date_str,
+            'day':       day,
+            'store':     store,
+            'shiftType': shift_type,
+            'half':      1 if day <= 15 else 2,
+        })
+        
+    return shifts, warnings
+
+
 # ── Step 2a ───────────────────────────────────────────────────────────────────
 
 def build_employee_map(raw_data):

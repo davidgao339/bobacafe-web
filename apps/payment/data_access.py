@@ -35,6 +35,66 @@ def read_bonuses_raw():   return _read(SS_IDS['BONUSES'],   TABS['BONUSES'])
 def read_paid_raw():      return _read(SS_IDS['MAIN'],      TABS['PAID'])
 
 
+def read_schedule_databricks(month, year):
+    import urllib.request
+    import urllib.parse
+    import json
+    import base64
+    import streamlit as st
+    
+    if 'databricks' not in st.secrets:
+        raise Exception("Databricks secrets not found in secrets.toml. Please configure them.")
+        
+    dbx = dict(st.secrets['databricks'])
+    client_id = dbx.get('client_id')
+    client_secret = dbx.get('client_secret')
+    warehouse_id = dbx.get('warehouse_id')
+    workspace = "https://dbc-d5bd17fc-eaf4.cloud.databricks.com"
+    
+    if not all([client_id, client_secret, warehouse_id]):
+        raise Exception("Databricks credentials missing in secrets.toml")
+    
+    # Get OAuth token
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    body = urllib.parse.urlencode({"grant_type": "client_credentials", "scope": "all-apis"}).encode()
+    req = urllib.request.Request(
+        f"{workspace}/oidc/v1/token",
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Authorization": f"Basic {basic}"},
+    )
+    with urllib.request.urlopen(req) as resp:
+        token = json.loads(resp.read())["access_token"]
+        
+    # Query Data
+    query = f"""
+        SELECT date, store, shift, employee, snapshot_half 
+        FROM workspace.default.employee_schedule_snapshot 
+        WHERE snapshot_month = {month} AND snapshot_year = {year}
+    """
+    payload = json.dumps({
+        "statement": query,
+        "warehouse_id": warehouse_id,
+        "wait_timeout": "50s",
+        "on_wait_timeout": "CANCEL",
+    }).encode()
+    
+    req = urllib.request.Request(
+        f"{workspace}/api/2.0/sql/statements",
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as resp:
+        result = json.loads(resp.read())
+        
+    if result.get("status", {}).get("state") != "SUCCEEDED":
+        raise Exception(f"Databricks SQL error: {result.get('status')}")
+        
+    cols = [c["name"] for c in result["manifest"]["schema"]["columns"]]
+    rows = result.get("result", {}).get("data_array", [])
+    return [dict(zip(cols, row)) for row in rows]
+
+
 def write_payment_sheet(rows):
     ws = _sheet(SS_IDS['MAIN'], TABS['PAYMENT'])
     ws.clear()
