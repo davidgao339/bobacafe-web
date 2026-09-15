@@ -350,12 +350,12 @@ export default function DailyLedger({ initialIngredientId }) {
               </div>
 
               {ledgerRows.length === 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400 flex-shrink-0">
                   {t('ledger.noActivity')}
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto flex-shrink-0">
+                  <table className="w-full text-sm min-w-[600px]">
                     <thead>
                       <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
                         <th className="px-5 py-3 font-medium">{t('common.date')}</th>
