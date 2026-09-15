@@ -44,15 +44,22 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 }
 
 export async function queryD1(sql, params = []) {
-  const resp = await fetch(`${BACKUP_BASE}/d1/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql, params }),
-  })
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '')
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`)
+  try {
+    const resp = await fetch(`${BACKUP_BASE}/d1/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql, params }),
+    })
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '')
+      throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`)
+    }
+    const data = await resp.json()
+    return data.results || []
+  } catch (err) {
+    if (!sql.toUpperCase().trim().startsWith('SELECT')) {
+      alert(`Database save failed! Your changes were not saved permanently. Error: ${err.message}`)
+    }
+    throw err
   }
-  const data = await resp.json()
-  return data.results || []
 }
