@@ -46,24 +46,29 @@ def read_schedule_databricks(month, year):
         raise Exception("Databricks secrets not found in secrets.toml. Please configure them.")
         
     dbx = dict(st.secrets['databricks'])
+    token = dbx.get('token')
     client_id = dbx.get('client_id')
     client_secret = dbx.get('client_secret')
     warehouse_id = dbx.get('warehouse_id')
     workspace = "https://dbc-d5bd17fc-eaf4.cloud.databricks.com"
     
-    if not all([client_id, client_secret, warehouse_id]):
-        raise Exception("Databricks credentials missing in secrets.toml")
-    
-    # Get OAuth token
-    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    body = urllib.parse.urlencode({"grant_type": "client_credentials", "scope": "all-apis"}).encode()
-    req = urllib.request.Request(
-        f"{workspace}/oidc/v1/token",
-        data=body,
-        headers={"Content-Type": "application/x-www-form-urlencoded", "Authorization": f"Basic {basic}"},
-    )
-    with urllib.request.urlopen(req) as resp:
-        token = json.loads(resp.read())["access_token"]
+    if not warehouse_id:
+        raise Exception("Databricks warehouse_id missing in secrets.toml")
+        
+    if not token:
+        if not all([client_id, client_secret]):
+            raise Exception("Databricks credentials missing. Provide either 'token' (PAT) or both 'client_id' and 'client_secret'.")
+        
+        # Get OAuth token if PAT is not provided
+        basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        body = urllib.parse.urlencode({"grant_type": "client_credentials", "scope": "all-apis"}).encode()
+        req = urllib.request.Request(
+            f"{workspace}/oidc/v1/token",
+            data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded", "Authorization": f"Basic {basic}"},
+        )
+        with urllib.request.urlopen(req) as resp:
+            token = json.loads(resp.read())["access_token"]
         
     # Query Data
     query = f"""
