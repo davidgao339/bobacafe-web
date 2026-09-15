@@ -49,7 +49,9 @@ export default function DraftForm({ title, initialLines, ingredients, suppliers,
   // Set of ingredient IDs that were in the original order (ordered > 0)
   const originalIds = new Set(initialLines?.filter(l => l.ordered > 0).map(l => l.ingredientId) ?? [])
 
-  const lines = ingredients.map(p => {
+  const lines = ingredients
+    .filter(p => !p.hidden || originalIds.has(p.id))
+    .map(p => {
     const key = `${store}:${p.id}`
     const suggested = getOrderQty(store, p.id, days, bufferPct)
     const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : 0)

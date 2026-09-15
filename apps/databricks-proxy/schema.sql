@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS ingredients (
     name TEXT NOT NULL,
     unit TEXT NOT NULL,
     productType TEXT,
-    supplierId INTEGER
+    supplierId INTEGER,
+    hidden INTEGER DEFAULT 0
 );
 
 -- 2. Recipes (Maps a product string to its ingredient usage)
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS recipes (
     product_name TEXT,
     type TEXT DEFAULT 'retail',
     ingredient_mapping JSON NOT NULL,
+    hidden INTEGER DEFAULT 0,
     PRIMARY KEY (product_name, type)
 );
 

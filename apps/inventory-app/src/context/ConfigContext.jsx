@@ -95,7 +95,7 @@ const ConfigContext = createContext(null)
 
 export function ConfigProvider({ children }) {
   // Initialize with empty defaults, will populate from D1
-  const [config, setConfigState] = useState({ ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 })
+  const [config, setConfigState] = useState({ ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, hiddenRecipes: {}, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 })
   const [data, setDataState] = useState(DEFAULT_DATA)
   
   const [isD1Loaded, setIsD1Loaded] = useState(false)
@@ -121,8 +121,9 @@ export function ConfigProvider({ children }) {
         ])
         
         setConfigState({
-          ingredients: ingRes,
+          ingredients: ingRes.map(i => ({ ...i, hidden: Boolean(i.hidden) })),
           recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
+          hiddenRecipes: Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)])),
           suppliers: suppRes,
           _nextIngId: Math.max(0, ...ingRes.map(i => i.id)) + 1,
           _nextSupplierId: Math.max(0, ...suppRes.map(s => s.id)) + 1,
@@ -359,13 +360,16 @@ export function ConfigProvider({ children }) {
       const next = typeof updater === 'function' ? updater(prev) : updater
       
       // Compute delta for recipes
-      if (next.recipes !== prev.recipes) {
-        for (const [product, mapping] of Object.entries(next.recipes)) {
-          if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product])) {
-            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
+      if (next.recipes !== prev.recipes || next.hiddenRecipes !== prev.hiddenRecipes) {
+        const nextProducts = new Set([...Object.keys(next.recipes || {}), ...Object.keys(next.hiddenRecipes || {})])
+        for (const product of nextProducts) {
+          const mapping = next.recipes[product] || {}
+          const hidden = next.hiddenRecipes?.[product] ? 1 : 0
+          
+          if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product] || {}) || hidden !== (prev.hiddenRecipes?.[product] ? 1 : 0)) {
+            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping, hidden) VALUES (?, 'retail', ?, ?)`, [product, JSON.stringify(mapping), hidden]).catch(console.error)
           }
         }
-        const nextProducts = new Set(Object.keys(next.recipes))
         for (const product of Object.keys(prev.recipes)) {
           if (!nextProducts.has(product)) {
             queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'retail'`, [product]).catch(console.error)
@@ -378,8 +382,8 @@ export function ConfigProvider({ children }) {
         for (const ing of next.ingredients) {
           const oldIng = prev.ingredients.find(i => i.id === ing.id)
           if (!oldIng || JSON.stringify(oldIng) !== JSON.stringify(ing)) {
-            queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, 
-              [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null]).catch(console.error)
+            queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId, hidden) VALUES (?, ?, ?, ?, ?, ?)`, 
+              [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0]).catch(console.error)
           }
         }
         const nextIds = new Set(next.ingredients.map(i => i.id))
@@ -499,6 +503,7 @@ export function ConfigProvider({ children }) {
           const conf = {
             ingredients: nextConfig.ingredients || [],
             recipes: nextConfig.recipes || {},
+            hiddenRecipes: nextConfig.hiddenRecipes || {},
             suppliers: nextConfig.suppliers || [],
             _nextIngId: Math.max(0, ...(nextConfig.ingredients || []).map(i => i.id)) + 1,
             _nextSupplierId: Math.max(0, ...(nextConfig.suppliers || []).map(s => s.id)) + 1,
@@ -507,12 +512,15 @@ export function ConfigProvider({ children }) {
           // Sync Config to D1
           await queryD1(`DELETE FROM ingredients`)
           for (const ing of conf.ingredients) {
-            await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null])
+            await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId, hidden) VALUES (?, ?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0])
           }
           
           await queryD1(`DELETE FROM recipes WHERE type = 'retail'`)
-          for (const [product, mapping] of Object.entries(conf.recipes)) {
-            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'retail', ?)`, [product, JSON.stringify(mapping)])
+          const allProds = new Set([...Object.keys(conf.recipes), ...Object.keys(conf.hiddenRecipes)])
+          for (const product of allProds) {
+            const mapping = conf.recipes[product] || {}
+            const hidden = conf.hiddenRecipes[product] ? 1 : 0
+            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping, hidden) VALUES (?, 'retail', ?, ?)`, [product, JSON.stringify(mapping), hidden])
           }
           
           await queryD1(`DELETE FROM suppliers`)

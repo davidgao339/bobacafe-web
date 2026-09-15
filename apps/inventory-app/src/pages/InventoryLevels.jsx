@@ -108,6 +108,7 @@ export default function InventoryLevels({ onNavigate }) {
     const rows = ingredients
       .filter(ing => !q || ing.name.toLowerCase().includes(q))
       .map(ing => ({ ing, ...stockLevel(store, ing), orderQty: getOrderQty(store, ing.id), spark: sparkFor(ing.id) }))
+      .filter(r => !r.ing.hidden || r.qty > 0)
       .sort((a, b) => {
         if (sortKey === 'name') {
           const cmp = a.ing.name.localeCompare(b.ing.name, undefined, { sensitivity: 'base' })
@@ -311,6 +312,7 @@ export default function InventoryLevels({ onNavigate }) {
       const worstRank = Math.min(...cells.map(c => STATUS_RANK[c.status]))
       return { ing, cells, worstRank }
     })
+    .filter(row => !row.ing.hidden || row.cells.some(c => c.qty > 0))
     .sort((a, b) => {
       if (sortKey === 'name') {
         const cmp = a.ing.name.localeCompare(b.ing.name, undefined, { sensitivity: 'base' })

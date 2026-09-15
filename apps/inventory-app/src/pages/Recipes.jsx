@@ -14,6 +14,7 @@ function IngredientsTab() {
   const [newIng,          setNewIng]          = useState({ name: '', unit: '', supplierId: null, productType: '' })
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [search,          setSearch]          = useState('')
+  const [showHidden,      setShowHidden]      = useState(false)
   const [sortDir,         setSortDir]         = useState(null)
   const [expandedIngId,   setExpandedIngId]   = useState(null)
   const cycleSort = () => setSortDir(d => d === null ? 'asc' : d === 'asc' ? 'desc' : null)
@@ -72,6 +73,13 @@ function IngredientsTab() {
     if (editingId === id) setEditingId(null)
   }
 
+  const toggleHidden = (id) => {
+    setConfig(prev => ({
+      ...prev,
+      ingredients: prev.ingredients.map(i => i.id === id ? { ...i, hidden: !i.hidden } : i)
+    }))
+  }
+
   const addIngredient = () => {
     if (!newIng.name.trim()) return
     setConfig(prev => ({
@@ -94,7 +102,10 @@ function IngredientsTab() {
 
   const q = search.toLowerCase()
   const visibleIngredients = (() => {
-    const filtered = config.ingredients.filter(ing => !q || ing.id === editingId || ing.name.toLowerCase().includes(q))
+    const filtered = config.ingredients.filter(ing => 
+      (!q || ing.id === editingId || ing.name.toLowerCase().includes(q)) &&
+      (showHidden || !ing.hidden || ing.id === editingId)
+    )
     if (!sortDir) return filtered
     return [...filtered].sort((a, b) => {
       const cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
@@ -104,8 +115,8 @@ function IngredientsTab() {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-      <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-        <div className="relative max-w-xs">
+      <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-xs">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input type="text" placeholder={t('recipes.searchPlaceholder')} value={search}
             onChange={e => setSearch(e.target.value)}
@@ -114,6 +125,10 @@ function IngredientsTab() {
             <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
           )}
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+          Show hidden
+        </label>
       </div>
       <table className="w-full text-sm">
         <thead>
@@ -137,7 +152,7 @@ function IngredientsTab() {
             const detected = detectProductType(ing.name, ing.unit)
 
             return (<Fragment key={ing.id}>
-            <tr className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50/40' : ''}`}>
+            <tr className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50/40' : ''} ${ing.hidden ? 'opacity-60 bg-gray-50/50' : ''}`}>
               <td className="px-6 py-2.5">
                 {editingId === ing.id
                   ? <input autoFocus value={editVals.name}
@@ -227,7 +242,8 @@ function IngredientsTab() {
                         <button onClick={() => setPendingDeleteId(null)}
                           className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
                       </div>
-                    : <div className="flex gap-3 justify-end">
+                    : <div className="flex gap-3 justify-end items-center">
+                        <button onClick={() => toggleHidden(ing.id)} className={`text-xs ${ing.hidden ? 'text-gray-500 hover:text-gray-700 font-medium' : 'text-gray-400 hover:text-gray-600'}`}>{ing.hidden ? 'Unhide' : 'Hide'}</button>
                         <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800">{t('common.edit')}</button>
                         <button onClick={() => setPendingDeleteId(ing.id)} className="text-xs text-red-400 hover:text-red-600">{t('common.delete')}</button>
                       </div>
@@ -409,6 +425,7 @@ function RecipesTab() {
   const { t } = useLanguage()
   const [search,    setSearch]    = useState('')
   const [filter,    setFilter]    = useState('all')
+  const [showHidden, setShowHidden] = useState(false)
   const [selected,  setSelected]  = useState(null)
   const [editing,   setEditing]   = useState(false)
   const [draftQtys, setDraftQtys] = useState({})
@@ -429,6 +446,7 @@ function RecipesTab() {
     if (search && !p.toLowerCase().includes(search.toLowerCase())) return false
     if (filter === 'has_recipe' && !hasRecipe(p)) return false
     if (filter === 'no_recipe'  &&  hasRecipe(p)) return false
+    if (!showHidden && config.hiddenRecipes?.[p]) return false
     return true
   })
 
@@ -443,6 +461,14 @@ function RecipesTab() {
     recipeIngredients.forEach(i => { draft[i.id] = String(selectedRecipe[i.id] ?? '') })
     setDraftQtys(draft)
     setEditing(true)
+  }
+
+  const toggleRecipeHidden = () => {
+    if (!selected) return
+    setConfig(prev => ({
+      ...prev,
+      hiddenRecipes: { ...prev.hiddenRecipes, [selected]: !prev.hiddenRecipes[selected] }
+    }))
   }
 
   const resetIngPicker = () => { setIngSearch(''); setIngOpen(false) }
@@ -517,7 +543,7 @@ function RecipesTab() {
   const draftIngredients = editing
     ? config.ingredients.filter(i => i.id in draftQtys)
     : recipeIngredients
-  const draftUnused = config.ingredients.filter(i => !(i.id in draftQtys))
+  const draftUnused = config.ingredients.filter(i => !(i.id in draftQtys) && !i.hidden)
 
   return (
     <div className="flex flex-col md:flex-row gap-4 md:h-[580px]">
@@ -537,6 +563,10 @@ function RecipesTab() {
               </button>
             ))}
           </div>
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none pt-1">
+            <input type="checkbox" checked={showHidden} onChange={e => setShowHidden(e.target.checked)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            Show hidden
+          </label>
         </div>
 
         <div className="overflow-y-auto flex-1">
@@ -550,8 +580,9 @@ function RecipesTab() {
                       selected === p ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-gray-50'
                     }`}>
                     <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium text-gray-800 truncate leading-snug">{p}</p>
+                      <p className={`text-sm font-medium ${config.hiddenRecipes?.[p] ? 'text-gray-400' : 'text-gray-800'} truncate leading-snug`}>{p}</p>
                       {isWasteOnly(p) && <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">Waste</span>}
+                      {config.hiddenRecipes?.[p] && <span className="text-[10px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-medium border border-gray-200">Hidden</span>}
                     </div>
                     {count > 0
                       ? <p className="text-xs text-green-600 mt-0.5">{count !== 1 ? t('recipes.ingredientsCount', { count }) : t('recipes.ingredientCount', { count })}</p>
@@ -594,10 +625,16 @@ function RecipesTab() {
                   </button>
                 </>
               ) : (
-                <button onClick={startEditing}
-                  className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
-                  {t('recipes.modify')}
-                </button>
+                <>
+                  <button onClick={toggleRecipeHidden}
+                    className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors font-medium">
+                    {config.hiddenRecipes?.[selected] ? 'Unhide' : 'Hide'}
+                  </button>
+                  <button onClick={startEditing}
+                    className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
+                    {t('recipes.modify')}
+                  </button>
+                </>
               )}
             </div>
           </div>
