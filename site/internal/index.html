@@ -600,6 +600,15 @@
                 <div class="app-desc" data-ru="Обработка выписок Сбербанк и Ozon.">Secure processing for Sberbank and Ozon transaction records.</div>
                 <div class="card-link" data-ru="Разблокировать ↗">Unlock App ↗</div>
             </div>
+            <div class="app-card" data-app="cash-reconciliation">
+                <div class="card-top">
+                    <div class="app-icon">💸</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Сверка наличных">Cash Reconciliation</div>
+                <div class="app-desc" data-ru="Сверка выручки SBIS с наличными в конвертах.">Automated reconciliation of Databricks SBIS data against Google Sheets physical cash.</div>
+                <div class="card-link" data-ru="Разблокировать ↗">Unlock App ↗</div>
+            </div>
         </div>
     </div>
 </div>
@@ -655,6 +664,14 @@
             label:  'Bank Statements',
             labelRu: 'Банковские выписки',
             icon:   '🏦',
+            target: '_blank',
+        },
+        'cash-reconciliation': {
+            url:    'https://bobacafe-web-cash-reconciliation.streamlit.app/',
+            pin:    _P.cash || '7777',
+            label:  'Cash Reconciliation',
+            labelRu: 'Сверка наличных',
+            icon:   '💸',
             target: '_blank',
         },
         'warehouse': {
