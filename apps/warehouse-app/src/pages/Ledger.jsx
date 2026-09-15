@@ -459,8 +459,8 @@ export default function DailyLedger({ initialIngredientId }) {
                                          d.kind === 'production-usage' ? `USAGE (${d.prodId})` :
                                          d.kind === 'adjustment'   ? (d.adjId ? `ADJ (${d.adjId})` : t('ledger.kindAdj')) :
                                          d.kind === 'audit'        ? t('ledger.kindAudit') :
-                                         d.kind === 'transfer-out' ? t('ledger.kindTransferOut') :
-                                         d.kind === 'transfer-in'  ? t('ledger.kindTransferIn') :
+                                         d.kind === 'transfer-out' ? (d.poId ? `${t('ledger.kindTransferOut')} (${d.poId})` : t('ledger.kindTransferOut')) :
+                                         d.kind === 'transfer-in'  ? (d.poId ? `${t('ledger.kindTransferIn')} (${d.poId})` : t('ledger.kindTransferIn')) :
                                                                      d.kind}
                                       </span>
                                       {d.product && (
