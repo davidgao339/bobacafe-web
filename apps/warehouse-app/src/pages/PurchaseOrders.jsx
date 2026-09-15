@@ -328,7 +328,12 @@ export default function PurchaseOrders({ initialCreate }) {
   const [editDateVal, setEditDateVal] = useState(TODAY)
   const [editDateTime,setEditDateTime]= useState('00:00')
 
-  const pos    = data.purchaseOrders
+  const rawPos = data.purchaseOrders
+  const pos = [...rawPos].sort((a, b) => {
+    const numA = parseInt(a.id.replace(/\\D/g, '')) || 0
+    const numB = parseInt(b.id.replace(/\\D/g, '')) || 0
+    return numB - numA
+  })
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
 
   const filtered = pos.filter(po => {
