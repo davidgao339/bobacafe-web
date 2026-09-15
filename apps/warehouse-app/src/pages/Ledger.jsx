@@ -67,15 +67,17 @@ export default function DailyLedger({ initialIngredientId }) {
       .filter(a => a.store === selectedStore && a.counts[selectedId] != null)
       .sort((a, b) => a.date.localeCompare(b.date))
 
-    // Baseline: last audit at or before `from`, else the earliest audit we have
+    // Baseline: last audit at or before `from`
     const baseAudit = storeAudits.length > 0 
-      ? ([...storeAudits].filter(a => a.date <= from).pop() ?? storeAudits[0])
+      ? ([...storeAudits].filter(a => a.date <= from).pop() ?? null)
       : null
 
     const startDate = baseAudit?.date ?? from
     const base      = baseAudit?.counts[selectedId] ?? 0
 
-    const baseAuditTime = (baseAudit?.timestamp && baseAudit.timestamp.startsWith(startDate)) ? baseAudit.timestamp : `${startDate}T23:59:59`
+    const baseAuditTime = baseAudit
+      ? ((baseAudit.timestamp && baseAudit.timestamp.startsWith(startDate)) ? baseAudit.timestamp : `${startDate}T23:59:59`)
+      : '0000-00-00T00:00:00'
 
     // Build per-day activity map
     const byDate = {}
