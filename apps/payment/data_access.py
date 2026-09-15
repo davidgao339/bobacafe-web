@@ -72,7 +72,7 @@ def read_schedule_databricks(month, year):
         
     # Query Data
     query = f"""
-        SELECT date, store, shift, employee, snapshot_half 
+        SELECT date, store, shift, employee 
         FROM workspace.default.employee_schedule_snapshot 
         WHERE snapshot_month = {month} AND snapshot_year = {year}
     """
@@ -80,7 +80,7 @@ def read_schedule_databricks(month, year):
         "statement": query,
         "warehouse_id": warehouse_id,
         "wait_timeout": "50s",
-        "on_wait_timeout": "CANCEL",
+        "on_wait_timeout": "CONTINUE",
     }).encode()
     
     req = urllib.request.Request(
@@ -91,6 +91,18 @@ def read_schedule_databricks(month, year):
     )
     with urllib.request.urlopen(req) as resp:
         result = json.loads(resp.read())
+        
+    statement_id = result.get("statement_id")
+    import time
+    while result.get("status", {}).get("state") in ["PENDING", "RUNNING"]:
+        time.sleep(2)
+        poll_req = urllib.request.Request(
+            f"{workspace}/api/2.0/sql/statements/{statement_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            method="GET",
+        )
+        with urllib.request.urlopen(poll_req) as resp:
+            result = json.loads(resp.read())
         
     if result.get("status", {}).get("state") != "SUCCEEDED":
         raise Exception(f"Databricks SQL error: {result.get('status')}")
