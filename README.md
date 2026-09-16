@@ -41,7 +41,7 @@ PIN-protected dashboard (PIN: see ops team) linking to all internal tools.
 | Staff Schedule | `/internal/schedule/` | React 19, built in CI |
 | Employee FAQ | `/internal/faq.html` | Vanilla JS, live Google Sheets CSV |
 | Reports | `/internal/reports/` | Static HTML |
-| Bank Statement | [bobacafe-web-bank-statement.streamlit.app](https://bobacafe-web-bank-statement.streamlit.app) | Streamlit, pandas |
+| Bank Statement | [bobacafe-web-bank-statement-v2.streamlit.app](https://bobacafe-web-bank-statement-v2.streamlit.app) | Streamlit, pandas |
 | Payroll | TBD | Streamlit |
 | Payments | TBD | Google Apps Script |
 
