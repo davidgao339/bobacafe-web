@@ -9,9 +9,7 @@ body{font-family:Arial,sans-serif;padding:32px 44px;color:#222;font-size:13px;ma
 .print-btn:hover{background:#14532d}
 
 .report-table{width:100%;border-collapse:collapse;border-spacing:0;border:none}
-.report-header{display:table-header-group}
-.report-body{display:table-row-group}
-.report-header-cell,.report-content-cell{padding:0;border:none;text-align:left;font-weight:normal}
+.page{break-inside:avoid; page-break-after:always; margin-bottom: 20px;}
 
 .header-wrap{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2.5px solid #1a6e34;padding-bottom:14px;margin-bottom:16px;background:#fff}
 .header-left{flex:1}
@@ -60,12 +58,7 @@ table.items-table tr{break-inside:avoid;page-break-inside:avoid}
   .no-print-bar{
     display:none !important;
   }
-  .report-header{
-    display:table-header-group !important;
-  }
-  .report-body{
-    display:table-row-group !important;
-  }
+  .report-header{display:none}
   .header-wrap{
     border-bottom:2.5px solid #1a6e34 !important;
     padding-bottom:10px;
@@ -93,183 +86,193 @@ table.items-table tr{break-inside:avoid;page-break-inside:avoid}
   <button class="print-btn" onclick="window.print()">Печать / Сохранить в PDF</button>
 </div>
 
-<table class="report-table">
-  <thead class="report-header">
-    <tr>
-      <th class="report-header-cell">
-        <div class="header-wrap">
-          <div class="header-left">
-            <div class="store">БОН ПАССАЖ</div>
-            <div class="title">ЗАЯВКА НА ЗАКАЗ <span class="doc-id">№ PO-007</span></div>
-            <div class="cat">Категория: Снабжение кафе / Контроль поставок · Перемещение: <b>Warehouse (Центральный Склад)</b> → <b>БОН ПАССАЖ</b></div>
-          </div>
-          <div class="created-date-box">
-            <div class="date-box-label">📅 ДАТА СОЗДАНИЯ ЗАЯВКИ:</div>
-            <div class="date-box-val">3 августа 2026 г.</div>
-            <div class="date-box-sub">Понедельник, 03.08.2026</div>
-          </div>
-        </div>
-      </th>
-    </tr>
-  </thead>
-  <tbody class="report-body">
-    <tr>
-      <td class="report-content-cell">
-        <div class="sig-box">
-          <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
-          <div class="sig-row">
-            <div class="sig-field"><div class="sig-label">Товар принял (ФИО сотрудника):</div><div class="sig-line"></div></div>
-            <div class="sig-field"><div class="sig-label">Подпись:</div><div class="sig-line"></div></div>
-            <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
-          </div>
-        </div>
+<div class="page" style="page-break-after: always;">
+  <div class="header-wrap">
+    <div class="header-left">
+      <div class="store">БОН ПАССАЖ</div>
+      <div class="title">ЗАЯВКА НА ЗАКАЗ <span class="doc-id">№ PO-007</span></div>
+      <div class="cat">Категория: Снабжение кафе / Контроль поставок · Перемещение: <b>Warehouse (Центральный Склад)</b> → <b>БОН ПАССАЖ</b></div>
+    </div>
+    <div class="created-date-box">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px;">
+         <div class="date-box-label" style="margin-bottom:0;">📅 ДАТА СОЗДАНИЯ:</div>
+         <div class="page-count-badge" style="font-size:11px; font-weight:800; color:#1a6e34; background:#dcfce7; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">Стр. 1 из 2</div>
+      </div>
+      <div class="date-box-val">3 августа 2026 г.</div>
+      <div class="date-box-sub">Понедельник, 03.08.2026</div>
+    </div>
+  </div>
 
-        <div class="section">
-          <div class="section-header">1. Чай и основы</div>
-          <table class="items-table">
-            <thead><tr>
-              <th class="col-cb">СКЛАД</th>
-              <th class="col-cb">МАГАЗИН</th>
-              <th class="col-name">НАИМЕНОВАНИЕ</th>
-              <th class="col-qty">ЗАКАЗ</th>
-              <th class="col-unit">ЕД. ИЗМ.</th>
-            </tr></thead>
-            <tbody>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Тапиока классическая (Black Pearl)</td>
-                <td class="col-qty">12</td>
-                <td class="col-unit">кг</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Чай Черный Ассам премиум</td>
-                <td class="col-qty">5</td>
-                <td class="col-unit">кг</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Сироп Тростниковый коричневый</td>
-                <td class="col-qty">8</td>
-                <td class="col-unit">бут</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Зеленый чай Жасминовый премиум</td>
-                <td class="col-qty">4</td>
-                <td class="col-unit">кг</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Матча порошок церемониальный</td>
-                <td class="col-qty">2</td>
-                <td class="col-unit">кг</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+  <div class="sig-box">
+    <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
+    <div class="sig-row">
+      <div class="sig-field"><div class="sig-label">Товар принял (ФИО сотрудника):</div><div class="sig-line"></div></div>
+      <div class="sig-field"><div class="sig-label">Подпись:</div><div class="sig-line"></div></div>
+      <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
+    </div>
+  </div>
 
-        <div class="section">
-          <div class="section-header">2. Сиропы и топпинги</div>
-          <table class="items-table">
-            <thead><tr>
-              <th class="col-cb">СКЛАД</th>
-              <th class="col-cb">МАГАЗИН</th>
-              <th class="col-name">НАИМЕНОВАНИЕ</th>
-              <th class="col-qty">ЗАКАЗ</th>
-              <th class="col-unit">ЕД. ИЗМ.</th>
-            </tr></thead>
-            <tbody>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Поппинг боба Манго</td>
-                <td class="col-qty">6</td>
-                <td class="col-unit">бан</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Поппинг боба Клубника</td>
-                <td class="col-qty">6</td>
-                <td class="col-unit">бан</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Желе Кокосовое в сиропе</td>
-                <td class="col-qty">4</td>
-                <td class="col-unit">бан</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Сироп Таро порошковый</td>
-                <td class="col-qty">5</td>
-                <td class="col-unit">пак</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+  <div class="section">
+    <div class="section-header">1. Чай и основы</div>
+    <table class="items-table">
+      <thead><tr>
+        <th class="col-cb">СКЛАД</th>
+        <th class="col-cb">МАГАЗИН</th>
+        <th class="col-name">НАИМЕНОВАНИЕ</th>
+        <th class="col-qty">ЗАКАЗ</th>
+        <th class="col-unit">ЕД. ИЗМ.</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Тапиока классическая (Black Pearl)</td>
+          <td class="col-qty">12</td>
+          <td class="col-unit">кг</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Чай Черный Ассам премиум</td>
+          <td class="col-qty">5</td>
+          <td class="col-unit">кг</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Сироп Тростниковый коричневый</td>
+          <td class="col-qty">8</td>
+          <td class="col-unit">бут</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Зеленый чай Жасминовый премиум</td>
+          <td class="col-qty">4</td>
+          <td class="col-unit">кг</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Матча порошок церемониальный</td>
+          <td class="col-qty">2</td>
+          <td class="col-unit">кг</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
-        <div class="section">
-          <div class="section-header">3. Упаковка и расходники</div>
-          <table class="items-table">
-            <thead><tr>
-              <th class="col-cb">СКЛАД</th>
-              <th class="col-cb">МАГАЗИН</th>
-              <th class="col-name">НАИМЕНОВАНИЕ</th>
-              <th class="col-qty">ЗАКАЗ</th>
-              <th class="col-unit">ЕД. ИЗМ.</th>
-            </tr></thead>
-            <tbody>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Стаканы 500 мл (фирменные)</td>
-                <td class="col-qty">500</td>
-                <td class="col-unit">шт</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Стаканы 700 мл (фирменные)</td>
-                <td class="col-qty">400</td>
-                <td class="col-unit">шт</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Трубочки широкие для тапиоки 12мм</td>
-                <td class="col-qty">600</td>
-                <td class="col-unit">шт</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Пленка запаечная для стаканов (рулон)</td>
-                <td class="col-qty">2</td>
-                <td class="col-unit">рул</td>
-              </tr>
-              <tr>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-cb"><span class="cb"></span></td>
-                <td class="col-name">Салфетки барные бумажные</td>
-                <td class="col-qty">10</td>
-                <td class="col-unit">пак</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+  <div class="section">
+    <div class="section-header">2. Сиропы и топпинги</div>
+    <table class="items-table">
+      <thead><tr>
+        <th class="col-cb">СКЛАД</th>
+        <th class="col-cb">МАГАЗИН</th>
+        <th class="col-name">НАИМЕНОВАНИЕ</th>
+        <th class="col-qty">ЗАКАЗ</th>
+        <th class="col-unit">ЕД. ИЗМ.</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Поппинг боба Манго</td>
+          <td class="col-qty">6</td>
+          <td class="col-unit">бан</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Поппинг боба Клубника</td>
+          <td class="col-qty">6</td>
+          <td class="col-unit">бан</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Желе Кокосовое в сиропе</td>
+          <td class="col-qty">4</td>
+          <td class="col-unit">бан</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Сироп Таро порошковый</td>
+          <td class="col-qty">5</td>
+          <td class="col-unit">пак</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
-        <div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
-      </td>
-    </tr>
-  </tbody>
-</table>
+<div class="page">
+  <div class="header-wrap">
+    <div class="header-left">
+      <div class="store">БОН ПАССАЖ</div>
+      <div class="title">ЗАЯВКА НА ЗАКАЗ <span class="doc-id">№ PO-007</span></div>
+      <div class="cat">Категория: Снабжение кафе / Контроль поставок · Перемещение: <b>Warehouse (Центральный Склад)</b> → <b>БОН ПАССАЖ</b></div>
+    </div>
+    <div class="created-date-box">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px;">
+         <div class="date-box-label" style="margin-bottom:0;">📅 ДАТА СОЗДАНИЯ:</div>
+         <div class="page-count-badge" style="font-size:11px; font-weight:800; color:#1a6e34; background:#dcfce7; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">Стр. 2 из 2</div>
+      </div>
+      <div class="date-box-val">3 августа 2026 г.</div>
+      <div class="date-box-sub">Понедельник, 03.08.2026</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">3. Упаковка и расходники</div>
+    <table class="items-table">
+      <thead><tr>
+        <th class="col-cb">СКЛАД</th>
+        <th class="col-cb">МАГАЗИН</th>
+        <th class="col-name">НАИМЕНОВАНИЕ</th>
+        <th class="col-qty">ЗАКАЗ</th>
+        <th class="col-unit">ЕД. ИЗМ.</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Стаканы 500 мл (фирменные)</td>
+          <td class="col-qty">500</td>
+          <td class="col-unit">шт</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Стаканы 700 мл (фирменные)</td>
+          <td class="col-qty">400</td>
+          <td class="col-unit">шт</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Трубочки широкие для тапиоки 12мм</td>
+          <td class="col-qty">600</td>
+          <td class="col-unit">шт</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Пленка запаечная для стаканов (рулон)</td>
+          <td class="col-qty">2</td>
+          <td class="col-unit">рул</td>
+        </tr>
+        <tr>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-cb"><span class="cb"></span></td>
+          <td class="col-name">Салфетки барные бумажные</td>
+          <td class="col-qty">10</td>
+          <td class="col-unit">пак</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
+</div>
 </body></html>

@@ -147,31 +147,110 @@ function exportPO(po, config) {
   if (other.length) groups.push({ name: 'Остальное', lines: other })
   if (!groups.length) return
 
+  const PAGE_HEIGHT = 1000;
+  const HEADER_Y = 160;
+  const SIG_Y = 110;
+  const SECTION_HEADER_Y = 65;
+  const ROW_Y = 35;
+  const INSTR_Y = 50;
+
+  const pages = [];
+  let currentPage = { groups: [], sigBox: false, instr: false };
+  let currentY = HEADER_Y;
+
+  currentPage.sigBox = true;
+  currentY += SIG_Y;
+
+  groups.forEach((g, gi) => {
+    if (currentY + SECTION_HEADER_Y + ROW_Y > PAGE_HEIGHT) {
+      pages.push(currentPage);
+      currentPage = { groups: [], sigBox: false, instr: false };
+      currentY = HEADER_Y;
+    }
+    
+    let currentGroup = { name: `${gi + 1}. ${g.name}`, lines: [] };
+    currentPage.groups.push(currentGroup);
+    currentY += SECTION_HEADER_Y;
+    
+    g.lines.forEach(l => {
+      if (currentY + ROW_Y > PAGE_HEIGHT) {
+        pages.push(currentPage);
+        currentPage = { groups: [], sigBox: false, instr: false };
+        currentY = HEADER_Y;
+        
+        currentGroup = { name: `${gi + 1}. ${g.name} (продолжение)`, lines: [] };
+        currentPage.groups.push(currentGroup);
+        currentY += SECTION_HEADER_Y;
+      }
+      currentGroup.lines.push(l);
+      currentY += ROW_Y;
+    });
+  });
+  
+  if (currentY + INSTR_Y > PAGE_HEIGHT) {
+     pages.push(currentPage);
+     currentPage = { groups: [], sigBox: false, instr: true };
+  } else {
+     currentPage.instr = true;
+  }
+  pages.push(currentPage);
+
   const ruDate = formatRussianDate(po.createdDate || TODAY)
 
-  const sectionsHtml = groups.map((g, i) => `
-    <div class="section">
-      <div class="section-header">${i + 1}. ${esc(g.name)}</div>
-      <table class="items-table">
-        <thead><tr>
-          <th class="col-cb">СКЛАД</th>
-          <th class="col-cb">МАГАЗИН</th>
-          <th class="col-name">НАИМЕНОВАНИЕ</th>
-          <th class="col-qty">ЗАКАЗ</th>
-          <th class="col-unit">ЕД. ИЗМ.</th>
-          <th class="col-expiry">СРОК ГОДН.</th>
-        </tr></thead>
-        <tbody>${g.lines.map(l => `
-          <tr>
-            <td class="col-cb"><span class="cb"></span></td>
-            <td class="col-cb"><span class="cb"></span></td>
-            <td class="col-name">${esc(l.name)}</td>
-            <td class="col-qty">${l.ordered}</td>
-            <td class="col-unit">${esc(l.unit)}</td>
-            <td class="col-expiry"><div class="line-blank"></div></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
+  const pagesHtml = pages.map((page, i) => `
+    <div class="page" ${i < pages.length - 1 ? 'style="page-break-after: always;"' : ''}>
+      <div class="header-wrap">
+        <div class="header-left">
+          <div class="store">${esc(po.store)}</div>
+          <div class="title">ЗАЯВКА НА ЗАКАЗ <span class="doc-id">№ ${esc(po.id)}</span></div>
+          <div class="cat">Категория: Снабжение кафе / Контроль поставок ${po.fromLocation && po.toLocation ? `· Перемещение: <b>${esc(po.fromLocation)}</b> → <b>${esc(po.toLocation)}</b>` : ''}</div>
+        </div>
+        <div class="created-date-box">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px;">
+             <div class="date-box-label" style="margin-bottom:0;">📅 ДАТА СОЗДАНИЯ:</div>
+             <div class="page-count-badge" style="font-size:11px; font-weight:800; color:#1a6e34; background:#dcfce7; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">Стр. ${i + 1} из ${pages.length}</div>
+          </div>
+          <div class="date-box-val">${ruDate.formatted}</div>
+          <div class="date-box-sub">${ruDate.dayOfWeek ? `${ruDate.dayOfWeek}, ` : ''}${ruDate.numeric}</div>
+        </div>
+      </div>
+
+      ${page.sigBox ? `
+      <div class="sig-box">
+        <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
+        <div class="sig-row">
+          <div class="sig-field"><div class="sig-label">Товар принял (ФИО сотрудника):</div><div class="sig-line"></div></div>
+          <div class="sig-field"><div class="sig-label">Подпись:</div><div class="sig-line"></div></div>
+          <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
+        </div>
+      </div>` : ''}
+
+      ${page.groups.map(g => `
+      <div class="section">
+        <div class="section-header">${esc(g.name)}</div>
+        <table class="items-table">
+          <thead><tr>
+            <th class="col-cb">СКЛАД</th>
+            <th class="col-cb">МАГАЗИН</th>
+            <th class="col-name">НАИМЕНОВАНИЕ</th>
+            <th class="col-qty">ЗАКАЗ</th>
+            <th class="col-unit">ЕД. ИЗМ.</th>
+            <th class="col-expiry">СРОК ГОДН.</th>
+          </tr></thead>
+          <tbody>${g.lines.map(l => `
+            <tr>
+              <td class="col-cb"><span class="cb"></span></td>
+              <td class="col-cb"><span class="cb"></span></td>
+              <td class="col-name">${esc(l.name)}</td>
+              <td class="col-qty">${l.ordered}</td>
+              <td class="col-unit">${esc(l.unit)}</td>
+              <td class="col-expiry"><div class="line-blank"></div></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`).join('')}
+
+      ${page.instr ? `<div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>` : ''}
     </div>`).join('')
 
   const html = `<!DOCTYPE html>
@@ -258,45 +337,7 @@ table.items-table tr{break-inside:avoid;page-break-inside:avoid}
 }
 </style></head><body>
 
-<table class="report-table">
-  <thead class="report-header">
-    <tr>
-      <th class="report-header-cell">
-        <div class="header-wrap">
-          <div class="header-left">
-            <div class="store">${esc(po.store)}</div>
-            <div class="title">ЗАЯВКА НА ЗАКАЗ <span class="doc-id">№ ${esc(po.id)}</span></div>
-            <div class="cat">Категория: Снабжение кафе / Контроль поставок ${po.fromLocation && po.toLocation ? `· Перемещение: <b>${esc(po.fromLocation)}</b> → <b>${esc(po.toLocation)}</b>` : ''}</div>
-          </div>
-          <div class="created-date-box">
-            <div class="date-box-label">📅 ДАТА СОЗДАНИЯ ЗАЯВКИ:</div>
-            <div class="date-box-val">${ruDate.formatted}</div>
-            <div class="date-box-sub">${ruDate.dayOfWeek ? `${ruDate.dayOfWeek}, ` : ''}${ruDate.numeric}</div>
-          </div>
-        </div>
-      </th>
-    </tr>
-  </thead>
-  <tbody class="report-body">
-    <tr>
-      <td class="report-content-cell">
-        <div class="sig-box">
-          <div class="sig-title">ПОДТВЕРЖДЕНИЕ ПРИЕМКИ ТОВАРА:</div>
-          <div class="sig-row">
-            <div class="sig-field"><div class="sig-label">Товар принял (ФИО сотрудника):</div><div class="sig-line"></div></div>
-            <div class="sig-field"><div class="sig-label">Подпись:</div><div class="sig-line"></div></div>
-            <div class="sig-field"><div class="sig-label">Дата приемки:</div><div class="sig-line"></div></div>
-            <div class="sig-field" style="flex: 0.5;"><div class="sig-label">Всего страниц:</div><div class="sig-line"></div></div>
-          </div>
-        </div>
-
-        ${sectionsHtml}
-
-        <div class="instr">* Инструкция для персонала: Перед отметкой галочкой сверьте фактическое наименование, срок годности, целостность упаковки и точное количество поставляемого товара.</div>
-      </td>
-    </tr>
-  </tbody>
-</table>
+${pagesHtml}
 </body></html>`
 
   const win = window.open('', '_blank')
