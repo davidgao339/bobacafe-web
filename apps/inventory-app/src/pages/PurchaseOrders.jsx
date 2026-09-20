@@ -144,8 +144,9 @@ function exportPO(po, config) {
     if (lines.length) groups.push({ name: s.name, lines })
   }
   const other = active.filter(l => !suppliers.find(s => s.id === l.supplierId))
-  if (other.length) groups.push({ name: 'Остальное', lines: other })
-  if (!groups.length) return
+  const customActive = po.customLines?.filter(c => c.ordered > 0).map(c => ({ name: c.name, unit: c.unit, ordered: c.ordered, supplierId: null })) || []
+  const otherCombined = [...other, ...customActive]
+  if (otherCombined.length) groups.push({ name: 'Остальное', lines: otherCombined })
 
   const PAGE_HEIGHT = 1000;
   const HEADER_Y = 160;
@@ -388,6 +389,7 @@ export default function PurchaseOrders({ initialCreate }) {
     e.stopPropagation()
     const qtys = {}
     po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(l.ordered) })
+    po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(c.ordered) })
     setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys)
     setExpanded(po.id); setConfirm(null)
   }
@@ -399,7 +401,13 @@ export default function PurchaseOrders({ initialCreate }) {
         ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0)
         : l.ordered,
     }))
-    updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, receivedAt: `${receiveDate}T${receiveTime}:00`, lines: updatedLines })
+    const updatedCustomLines = po.customLines?.map(c => ({
+      ...c,
+      received: receiveQtys[c.id] !== undefined
+        ? Math.max(0, parseFloat(receiveQtys[c.id]) || 0)
+        : c.ordered,
+    }))
+    updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, receivedAt: `${receiveDate}T${receiveTime}:00`, lines: updatedLines, customLines: updatedCustomLines })
 
     // Handle transfer if both locations are set
     if (po.fromLocation && po.toLocation) {
@@ -537,7 +545,7 @@ export default function PurchaseOrders({ initialCreate }) {
               {filtered.map(po => {
                 const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
                 const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null
-                const lineCount = po.lines.filter(l => l.ordered > 0).length
+                const lineCount = po.lines.filter(l => l.ordered > 0).length + (po.customLines?.filter(c => c.ordered > 0).length || 0)
                 return (
                   <div key={po.id} className={expanded === po.id ? 'bg-blue-50' : ''}>
                     <div onClick={() => toggle(po.id)} className="px-4 py-3 cursor-pointer">
@@ -609,7 +617,7 @@ export default function PurchaseOrders({ initialCreate }) {
                         {editingId === po.id ? (
                           <DraftForm
                             title={t('po.editTitle', { id: po.id })}
-                            initialLines={po.lines} initialStore={po.store} initialStatus={po.status}
+                            initialLines={po.lines} initialCustomLines={po.customLines} initialStore={po.store} initialStatus={po.status}
                             initialCreatedDate={po.createdDate}
                             initialFromLocation={po.fromLocation}
                             initialToLocation={po.toLocation}
@@ -631,6 +639,20 @@ export default function PurchaseOrders({ initialCreate }) {
                                     {diff && <span className="text-gray-400 line-through mr-1.5">{l.ordered}</span>}
                                     <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{po.status === 'received' ? received : l.ordered}</span>
                                     <span className="text-gray-400 font-normal text-xs ml-1">{ingredientUnit(l.ingredientId)}</span>
+                                  </span>
+                                </div>
+                              )
+                            })}
+                            {po.customLines?.filter(c => c.ordered > 0).map(c => {
+                              const received = c.received ?? c.ordered
+                              const diff = po.status === 'received' && received !== c.ordered
+                              return (
+                                <div key={c.id} className="px-4 py-2 flex items-center justify-between text-sm bg-gray-50/50">
+                                  <span className="font-medium text-gray-800">{c.name}</span>
+                                  <span className="tabular-nums text-right">
+                                    {diff && <span className="text-gray-400 line-through mr-1.5">{c.ordered}</span>}
+                                    <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{po.status === 'received' ? received : c.ordered}</span>
+                                    <span className="text-gray-400 font-normal text-xs ml-1">{c.unit}</span>
                                   </span>
                                 </div>
                               )
@@ -788,6 +810,19 @@ export default function PurchaseOrders({ initialCreate }) {
                                           <td className="px-4 py-2.5 text-gray-400 text-xs">{ingredientUnit(l.ingredientId)}</td>
                                         </tr>
                                       ))}
+                                      {po.customLines?.filter(c => c.ordered > 0).map(c => (
+                                        <tr key={c.id} className="bg-gray-50/50">
+                                          <td className="px-4 py-2.5 font-medium text-gray-900">{c.name}</td>
+                                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{c.ordered}</td>
+                                          <td className="px-4 py-2.5 text-right">
+                                            <input type="number" min="0" step="0.1"
+                                              value={receiveQtys[c.id] ?? c.ordered}
+                                              onChange={e => setReceiveQtys(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                              className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums" />
+                                          </td>
+                                          <td className="px-4 py-2.5 text-gray-400 text-xs">{c.unit}</td>
+                                        </tr>
+                                      ))}
                                     </tbody>
                                   </table>
                                   <div className="flex justify-end gap-3">
@@ -804,14 +839,14 @@ export default function PurchaseOrders({ initialCreate }) {
                               {!receiveId && (editingId === po.id ? (
                                 <DraftForm
                                   title={t('po.editTitle', { id: po.id })}
-                                  initialLines={po.lines} initialStore={po.store} initialStatus={po.status}
+                                  initialLines={po.lines} initialCustomLines={po.customLines} initialStore={po.store} initialStatus={po.status}
                                   initialCreatedDate={po.createdDate}
                                   initialFromLocation={po.fromLocation}
                                   initialToLocation={po.toLocation}
                                   lockStore
                                   ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
                                   stores={stores}
-                                  onSave={({ lines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, createdDate, fromLocation, toLocation })}
+                                  onSave={({ lines, customLines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, customLines, createdDate, fromLocation, toLocation })}
                                   onCancel={() => setEditingId(null)}
                                 />
                               ) : (
@@ -839,6 +874,23 @@ export default function PurchaseOrders({ initialCreate }) {
                                             </td>
                                           )}
                                           <td className="px-4 py-2 text-gray-400 text-xs">{ingredientUnit(l.ingredientId)}</td>
+                                        </tr>
+                                      )
+                                    })}
+                                    {po.customLines?.filter(c => c.ordered > 0).map(c => {
+                                      const received = c.received ?? c.ordered
+                                      const diff = received !== c.ordered
+                                      return (
+                                        <tr key={c.id} className="bg-gray-50/50">
+                                          <td className="px-4 py-2 font-medium text-gray-800">{c.name}</td>
+                                          <td className="px-4 py-2 text-right tabular-nums text-gray-500">{c.ordered}</td>
+                                          {po.status === 'received' && (
+                                            <td className={`px-4 py-2 text-right tabular-nums font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>
+                                              {received}
+                                              {diff && <span className="text-xs font-normal ml-1">({received > c.ordered ? '+' : ''}{Math.round((received - c.ordered) * 10) / 10})</span>}
+                                            </td>
+                                          )}
+                                          <td className="px-4 py-2 text-gray-400 text-xs">{c.unit}</td>
                                         </tr>
                                       )
                                     })}

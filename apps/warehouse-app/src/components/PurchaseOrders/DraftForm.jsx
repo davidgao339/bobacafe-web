@@ -3,7 +3,7 @@ import { useLanguage } from '../../context/LanguageContext'
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
-export default function DraftForm({ title, initialLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate, initialFromLocation, initialToLocation, stores, autoApplySuggested, initialStatus }) {
+export default function DraftForm({ title, initialLines, initialCustomLines, ingredients, suppliers, getOrderQty, initialStore, lockStore, onSave, onCancel, initialCreatedDate, initialFromLocation, initialToLocation, stores, autoApplySuggested, initialStatus }) {
   const { t } = useLanguage()
   const [store,          setStore]          = useState(initialStore ?? stores?.[0] ?? '')
   const [createdDate,    setCreatedDate]    = useState(initialCreatedDate ?? TODAY)
@@ -11,6 +11,7 @@ export default function DraftForm({ title, initialLines, ingredients, suppliers,
   const [bufferPct,      setBufferPct]      = useState(5)
   const [fromLocation,   setFromLocation]   = useState(initialFromLocation ?? null)
   const [toLocation,     setToLocation]     = useState(initialToLocation ?? null)
+  const [customLines,    setCustomLines]    = useState(() => initialCustomLines || [])
   const [search,         setSearch]         = useState('')
   const [sortKey,        setSortKey]        = useState(null)
   const [sortDir,        setSortDir]        = useState('asc')
@@ -94,6 +95,13 @@ export default function DraftForm({ title, initialLines, ingredients, suppliers,
         ingredientId: l.id, 
         ordered: Math.max(0, Number(l.qty) || 0),
         ...(initialStatus === 'received' ? { received: Math.max(0, Number(l.received) || 0) } : {})
+      })),
+      customLines: customLines.filter(c => c.name?.trim()).map(c => ({
+        id: c.id,
+        name: c.name.trim(),
+        unit: c.unit?.trim() || 'шт',
+        ordered: Math.max(0, Number(c.ordered) || 0),
+        ...(initialStatus === 'received' ? { received: Math.max(0, Number(c.received) || 0) } : {})
       })),
     })
   }
@@ -228,6 +236,41 @@ export default function DraftForm({ title, initialLines, ingredients, suppliers,
           </table>
         </>
       )}
+
+      <div className="px-6 py-2 bg-gray-50 border-t border-b border-gray-100 flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Дополнительные товары (Свободный ввод)</span>
+        <button onClick={() => setCustomLines(prev => [...prev, { id: Date.now().toString(), name: '', unit: 'шт', ordered: 0, received: 0 }])} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+          + Добавить товар
+        </button>
+      </div>
+      {customLines.length > 0 && (
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-gray-50">
+            {customLines.map((c, i) => (
+              <tr key={c.id} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/30 transition-colors`}>
+                <td className="px-4 py-2.5">
+                  <input type="text" placeholder="Название товара (например, Мусорные пакеты)" value={c.name} onChange={e => setCustomLines(prev => prev.map((p, idx) => idx === i ? { ...p, name: e.target.value } : p))} className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </td>
+                <td className="px-4 py-2.5 w-32">
+                  <input type="text" placeholder="Ед. изм." value={c.unit} onChange={e => setCustomLines(prev => prev.map((p, idx) => idx === i ? { ...p, unit: e.target.value } : p))} className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </td>
+                <td className="px-4 py-2.5 w-32 text-right">
+                  <input type="number" min="0" step="0.1" value={c.ordered} onChange={e => setCustomLines(prev => prev.map((p, idx) => idx === i ? { ...p, ordered: e.target.value } : p))} className="w-full border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </td>
+                {initialStatus === 'received' && (
+                  <td className="px-4 py-2.5 w-32 text-right">
+                    <input type="number" min="0" step="0.1" value={c.received} onChange={e => setCustomLines(prev => prev.map((p, idx) => idx === i ? { ...p, received: e.target.value } : p))} className="w-full border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </td>
+                )}
+                <td className="px-4 py-2.5 w-12 text-center">
+                  <button onClick={() => setCustomLines(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600 text-lg leading-none font-bold">×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <p className="text-xs text-gray-400">{t('po.suggestedNote')}</p>
