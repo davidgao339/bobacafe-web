@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS ingredients (
     unit TEXT NOT NULL,
     productType TEXT,
     supplierId INTEGER,
-    hidden INTEGER DEFAULT 0
+    hidden INTEGER DEFAULT 0,
+    warehouseOnly INTEGER DEFAULT 0
 );
 
 -- 2. Recipes (Maps a product string to its ingredient usage)

@@ -38,7 +38,7 @@ export default function InventoryLevels({ onNavigate }) {
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
   const filteredStores = selectedStore === 'All' ? visibleStores : [selectedStore]
-  const { ingredients } = config
+  const ingredients = config.ingredients.filter(i => !i.warehouseOnly)
 
   if (ingredients.length === 0) {
     return (

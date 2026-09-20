@@ -154,6 +154,7 @@ function StoreSection({ store, issuesOnly, search }) {
   const win = getVarianceWindow(store)
 
   const rows = config.ingredients
+    .filter(p => !p.warehouseOnly)
     .map(p => {
       const iwin       = getIngredientVarianceWindow(store, p.id)
       const expected   = getSalesConsumption(store, p.id) + getDirectConsumption(store, p.id)

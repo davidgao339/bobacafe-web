@@ -41,7 +41,9 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
   const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
   
-  const visibleIngredients = config.ingredients.filter(p => !p.hidden)
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+  
+  const visibleIngredients = storeIngredients.filter(p => !p.hidden)
   
   const filledCount = visibleIngredients.filter(p => getValue(p.id) !== '').length
   const totalCount = visibleIngredients.length
@@ -152,7 +154,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
           )}
           <span>{t('audit.newCount')}</span>
         </div>
-        {config.ingredients
+        {storeIngredients
           .filter(p => !p.hidden && (!search || p.name.toLowerCase().includes(search.toLowerCase()) ||
             suppName(p).toLowerCase().includes(search.toLowerCase())))
           .length === 0 && (
@@ -160,7 +162,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
           )
         }
         {(() => {
-          const filtered = config.ingredients.filter(p =>
+          const filtered = storeIngredients.filter(p =>
             !p.hidden && (!search || p.name.toLowerCase().includes(search.toLowerCase()) ||
             suppName(p).toLowerCase().includes(search.toLowerCase()))
           )
@@ -387,7 +389,7 @@ function HistoryTab() {
                         {isEditing
                           ? <span className="text-blue-600">{Object.keys(editCounts).length}</span>
                           : counted}
-                        <span className="text-gray-400 text-xs"> / {config.ingredients.length}</span>
+                        <span className="text-gray-400 text-xs"> / {storeIngredients.length}</span>
                       </td>
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                         {isPending ? (
@@ -464,8 +466,8 @@ function HistoryTab() {
                                 {/* Partition by the ORIGINAL audit counts so a card never jumps
                                     between groups mid-typing (which unmounts the input and drops focus) */}
                                 {[
-                                  ...config.ingredients.filter(ing => audit.counts[ing.id] != null),
-                                  ...config.ingredients.filter(ing => audit.counts[ing.id] == null),
+                                  ...storeIngredients.filter(ing => audit.counts[ing.id] != null),
+                                  ...storeIngredients.filter(ing => audit.counts[ing.id] == null),
                                 ]
                                   .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
                                   .map(ing => {
@@ -498,7 +500,7 @@ function HistoryTab() {
                             <p className="text-sm text-gray-400">{t('audit.noCountsRecorded')}</p>
                           ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                              {config.ingredients
+                              {storeIngredients
                                 .filter(ing => audit.counts[ing.id] != null)
                                 .map(ing => {
                                   const val = audit.counts[ing.id]
@@ -595,7 +597,7 @@ function ImportTab() {
     const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
     const rows = [
       ['store', 'date', 'time', 'ingredient', 'unit', 'supplier', 'qty'],
-      ...[...config.ingredients]
+      ...[...storeIngredients]
         .sort((a, b) => {
           const sa = suppName(a), sb = suppName(b)
           if (sa !== sb) return sa.localeCompare(sb)
@@ -628,7 +630,7 @@ function ImportTab() {
       return { audits: [], rowErrors: [{ rowNum: 1, msg: t('audit.importBadHeader') }], unknownIngredients: [] }
 
     const ingByName = {}
-    config.ingredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
+    storeIngredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
 
     // collect raw row errors and valid counts grouped by store+date
     const groups = {}   // key "store||date" -> { store, date, counts: {} }
@@ -766,7 +768,7 @@ function ImportTab() {
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums text-gray-600">
                           {Object.keys(a.counts).length}
-                          <span className="text-gray-400 text-xs"> / {config.ingredients.length}</span>
+                          <span className="text-gray-400 text-xs"> / {storeIngredients.length}</span>
                         </td>
                       </tr>
                     ))}

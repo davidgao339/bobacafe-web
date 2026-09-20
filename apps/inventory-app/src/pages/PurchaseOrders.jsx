@@ -356,6 +356,8 @@ export default function PurchaseOrders({ initialCreate }) {
   const ingredientName = (id) => config.ingredients.find(p => p.id === id)?.name ?? '—'
   const ingredientUnit = (id) => config.ingredients.find(p => p.id === id)?.unit ?? ''
 
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+
   const [expanded,    setExpanded]    = useState(null)
   const [creating,    setCreating]    = useState(!!initialCreate)
   const [editingId,   setEditingId]   = useState(null)
@@ -501,7 +503,7 @@ export default function PurchaseOrders({ initialCreate }) {
       {creating && (
         <DraftForm
           title={t('po.newPOTitle', { id: nextId })}
-          ingredients={config.ingredients}
+          ingredients={storeIngredients}
           suppliers={config.suppliers}
           getOrderQty={getOrderQty}
           stores={stores}
@@ -624,7 +626,7 @@ export default function PurchaseOrders({ initialCreate }) {
                             initialFromLocation={po.fromLocation}
                             initialToLocation={po.toLocation}
                             lockStore
-                            ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
+                            ingredients={storeIngredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
                             stores={stores}
                             onSave={({ lines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, createdDate, fromLocation, toLocation })}
                             onCancel={() => setEditingId(null)}
@@ -846,7 +848,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                   initialFromLocation={po.fromLocation}
                                   initialToLocation={po.toLocation}
                                   lockStore
-                                  ingredients={config.ingredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
+                                  ingredients={storeIngredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
                                   stores={stores}
                                   onSave={({ lines, customLines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, customLines, createdDate, fromLocation, toLocation })}
                                   onCancel={() => setEditingId(null)}

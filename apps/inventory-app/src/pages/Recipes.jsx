@@ -11,7 +11,7 @@ function IngredientsTab() {
   const [editingId,       setEditingId]       = useState(null)
   const [editVals,        setEditVals]        = useState({})
   const [adding,          setAdding]          = useState(false)
-  const [newIng,          setNewIng]          = useState({ name: '', unit: '', supplierId: null, productType: '' })
+  const [newIng,          setNewIng]          = useState({ name: '', unit: '', supplierId: null, productType: '', warehouseOnly: false })
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [search,          setSearch]          = useState('')
   const [showHidden,      setShowHidden]      = useState(false)
@@ -25,7 +25,7 @@ function IngredientsTab() {
 
   const startEdit = (ing) => {
     setEditingId(ing.id)
-    setEditVals({ name: ing.name, unit: ing.unit, productType: ing.productType || '', customStep: ing.customStep || '' })
+    setEditVals({ name: ing.name, unit: ing.unit, productType: ing.productType || '', customStep: ing.customStep || '', warehouseOnly: Boolean(ing.warehouseOnly) })
   }
 
   const saveEdit = () => {
@@ -39,6 +39,7 @@ function IngredientsTab() {
           unit: editVals.unit.trim(),
           productType: editVals.productType || null,
           customStep: editVals.customStep ? Number(editVals.customStep) : null,
+          warehouseOnly: Boolean(editVals.warehouseOnly),
         } : i
       ),
     }))
@@ -80,6 +81,13 @@ function IngredientsTab() {
     }))
   }
 
+  const toggleWarehouseOnly = (id) => {
+    setConfig(prev => ({
+      ...prev,
+      ingredients: prev.ingredients.map(i => i.id === id ? { ...i, warehouseOnly: !i.warehouseOnly } : i)
+    }))
+  }
+
   const addIngredient = () => {
     if (!newIng.name.trim()) return
     setConfig(prev => ({
@@ -92,11 +100,12 @@ function IngredientsTab() {
           unit: newIng.unit.trim(),
           supplierId: newIng.supplierId ?? null,
           productType: newIng.productType || null,
+          warehouseOnly: Boolean(newIng.warehouseOnly),
         },
       ],
       _nextIngId: prev._nextIngId + 1,
     }))
-    setNewIng({ name: '', unit: '', supplierId: null, productType: '' })
+    setNewIng({ name: '', unit: '', supplierId: null, productType: '', warehouseOnly: false })
     setAdding(false)
   }
 
@@ -243,6 +252,7 @@ function IngredientsTab() {
                           className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
                       </div>
                     : <div className="flex gap-3 justify-end items-center">
+                        <button onClick={() => toggleWarehouseOnly(ing.id)} className={`text-xs ${ing.warehouseOnly ? 'text-purple-600 hover:text-purple-800 font-medium' : 'text-gray-400 hover:text-purple-600'}`}>W.H. Only</button>
                         <button onClick={() => toggleHidden(ing.id)} className={`text-xs ${ing.hidden ? 'text-gray-500 hover:text-gray-700 font-medium' : 'text-gray-400 hover:text-gray-600'}`}>{ing.hidden ? 'Unhide' : 'Hide'}</button>
                         <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800">{t('common.edit')}</button>
                         <button onClick={() => setPendingDeleteId(ing.id)} className="text-xs text-red-400 hover:text-red-600">{t('common.delete')}</button>
@@ -310,8 +320,12 @@ function IngredientsTab() {
               )}
               <td className="px-4 py-2.5 text-right">
                 <div className="flex gap-2 justify-end">
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer pt-1 mr-3">
+                    <input type="checkbox" checked={newIng.warehouseOnly} onChange={e => setNewIng(v => ({...v, warehouseOnly: e.target.checked}))} className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+                    W.H. Only
+                  </label>
                   <button onClick={addIngredient} className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('recipes.add')}</button>
-                  <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '', supplierId: null, productType: '' }) }}
+                  <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '', supplierId: null, productType: '', warehouseOnly: false }) }}
                     className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
                 </div>
               </td>

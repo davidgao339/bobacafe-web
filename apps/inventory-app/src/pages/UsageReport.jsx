@@ -25,6 +25,7 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
   const listItems = useMemo(() => {
     const q = search.toLowerCase()
     return config.ingredients
+      .filter(i => !i.warehouseOnly)
       .filter(ing => !q || ing.name.toLowerCase().includes(q))
       .map(ing => {
         const estimate = singleStore

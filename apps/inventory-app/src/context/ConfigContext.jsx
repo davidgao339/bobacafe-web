@@ -121,7 +121,7 @@ export function ConfigProvider({ children }) {
         ])
         
         setConfigState({
-          ingredients: ingRes.map(i => ({ ...i, hidden: Boolean(i.hidden) })),
+          ingredients: ingRes.map(i => ({ ...i, hidden: Boolean(i.hidden), warehouseOnly: Boolean(i.warehouseOnly) })),
           recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
           hiddenRecipes: Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)])),
           suppliers: suppRes,
@@ -390,8 +390,8 @@ export function ConfigProvider({ children }) {
         for (const ing of next.ingredients) {
           const oldIng = prev.ingredients.find(i => i.id === ing.id)
           if (!oldIng || JSON.stringify(oldIng) !== JSON.stringify(ing)) {
-            queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId, hidden) VALUES (?, ?, ?, ?, ?, ?)`, 
-              [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0]).catch(console.error)
+            queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
+              [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0]).catch(console.error)
           }
         }
         const nextIds = new Set(next.ingredients.map(i => i.id))
@@ -520,7 +520,7 @@ export function ConfigProvider({ children }) {
           // Sync Config to D1
           await queryD1(`DELETE FROM ingredients`)
           for (const ing of conf.ingredients) {
-            await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId, hidden) VALUES (?, ?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0])
+            await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0])
           }
           
           await queryD1(`DELETE FROM recipes WHERE type = 'retail'`)
