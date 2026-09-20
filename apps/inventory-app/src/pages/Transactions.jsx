@@ -29,7 +29,8 @@ function SalesTab() {
   const handleRefresh = async () => {
     // Use live input if settings panel is open, otherwise fall back to saved settings
     const token       = (showSettings ? localToken : settings.token)?.trim()
-    const warehouseId = (showSettings ? localWarehouse : settings.warehouseId)?.trim()
+    let warehouseId = (showSettings ? localWarehouse : settings.warehouseId)?.trim()
+    
     if (!token) {
       setShowSettings(true)
       setRefreshMsg({ type: 'error', text: 'Enter a Databricks PAT token first.' })
@@ -40,6 +41,18 @@ function SalesTab() {
       setRefreshMsg({ type: 'error', text: 'Token should start with "dapi". Check your Databricks PAT.' })
       return
     }
+    if (!warehouseId) {
+      setShowSettings(true)
+      setRefreshMsg({ type: 'error', text: 'Enter a Databricks Warehouse ID.' })
+      return
+    }
+
+    // If the user accidentally pasted the HTTP Path, extract the ID
+    const match = warehouseId.match(/warehouses\/([a-zA-Z0-9]+)/)
+    if (match) {
+      warehouseId = match[1]
+    }
+
     setRefreshing(true); setRefreshMsg(null)
     try {
       const result = await refreshSales(token, warehouseId, filterFrom, filterTo)

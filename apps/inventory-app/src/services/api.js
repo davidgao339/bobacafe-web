@@ -17,6 +17,8 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
     ORDER BY date DESC
   `
 
+  const cleanStatement = statement.replace(/\s+/g, ' ').trim()
+
   const apiPath = import.meta.env.DEV
     ? '/databricks-proxy/api/2.0/sql/statements'
     : BACKUP_BASE
@@ -24,11 +26,18 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
   const resp = await fetch(apiPath, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ statement, warehouse_id: warehouseId, wait_timeout: '50s', on_wait_timeout: 'CANCEL' }),
+    body: JSON.stringify({ 
+      statement: cleanStatement, 
+      warehouse_id: warehouseId, 
+      wait_timeout: '30s' 
+    }),
   })
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
+    if (resp.status === 400 && text.includes('The request could not be processed by the warehouse')) {
+      throw new Error(`Databricks Warehouse Error: The warehouse could not process the request. Check your Warehouse ID format and verify the warehouse is running.`)
+    }
     throw new Error(`HTTP ${resp.status}${text ? ': ' + text.slice(0, 300) : ''}`)
   }
 
