@@ -285,17 +285,45 @@ function StandaloneCount() {
   const { stores } = useConfig()
   const [store, setStore] = useState(stores?.[0] || 'Store 1')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [confirmed, setConfirmed] = useState(false)
+
+  if (!confirmed) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50 p-4">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-md flex flex-col gap-6">
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-gray-900">Step 1: Confirm Store</h1>
+            <p className="text-sm text-gray-500 mt-1">Please double check you are counting for the correct location.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Store Location</label>
+            <select value={store} onChange={e => setStore(e.target.value)} className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
+              {stores.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <button onClick={() => setConfirmed(true)} className="w-full py-3 bg-blue-600 text-white text-base font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
+            Start Counting →
+          </button>
+          <div className="text-center mt-2">
+             <a href="/" className="text-xs text-gray-400 hover:text-gray-600">Cancel & Return to App</a>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto h-full overflow-auto">
       <div className="mb-6 bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Quick Inventory Count</h1>
-          <p className="text-sm text-gray-500 mt-1">Select your store and submit your counts.</p>
+          <p className="text-sm text-gray-500 mt-1">Counting for: <span className="font-semibold text-blue-700 px-2 py-0.5 bg-blue-50 rounded-md ml-1">{store}</span></p>
         </div>
-        <a href="/" className="text-sm text-blue-600 hover:text-blue-800">← Back to App</a>
+        <button onClick={() => setConfirmed(false)} className="text-sm text-blue-600 hover:text-blue-800">Change Store</button>
       </div>
-      <CountTab store={store} setStore={setStore} date={date} setDate={setDate} />
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <CountTab store={store} setStore={setStore} date={date} setDate={setDate} hideHeader={true} />
+      </div>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 
 // ─── Count tab ────────────────────────────────────────────────────────────────
 
-export function CountTab({ store, setStore, date, setDate }) {
+export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const { config, data, addAudit, stores } = useConfig()
   const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
@@ -84,23 +84,27 @@ export function CountTab({ store, setStore, date, setDate }) {
   return (
     <>
       <div className="flex items-center gap-4 mb-6 flex-wrap">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
-          <select value={store} onChange={e => { setStore(e.target.value); setSaved(false) }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            {stores.map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">{t('audit.auditDate')}</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-          <input type="time" value={time} onChange={e => setTime(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
+        {!hideHeader && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
+              <select value={store} onChange={e => { setStore(e.target.value); setSaved(false) }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                {stores.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('audit.auditDate')}</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </>
+        )}
         <div className="flex-1 min-w-48">
           <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.search')}</label>
           <div className="relative">
