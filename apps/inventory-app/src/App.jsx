@@ -70,6 +70,9 @@ const PINS = {
 const ADMIN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function AppRoot() {
+  const location = useLocation()
+  const isStandalone = location.pathname === '/quick-count'
+
   const [role, setRole] = useState(() => {
     try {
       const stored = localStorage.getItem('invRole')
@@ -97,7 +100,7 @@ function AppRoot() {
     setRole(null)
   }
 
-  if (!role) return <LoginScreen pins={PINS} onLogin={handleLogin} />
+  if (!role && !isStandalone) return <LoginScreen pins={PINS} onLogin={handleLogin} />
 
   return <AppContent role={role} onLogout={handleLogout} />
 }
