@@ -40,11 +40,14 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   }
 
   const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
-  const filledCount = config.ingredients.filter(p => getValue(p.id) !== '').length
-  const totalCount = config.ingredients.length
+  
+  const visibleIngredients = config.ingredients.filter(p => !p.hidden)
+  
+  const filledCount = visibleIngredients.filter(p => getValue(p.id) !== '').length
+  const totalCount = visibleIngredients.length
   const isComplete = filledCount === totalCount
 
-  const hasVarianceFlags = config.ingredients.some(product => {
+  const hasVarianceFlags = visibleIngredients.some(product => {
     const prev = lastCount(product.id)
     const val = getValue(product.id)
     if (val === '' || prev === '—') return false
@@ -66,7 +69,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
       if (!window.confirm(`You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to save an incomplete audit?`)) return
     }
     const auditCounts = {}
-    for (const product of config.ingredients) {
+    for (const product of visibleIngredients) {
       const val = getValue(product.id)
       if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
     }
@@ -145,16 +148,16 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
           <span>{t('audit.newCount')}</span>
         </div>
         {config.ingredients
-          .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
-            suppName(p).toLowerCase().includes(search.toLowerCase()))
+          .filter(p => !p.hidden && (!search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+            suppName(p).toLowerCase().includes(search.toLowerCase())))
           .length === 0 && (
             <div className="px-6 py-8 text-center text-sm text-gray-400">{t('audit.noMatch', { query: search })}</div>
           )
         }
         {(() => {
           const filtered = config.ingredients.filter(p =>
-            !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
-            suppName(p).toLowerCase().includes(search.toLowerCase())
+            !p.hidden && (!search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+            suppName(p).toLowerCase().includes(search.toLowerCase()))
           )
           const sorted = sortKey ? [...filtered].sort((a, b) => {
             let cmp = 0
