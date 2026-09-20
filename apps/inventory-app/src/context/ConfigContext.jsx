@@ -136,7 +136,7 @@ export function ConfigProvider({ children }) {
             lines: JSON.parse(po.lines),
             receivedDate: po.receivedAt ? po.receivedAt.split('T')[0] : null
           })),
-          audits: audRes.map(a => ({...a, counts: JSON.parse(a.counts)})),
+          audits: audRes.map(a => ({...a, status: a.status || 'approved', counts: JSON.parse(a.counts)})),
           _nextTxId: Math.max(0, ...txRes.map(t => parseInt(t.id.replace('T-', '')) || 0)) + 1,
           _nextPoId: Math.max(0, ...poRes.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '')) || 0)) + 1,
           _nextAuditId: Math.max(0, ...audRes.map(a => parseInt(a.id.replace('A-', '')) || 0)) + 1,
@@ -197,19 +197,19 @@ export function ConfigProvider({ children }) {
 
   // ─── Operational data mutations (Optimistic + D1) ───────────────────────────
 
-  const addAudit = useCallback((store, date, counts, timestamp) => {
+  const addAudit = useCallback((store, date, counts, timestamp, status = 'approved') => {
     setDataState(prev => {
       const existing = prev.audits.find(a => a.store === store && a.date === date)
       if (existing) {
-        queryD1(`UPDATE audits SET counts = ?, timestamp = ? WHERE id = ?`, [JSON.stringify(counts), timestamp || new Date().toISOString(), existing.id]).catch(console.error)
+        queryD1(`UPDATE audits SET counts = ?, timestamp = ?, status = ? WHERE id = ?`, [JSON.stringify(counts), timestamp || new Date().toISOString(), status, existing.id]).catch(console.error)
         return {
           ...prev,
-          audits: prev.audits.map(a => a.id === existing.id ? { ...a, counts: { ...a.counts, ...counts }, ...(timestamp && { timestamp }) } : a),
+          audits: prev.audits.map(a => a.id === existing.id ? { ...a, status, counts: { ...a.counts, ...counts }, ...(timestamp && { timestamp }) } : a),
         }
       }
       const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
-      queryD1(`INSERT INTO audits (id, store, date, counts, timestamp) VALUES (?, ?, ?, ?, ?)`, [id, store, date, JSON.stringify(counts), timestamp || new Date().toISOString()]).catch(console.error)
-      return { ...prev, audits: [...prev.audits, { id, store, date, counts, ...(timestamp && { timestamp }) }], _nextAuditId: prev._nextAuditId + 1 }
+      queryD1(`INSERT INTO audits (id, store, date, counts, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`, [id, store, date, JSON.stringify(counts), timestamp || new Date().toISOString(), status]).catch(console.error)
+      return { ...prev, audits: [...prev.audits, { id, store, date, counts, status, ...(timestamp && { timestamp }) }], _nextAuditId: prev._nextAuditId + 1 }
     })
   }, [])
 
@@ -223,6 +223,14 @@ export function ConfigProvider({ children }) {
     setDataState(prev => ({
       ...prev,
       audits: prev.audits.map(a => a.id === id ? { ...a, counts } : a),
+    }))
+  }, [])
+
+  const updateAuditStatus = useCallback((id, status) => {
+    queryD1(`UPDATE audits SET status = ? WHERE id = ?`, [status, id]).catch(console.error)
+    setDataState(prev => ({
+      ...prev,
+      audits: prev.audits.map(a => a.id === id ? { ...a, status } : a),
     }))
   }, [])
 
@@ -555,8 +563,8 @@ export function ConfigProvider({ children }) {
 
             await queryD1(`DELETE FROM audits`)
             for (const audit of d.audits) {
-              await queryD1(`INSERT INTO audits (id, store, date, counts, timestamp) VALUES (?, ?, ?, ?, ?)`, 
-                [audit.id, audit.store, audit.date, JSON.stringify(audit.counts || {}), audit.timestamp || new Date().toISOString()])
+              await queryD1(`INSERT INTO audits (id, store, date, counts, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`, 
+                [audit.id, audit.store, audit.date, JSON.stringify(audit.counts || {}), audit.timestamp || new Date().toISOString(), audit.status || 'approved'])
             }
 
             setDataState(d)
@@ -586,7 +594,7 @@ export function ConfigProvider({ children }) {
     <ConfigContext.Provider value={{
       config, setConfig,
       data, setData,
-      addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction,
+      addAudit, deleteAudit, updateAudit, updateAuditStatus, addTransaction, deleteTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility,

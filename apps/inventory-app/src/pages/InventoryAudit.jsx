@@ -26,6 +26,8 @@ function CountTab({ store, setStore, date, setDate }) {
   const lastAuditDate = lastAudit?.date ?? null
   const existingAudit = data.audits.find(a => a.store === store && a.date === date)
 
+  const startTime = useRef(Date.now())
+  
   const lastCount = (productId) => {
     if (!lastAudit) return '—'
     const v = lastAudit.counts[productId]
@@ -37,31 +39,46 @@ function CountTab({ store, setStore, date, setDate }) {
     setCounts(prev => ({ ...prev, [`${store}-${productId}`]: val }))
   }
 
-  const handleFillFromLast = () => {
-    if (!lastAudit) return
-    const filled = {}
-    for (const p of config.ingredients) {
-      const v = lastAudit.counts[p.id]
-      if (v != null) filled[`${store}-${p.id}`] = String(v)
+  const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
+  const filledCount = config.ingredients.filter(p => getValue(p.id) !== '').length
+  const totalCount = config.ingredients.length
+  const isComplete = filledCount === totalCount
+
+  const hasVarianceFlags = config.ingredients.some(product => {
+    const prev = lastCount(product.id)
+    const val = getValue(product.id)
+    if (val === '' || prev === '—') return false
+    const v = parseFloat(val)
+    const p = parseFloat(prev)
+    if (p === 0 && v > 10) return true
+    if (p > 0) {
+      const diff = Math.abs(v - p)
+      if (diff / p > 0.5 && diff > 5) return true
     }
-    setCounts(prev => ({ ...prev, ...filled }))
-    setSaved(false)
-  }
+    return false
+  })
+
+  const isSuspiciouslyFast = isComplete && (Date.now() - startTime.current) < 60000 && totalCount > 10
+  const isFlagged = hasVarianceFlags || isSuspiciouslyFast
 
   const handleSave = () => {
+    if (!isComplete) {
+      if (!window.confirm(`You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to save an incomplete audit?`)) return
+    }
     const auditCounts = {}
     for (const product of config.ingredients) {
       const val = getValue(product.id)
       if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
     }
-    addAudit(store, date, auditCounts, `${date}T${time}:00`)
+    const status = isFlagged ? 'pending' : 'approved'
+    addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
+    
     setSaved(true)
     setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+    startTime.current = Date.now()
     setTimeout(() => setSaved(false), 3500)
   }
 
-  const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
-  const anyFilled = config.ingredients.some(p => getValue(p.id) !== '')
   const suppName  = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
 
   return (
@@ -165,14 +182,26 @@ function CountTab({ store, setStore, date, setDate }) {
                 {prev} <span className="text-gray-400 text-xs">{prev !== '—' ? product.unit : ''}</span>
               </div>
               <div className="flex items-center gap-3">
-                <input type="number" min="0" step="0.1" placeholder="0" value={val}
-                  onChange={e => handleChange(product.id, e.target.value)}
-                  className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums" />
+                <div className="relative">
+                  <input type="number" min="0" step="0.1" placeholder="0" value={val}
+                    onChange={e => handleChange(product.id, e.target.value)}
+                    className={`w-32 border ${val === '' ? 'border-amber-300 bg-amber-50' : 'border-gray-300'} rounded-lg pl-3 pr-10 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums`} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none select-none">
+                    {product.unit}
+                  </span>
+                </div>
                 {delta !== null && (
-                  <span className={`text-xs font-medium ${delta < 0 ? 'text-red-600' : delta > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium w-12 ${delta < 0 ? 'text-red-600' : delta > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                     {delta > 0 ? '+' : ''}{Math.round(delta * 10) / 10}
                   </span>
                 )}
+                {(() => {
+                   if (val === '' || prev === '—') return null
+                   const v = parseFloat(val), p = parseFloat(prev)
+                   const isWarning = (p === 0 && v > 10) || (p > 0 && (Math.abs(v - p) / p > 0.5) && Math.abs(v - p) > 5)
+                   if (isWarning) return <span className="text-amber-500" title="High variance detected">⚠️</span>
+                   return null
+                })()}
               </div>
             </div>
           )
@@ -180,18 +209,26 @@ function CountTab({ store, setStore, date, setDate }) {
        </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))}
+      <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center gap-6">
+          <button onClick={() => {
+            if (window.confirm("Are you sure you want to clear all entered counts? This cannot be undone.")) {
+              setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+            }
+          }}
             className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
             {t('audit.clearAll')}
           </button>
-          {lastAudit && (
-            <button onClick={handleFillFromLast}
-              className="text-sm text-blue-600 hover:text-blue-700 transition-colors">
-              {t('audit.fillFromLast')}
-            </button>
-          )}
+          
+          <div className="flex flex-col">
+            <span className="text-xs font-medium text-gray-500">Progress</span>
+            <div className="flex items-center gap-2">
+              <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 transition-all" style={{ width: `${totalCount ? (filledCount / totalCount) * 100 : 0}%` }} />
+              </div>
+              <span className="text-xs text-gray-500 tabular-nums">{filledCount} / {totalCount}</span>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           {saved && (
@@ -200,15 +237,18 @@ function CountTab({ store, setStore, date, setDate }) {
               {t('audit.savedFor', { store })}
             </span>
           )}
-          <button onClick={handleSave} disabled={!anyFilled}
+          <button onClick={handleSave} disabled={filledCount === 0}
             className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
-              anyFilled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              filledCount > 0 ? (isFlagged ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700') : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}>
-            {t('audit.saveAudit')}
+            {isFlagged ? 'Submit for Review' : t('audit.saveAudit')}
           </button>
         </div>
       </div>
-      <p className="text-xs text-gray-400 text-right mt-2">{t('audit.unfilledNote')}</p>
+      <div className="text-xs text-gray-400 text-right mt-2">
+        <p>⚠️ Remember to count individual units, not full cases! Explicitly enter '0' if an item is out of stock.</p>
+        {isFlagged && <p className="text-amber-600 mt-1">High variance or suspicious speed detected. Saving will submit this count for manager review.</p>}
+      </div>
     </>
   )
 }
@@ -216,9 +256,10 @@ function CountTab({ store, setStore, date, setDate }) {
 // ─── History tab ──────────────────────────────────────────────────────────────
 
 function HistoryTab() {
-  const { config, data, deleteAudit, updateAudit, stores } = useConfig()
+  const { config, data, deleteAudit, updateAudit, updateAuditStatus, stores } = useConfig()
   const { t } = useLanguage()
   const [historyStore,  setHistoryStore]  = useState('All')
+  const [filterStatus,  setFilterStatus]  = useState('All')
   const [expanded,      setExpanded]      = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [editingId,     setEditingId]     = useState(null)
@@ -227,6 +268,7 @@ function HistoryTab() {
 
   const audits = [...data.audits]
     .filter(a => historyStore === 'All' || a.store === historyStore)
+    .filter(a => filterStatus === 'All' || a.status === filterStatus.toLowerCase())
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
 
   const startEdit = (audit) => {
@@ -267,6 +309,17 @@ function HistoryTab() {
             {stores.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select value={filterStatus}
+            onChange={e => { setFilterStatus(e.target.value); setExpanded(null); setPendingDelete(null); cancelEdit() }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="All">All Statuses</option>
+            <option value="Approved">Approved</option>
+            <option value="Pending">Pending Review</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
         <p className="text-sm text-gray-500 mt-5">
           {t('audit.auditsCount', { count: audits.length })}
         </p>
@@ -284,6 +337,7 @@ function HistoryTab() {
                 <th className="px-6 py-3 font-medium">{t('audit.colId')}</th>
                 <th className="px-4 py-3 font-medium">{t('common.date')}</th>
                 <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium text-right">{t('audit.colCounted')}</th>
                 <th className="px-4 py-3 font-medium w-52"></th>
               </tr>
@@ -303,6 +357,15 @@ function HistoryTab() {
                       <td className="px-6 py-3 font-mono text-xs text-gray-400">{audit.id}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{audit.date}</td>
                       <td className="px-4 py-3 text-gray-700">{audit.store}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                          audit.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                          audit.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {audit.status}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-600">
                         {isEditing
                           ? <span className="text-blue-600">{Object.keys(editCounts).length}</span>
@@ -338,7 +401,19 @@ function HistoryTab() {
 
                     {(isExpanded || isEditing) && (
                       <tr className={`border-b ${isEditing ? 'bg-blue-50 border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
-                        <td colSpan={5} className="px-6 py-4">
+                        <td colSpan={6} className="px-6 py-4">
+                          {audit.status === 'pending' && !isEditing && (
+                            <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                              <div>
+                                <p className="text-sm font-medium text-amber-800">Manager Review Required</p>
+                                <p className="text-xs text-amber-700 mt-0.5">This audit was flagged for high variances or suspiciously fast completion time.</p>
+                              </div>
+                              <div className="flex gap-3">
+                                <button onClick={() => updateAuditStatus(audit.id, 'approved')} className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors">Approve</button>
+                                <button onClick={() => updateAuditStatus(audit.id, 'rejected')} className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors">Reject</button>
+                              </div>
+                            </div>
+                          )}
                           {isEditing ? (
                             <>
                               <p className="text-xs text-blue-700 font-medium mb-3">

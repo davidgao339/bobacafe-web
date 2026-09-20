@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS audits (
     store TEXT NOT NULL,
     date TEXT NOT NULL,
     counts JSON NOT NULL, -- JSON object of { ingredientId: counted_qty }
+    status TEXT NOT NULL DEFAULT 'approved', -- 'approved', 'pending', 'rejected'
     timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

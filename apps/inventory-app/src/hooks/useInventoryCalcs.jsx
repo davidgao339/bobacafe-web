@@ -16,7 +16,7 @@ export function useCalcs() {
     
     const sortedAuditsByStore = {}
     for (const store of stores) {
-      sortedAuditsByStore[store] = [...data.audits].filter(a => a.store === store).sort((a, b) => b.date.localeCompare(a.date))
+      sortedAuditsByStore[store] = [...data.audits].filter(a => a.store === store && a.status === 'approved').sort((a, b) => b.date.localeCompare(a.date))
       storeVarWindows[store] = sortedAuditsByStore[store].length >= 2 ? { opening: sortedAuditsByStore[store][1], closing: sortedAuditsByStore[store][0] } : null
       lastAudits[store] = sortedAuditsByStore[store][0] ?? null
       
