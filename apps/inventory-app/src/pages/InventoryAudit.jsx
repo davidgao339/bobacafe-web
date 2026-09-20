@@ -409,18 +409,35 @@ function HistoryTab() {
                     {(isExpanded || isEditing) && (
                       <tr className={`border-b ${isEditing ? 'bg-blue-50 border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
                         <td colSpan={6} className="px-6 py-4">
-                          {audit.status === 'pending' && !isEditing && (
-                            <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                              <div>
-                                <p className="text-sm font-medium text-amber-800">Manager Review Required</p>
-                                <p className="text-xs text-amber-700 mt-0.5">This audit was flagged for high variances or suspiciously fast completion time.</p>
+                          {audit.status === 'pending' && !isEditing && (() => {
+                            const prevAudit = [...data.audits]
+                              .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date)
+                              .sort((a, b) => b.date.localeCompare(a.date))[0]
+                            let hasAnyVariance = false
+                            for (const [id, val] of Object.entries(audit.counts)) {
+                              const prev = prevAudit?.counts[id]
+                              if (val != null && prev != null) {
+                                if (prev === 0 && val > 10) hasAnyVariance = true
+                                else if (prev > 0 && Math.abs(val - prev) / prev > 0.5 && Math.abs(val - prev) > 5) hasAnyVariance = true
+                              }
+                            }
+                            return (
+                              <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                                <div>
+                                  <p className="text-sm font-medium text-amber-800">Manager Review Required</p>
+                                  <p className="text-xs text-amber-700 mt-0.5">
+                                    {hasAnyVariance 
+                                      ? "This audit contains items with suspiciously high variance compared to the previous count." 
+                                      : "This audit was completed suspiciously fast and flagged for speed."}
+                                  </p>
+                                </div>
+                                <div className="flex gap-3">
+                                  <button onClick={() => updateAuditStatus(audit.id, 'approved')} className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm">Approve</button>
+                                  <button onClick={() => updateAuditStatus(audit.id, 'rejected')} className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm">Reject</button>
+                                </div>
                               </div>
-                              <div className="flex gap-3">
-                                <button onClick={() => updateAuditStatus(audit.id, 'approved')} className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors">Approve</button>
-                                <button onClick={() => updateAuditStatus(audit.id, 'rejected')} className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors">Reject</button>
-                              </div>
-                            </div>
-                          )}
+                            )
+                          })()}
                           {isEditing ? (
                             <>
                               <p className="text-xs text-blue-700 font-medium mb-3">
@@ -473,15 +490,32 @@ function HistoryTab() {
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                               {config.ingredients
                                 .filter(ing => audit.counts[ing.id] != null)
-                                .map(ing => (
-                                  <div key={ing.id} className="bg-white rounded-lg px-3 py-2 border border-blue-100 text-xs">
-                                    <p className="text-gray-500 truncate">{ing.name}</p>
-                                    <p className="font-semibold text-gray-900 tabular-nums mt-0.5">
-                                      {audit.counts[ing.id]}{' '}
-                                      <span className="font-normal text-gray-400">{ing.unit}</span>
-                                    </p>
-                                  </div>
-                                ))
+                                .map(ing => {
+                                  const val = audit.counts[ing.id]
+                                  const prevAudit = [...data.audits]
+                                    .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date)
+                                    .sort((a, b) => b.date.localeCompare(a.date))[0]
+                                  const prev = prevAudit?.counts[ing.id]
+                                  
+                                  let isHighRisk = false
+                                  if (audit.status === 'pending' && val != null && prev != null) {
+                                    if (prev === 0 && val > 10) isHighRisk = true
+                                    else if (prev > 0 && Math.abs(val - prev) / prev > 0.5 && Math.abs(val - prev) > 5) isHighRisk = true
+                                  }
+
+                                  return (
+                                    <div key={ing.id} className={`rounded-lg px-3 py-2 border text-xs ${isHighRisk ? 'bg-amber-50 border-amber-300' : 'bg-white border-blue-100'}`}>
+                                      <div className="flex items-center justify-between">
+                                        <p className={`truncate ${isHighRisk ? 'text-amber-800 font-medium' : 'text-gray-500'}`}>{ing.name}</p>
+                                        {isHighRisk && <span title={`Previous count was ${prev}`} className="text-[10px] bg-amber-200 text-amber-800 px-1 py-0.5 rounded ml-1 leading-none font-bold">!</span>}
+                                      </div>
+                                      <p className={`font-semibold tabular-nums mt-0.5 ${isHighRisk ? 'text-amber-900' : 'text-gray-900'}`}>
+                                        {val}{' '}
+                                        <span className={`font-normal ${isHighRisk ? 'text-amber-700' : 'text-gray-400'}`}>{ing.unit}</span>
+                                      </p>
+                                    </div>
+                                  )
+                                })
                               }
                             </div>
                           )}
