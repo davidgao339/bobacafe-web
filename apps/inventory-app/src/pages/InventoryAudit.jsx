@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 
 // ─── Count tab ────────────────────────────────────────────────────────────────
 
-function CountTab({ store, setStore, date, setDate }) {
+export function CountTab({ store, setStore, date, setDate }) {
   const { config, data, addAudit, stores } = useConfig()
   const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
