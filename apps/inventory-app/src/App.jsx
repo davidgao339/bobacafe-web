@@ -201,6 +201,10 @@ function AppContent({ role, onLogout }) {
   const location = useLocation()
   const isStandalone = location.pathname === '/quick-count'
 
+  if (isStandalone) {
+    return <StandaloneCount />
+  }
+
   if (role === 'logistics') {
     return <LogisticsView onLogout={onLogout} />
   }
