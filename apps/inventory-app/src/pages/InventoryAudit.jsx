@@ -13,8 +13,8 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const [counts,  setCounts]  = useState({})
   const [saved,   setSaved]   = useState(false)
   const [search,  setSearch]  = useState('')
-  const [sortKey, setSortKey] = useState(null)
-  const [sortDir, setSortDir] = useState('asc')
+  const [sortKey, setSortKey] = useState('supplier')
+  const [sortDir, setSortDir] = useState('desc')
   const [time,    setTime]    = useState(() => new Date().toTimeString().slice(0, 5))
   const handleSort = key => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
