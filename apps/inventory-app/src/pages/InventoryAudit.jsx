@@ -66,7 +66,10 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
   const handleSave = () => {
     if (!isComplete) {
-      if (!window.confirm(`You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to save an incomplete audit?`)) return
+      const msg = hideHeader 
+        ? `Вы посчитали только ${filledCount} из ${totalCount} позиций. Вы уверены, что хотите сохранить неполную инвентаризацию?`
+        : `You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to save an incomplete audit?`
+      if (!window.confirm(msg)) return
     }
     const auditCounts = {}
     for (const product of visibleIngredients) {
@@ -132,19 +135,21 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto mb-6">
        <div className="min-w-[480px]">
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-5 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
+        <div className={`px-6 py-3 bg-gray-50 border-b border-gray-200 grid ${hideHeader ? 'grid-cols-4' : 'grid-cols-5'} gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide`}>
           <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
             {t('common.ingredient')}{si('name')}
           </span>
           <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('supplier')}>
             {t('recipes.supplier')}{si('supplier')}
           </span>
-          <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
-            {t('audit.prevCount')}{si('prev')}{' '}
-            <span className="font-normal normal-case text-gray-400">
-              {lastAuditDate ? `(${lastAuditDate})` : '(none)'}
+          {!hideHeader && (
+            <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
+              {t('audit.prevCount')}{si('prev')}{' '}
+              <span className="font-normal normal-case text-gray-400">
+                {lastAuditDate ? `(${lastAuditDate})` : '(none)'}
+              </span>
             </span>
-          </span>
+          )}
           <span>{t('audit.newCount')}</span>
         </div>
         {config.ingredients
@@ -168,7 +173,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
               cmp = pa - pb
             }
             return sortDir === 'asc' ? cmp : -cmp
-          }) : filtered
+          }) : [...filtered].sort((a, b) => suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' }))
           return sorted
         })().map((product, i) => {
           const prev  = lastCount(product.id)
@@ -177,7 +182,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
           return (
             <div key={product.id}
-              className={`px-6 py-4 grid grid-cols-5 gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
+              className={`px-6 py-4 grid ${hideHeader ? 'grid-cols-4' : 'grid-cols-5'} gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
               <div className="col-span-2">
                 <p className="font-medium text-gray-900 text-sm">{product.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
@@ -185,9 +190,11 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
               <div className="text-xs text-gray-500 truncate">
                 {suppName(product) || <span className="text-gray-300">—</span>}
               </div>
-              <div className="text-sm text-gray-700 tabular-nums">
-                {prev} <span className="text-gray-400 text-xs">{prev !== '—' ? product.unit : ''}</span>
-              </div>
+              {!hideHeader && (
+                <div className="text-sm text-gray-700 tabular-nums">
+                  {prev} <span className="text-gray-400 text-xs">{prev !== '—' ? product.unit : ''}</span>
+                </div>
+              )}
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <input type="number" min="0" step="0.1" placeholder="0" value={val}
@@ -197,7 +204,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
                     {product.unit}
                   </span>
                 </div>
-                {delta !== null && (
+                {!hideHeader && delta !== null && (
                   <span className={`text-xs font-medium w-12 ${delta < 0 ? 'text-red-600' : delta > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                     {delta > 0 ? '+' : ''}{Math.round(delta * 10) / 10}
                   </span>
@@ -219,7 +226,10 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
       <div className="flex items-center justify-between mt-4">
         <div className="flex items-center gap-6">
           <button onClick={() => {
-            if (window.confirm("Are you sure you want to clear all entered counts? This cannot be undone.")) {
+            const msg = hideHeader
+              ? "Вы уверены, что хотите очистить все введенные данные? Это действие нельзя отменить."
+              : "Are you sure you want to clear all entered counts? This cannot be undone."
+            if (window.confirm(msg)) {
               setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
             }
           }}
