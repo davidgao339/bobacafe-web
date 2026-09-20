@@ -14,10 +14,11 @@ import UsageReport from './pages/UsageReport'
 import { BrowserRouter, Routes, Route, useNavigate, useParams, useSearchParams, Navigate, useLocation } from 'react-router-dom'
 
 export default function App() {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '')
   return (
     <LanguageProvider>
       <ConfigProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter basename={base}>
           <AppRoot />
         </BrowserRouter>
       </ConfigProvider>

@@ -16,14 +16,15 @@ import Ledger from './pages/Ledger'
 
 
 export default function App() {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '')
   return (
-    <LanguageProvider>
-      <ConfigProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <ConfigProvider>
+      <LanguageProvider>
+        <BrowserRouter basename={base}>
           <AppRoot />
         </BrowserRouter>
-      </ConfigProvider>
-    </LanguageProvider>
+      </LanguageProvider>
+    </ConfigProvider>
   )
 }
 
