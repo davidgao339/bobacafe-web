@@ -929,7 +929,8 @@ export default function PurchaseOrders({ initialCreate }) {
             </tbody>
           </table>
         </div>
-        </>
+      </div>
+      </>
       )}
     </div>
   )
