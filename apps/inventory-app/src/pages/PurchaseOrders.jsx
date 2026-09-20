@@ -512,7 +512,9 @@ export default function PurchaseOrders({ initialCreate }) {
         />
       )}
 
-      <div className="flex items-center gap-4 mb-5 flex-wrap">
+      {!creating && (
+        <>
+          <div className="flex items-center gap-4 mb-5 flex-wrap">
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
         {[['all', t('po.all')], ['draft', t('po.draft')], ['sent', t('po.sent')], ['received', t('po.received')]].map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)}
@@ -922,7 +924,8 @@ export default function PurchaseOrders({ initialCreate }) {
             </tbody>
           </table>
         </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }
