@@ -466,14 +466,14 @@ export default function PurchaseOrders({ initialCreate }) {
     setConfirm(null)
   }
 
-  const handleCreate = ({ store, lines, createdDate, fromLocation, toLocation }) => {
-    addPurchaseOrder({ store, lines, id: nextId, status: 'draft', createdDate, sentDate: null, receivedDate: null, fromLocation, toLocation })
+  const handleCreate = ({ store, lines, customLines, createdDate, fromLocation, toLocation }) => {
+    addPurchaseOrder({ store, lines, customLines, id: nextId, status: 'draft', createdDate, sentDate: null, receivedDate: null, fromLocation, toLocation })
     setCreating(false)
     setExpanded(nextId)
   }
 
-  const handleEditSave = (poId, { lines, createdDate, fromLocation, toLocation }) => {
-    updatePurchaseOrder(poId, { lines, createdDate, fromLocation, toLocation }, "Edited details/quantities")
+  const handleEditSave = (poId, { lines, customLines, createdDate, fromLocation, toLocation }) => {
+    updatePurchaseOrder(poId, { lines, customLines, createdDate, fromLocation, toLocation }, "Edited details/quantities")
     setEditingId(null)
   }
 
@@ -628,7 +628,7 @@ export default function PurchaseOrders({ initialCreate }) {
                             lockStore
                             ingredients={storeIngredients} suppliers={config.suppliers} getOrderQty={getOrderQty}
                             stores={stores}
-                            onSave={({ lines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, createdDate, fromLocation, toLocation })}
+                            onSave={({ lines, customLines, createdDate, fromLocation, toLocation }) => handleEditSave(po.id, { lines, customLines, createdDate, fromLocation, toLocation })}
                             onCancel={() => setEditingId(null)}
                           />
                         ) : (
