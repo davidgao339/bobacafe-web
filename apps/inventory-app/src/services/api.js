@@ -57,6 +57,7 @@ export async function queryD1(sql, params = []) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sql, params }),
+    keepalive: true,
   })
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')

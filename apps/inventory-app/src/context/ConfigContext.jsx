@@ -201,10 +201,11 @@ export function ConfigProvider({ children }) {
     setDataState(prev => {
       const existing = prev.audits.find(a => a.store === store && a.date === date)
       if (existing) {
-        queryD1(`UPDATE audits SET counts = ?, timestamp = ?, status = ? WHERE id = ?`, [JSON.stringify(counts), timestamp || new Date().toISOString(), status, existing.id]).catch(console.error)
+        const mergedCounts = { ...existing.counts, ...counts };
+        queryD1(`UPDATE audits SET counts = ?, timestamp = ?, status = ? WHERE id = ?`, [JSON.stringify(mergedCounts), timestamp || new Date().toISOString(), status, existing.id]).catch(console.error)
         return {
           ...prev,
-          audits: prev.audits.map(a => a.id === existing.id ? { ...a, status, counts: { ...a.counts, ...counts }, ...(timestamp && { timestamp }) } : a),
+          audits: prev.audits.map(a => a.id === existing.id ? { ...a, status, counts: mergedCounts, ...(timestamp && { timestamp }) } : a),
         }
       }
       const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
