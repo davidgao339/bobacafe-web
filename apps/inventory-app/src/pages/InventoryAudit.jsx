@@ -286,6 +286,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 function HistoryTab() {
   const { config, data, deleteAudit, updateAudit, updateAuditStatus, stores } = useConfig()
   const { t } = useLanguage()
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
   const [historyStore,  setHistoryStore]  = useState('All')
   const [filterStatus,  setFilterStatus]  = useState('All')
   const [expanded,      setExpanded]      = useState(null)
@@ -595,6 +596,7 @@ function normalizeTime(raw) {
 function ImportTab() {
   const { config, addAudit, stores } = useConfig()
   const { t } = useLanguage()
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
   const [parsed,  setParsed]  = useState(null)
   const [result,  setResult]  = useState(null)
   const fileRef = useRef(null)

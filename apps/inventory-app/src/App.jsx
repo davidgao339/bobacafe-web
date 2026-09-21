@@ -31,8 +31,9 @@ function LoginScreen({ pins, onLogin }) {
   const [error, setError] = useState(false)
 
   const submit = () => {
-    if (pins.admin     && pin === pins.admin)     { onLogin('admin');     return }
-    if (pins.logistics && pin === pins.logistics) { onLogin('logistics'); return }
+    if (pins.admin      && pin === pins.admin)      { onLogin('admin');      return }
+    if (pins.logistics  && pin === pins.logistics)  { onLogin('logistics');  return }
+    if (pins.quickCount && pin === pins.quickCount) { onLogin('quickCount'); return }
     setError(true)
     setPin('')
   }
@@ -65,8 +66,9 @@ function LoginScreen({ pins, onLogin }) {
 
 const _P = window.BC_PINS || {};
 const PINS = {
-  admin:     _P.inv_admin     || '7530',
-  logistics: _P.inv_logistics || '9876',
+  admin:      _P.inv_admin     || '7530',
+  logistics:  _P.inv_logistics || '9876',
+  quickCount: _P.quick_count   || '1234',
 }
 const ADMIN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
 
@@ -101,7 +103,7 @@ function AppRoot() {
     setRole(null)
   }
 
-  if (!role && !isStandalone) return <LoginScreen pins={PINS} onLogin={handleLogin} />
+  if (!role) return <LoginScreen pins={PINS} onLogin={handleLogin} />
 
   return <AppContent role={role} onLogout={handleLogout} />
 }
@@ -200,6 +202,10 @@ function AppContent({ role, onLogout }) {
   const navigate = useNavigate()
   const location = useLocation()
   const isStandalone = location.pathname === '/quick-count'
+
+  if (role === 'quickCount' && !isStandalone) {
+    return <Navigate to="/quick-count" replace />
+  }
 
   if (isStandalone) {
     return <StandaloneCount />

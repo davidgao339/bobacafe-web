@@ -552,6 +552,15 @@
                 <div class="app-desc" data-ru="Инвентаризация, расход ингредиентов, заявки на закупку.">Real-time ingredient tracking, stock audits, and purchase order generation.</div>
                 <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
+            <div class="app-card" data-app="quick-count">
+                <div class="card-top">
+                    <div class="app-icon">⏱️</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Быстрая инвентаризация">Quick Count</div>
+                <div class="app-desc" data-ru="Быстрый ввод остатков для филиалов без полного доступа.">Fast inventory counting interface for branches without full access.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
             <div class="app-card" data-app="warehouse">
                 <div class="card-top">
                     <div class="app-icon">📦</div>
@@ -666,6 +675,13 @@
             label:  'Warehouse & Production',
             labelRu: 'Склад и производство',
             icon:   '📦',
+        },
+        'quick-count': {
+            url:    '/internal/inventory/quick-count',
+            pin:    _P.quick_count || '1234',
+            label:  'Quick Count',
+            labelRu: 'Быстрая инвентаризация',
+            icon:   '⏱️',
         },
     };
 

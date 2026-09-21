@@ -172,8 +172,8 @@ async function syncToD1(db, payload) {
     statements.push(db.prepare(`DELETE FROM ingredients`))
     for (const ing of config.ingredients) {
       statements.push(db.prepare(
-        `INSERT INTO ingredients (id, name, unit, productType, supplierId) VALUES (?, ?, ?, ?, ?)`
-      ).bind(ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null))
+        `INSERT INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).bind(ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0))
     }
   }
 
