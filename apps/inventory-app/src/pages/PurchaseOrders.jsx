@@ -148,7 +148,7 @@ function exportPO(po, config) {
   const otherCombined = [...other, ...customActive]
   if (otherCombined.length) groups.push({ name: 'Остальное', lines: otherCombined })
 
-  const PAGE_HEIGHT = 1000;
+  const PAGE_HEIGHT = 850;
   const HEADER_Y = 160;
   const SIG_Y = 110;
   const SECTION_HEADER_Y = 65;
