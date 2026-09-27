@@ -48,7 +48,7 @@ function SalesTab() {
     }
 
     // If the user accidentally pasted the HTTP Path, extract the ID
-    const match = warehouseId.match(/warehouses\/([a-zA-Z0-9]+)/)
+    const match = warehouseId.match(/(?:warehouses|endpoints)\/([a-zA-Z0-9]+)/) || warehouseId.match(/([a-fA-F0-9]{16})/)
     if (match) {
       warehouseId = match[1]
     }

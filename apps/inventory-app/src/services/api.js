@@ -29,7 +29,8 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
     body: JSON.stringify({ 
       statement: cleanStatement, 
       warehouse_id: warehouseId, 
-      wait_timeout: '30s' 
+      wait_timeout: '50s',
+      on_wait_timeout: 'CANCEL'
     }),
   })
 
