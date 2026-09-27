@@ -35,10 +35,13 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
-    if (resp.status === 400 && text.includes('The request could not be processed by the warehouse')) {
-      throw new Error(`Databricks Warehouse Error: The warehouse could not process the request. Check your Warehouse ID format and verify the warehouse is running.`)
-    }
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text.slice(0, 300) : ''}`)
+    console.error('Databricks API Error Response:', resp.status, text)
+    let parsedMsg = text
+    try {
+      const parsed = JSON.parse(text)
+      parsedMsg = parsed.message || parsed.error || text
+    } catch {}
+    throw new Error(`Databricks Error (${resp.status}): ${parsedMsg || 'Empty response'}`)
   }
 
   const result = await resp.json()
@@ -52,17 +55,23 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
   )
 }
 
-export async function queryD1(sql, params = []) {
-  const resp = await fetch(`${BACKUP_BASE}/d1/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql, params }),
-
-  })
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '')
-    throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`)
+export async function queryD1(sql, params = [], retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const resp = await fetch(`${BACKUP_BASE}/d1/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql, params }),
+      })
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '')
+        throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`)
+      }
+      const data = await resp.json()
+      return data.results || []
+    } catch (err) {
+      if (i === retries) throw err
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+    }
   }
-  const data = await resp.json()
-  return data.results || []
 }

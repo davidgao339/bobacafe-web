@@ -198,19 +198,27 @@ export function ConfigProvider({ children }) {
   // ─── Operational data mutations (Optimistic + D1) ───────────────────────────
 
   const addAudit = useCallback((store, date, counts, timestamp, status = 'approved') => {
-    setDataState(prev => {
-      const existing = prev.audits.find(a => a.store === store && a.date === date)
-      if (existing) {
-        const mergedCounts = { ...existing.counts, ...counts };
-        queryD1(`UPDATE audits SET counts = ?, timestamp = ?, status = ? WHERE id = ?`, [JSON.stringify(mergedCounts), timestamp || new Date().toISOString(), status, existing.id]).catch(console.error)
-        return {
-          ...prev,
-          audits: prev.audits.map(a => a.id === existing.id ? { ...a, status, counts: mergedCounts, ...(timestamp && { timestamp }) } : a),
+    return new Promise((resolve, reject) => {
+      let dbPromise;
+      setDataState(prev => {
+        const existing = prev.audits.find(a => a.store === store && a.date === date)
+        if (existing) {
+          const mergedCounts = { ...existing.counts, ...counts };
+          if (!dbPromise) {
+            dbPromise = queryD1(`UPDATE audits SET counts = ?, timestamp = ?, status = ? WHERE id = ?`, [JSON.stringify(mergedCounts), timestamp || new Date().toISOString(), status, existing.id])
+          }
+          return {
+            ...prev,
+            audits: prev.audits.map(a => a.id === existing.id ? { ...a, status, counts: mergedCounts, ...(timestamp && { timestamp }) } : a),
+          }
         }
-      }
-      const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
-      queryD1(`INSERT INTO audits (id, store, date, counts, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`, [id, store, date, JSON.stringify(counts), timestamp || new Date().toISOString(), status]).catch(console.error)
-      return { ...prev, audits: [...prev.audits, { id, store, date, counts, status, ...(timestamp && { timestamp }) }], _nextAuditId: prev._nextAuditId + 1 }
+        const id = `A-${String(prev._nextAuditId).padStart(3, '0')}`
+        if (!dbPromise) {
+          dbPromise = queryD1(`INSERT INTO audits (id, store, date, counts, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`, [id, store, date, JSON.stringify(counts), timestamp || new Date().toISOString(), status])
+        }
+        return { ...prev, audits: [...prev.audits, { id, store, date, counts, status, ...(timestamp && { timestamp }) }], _nextAuditId: prev._nextAuditId + 1 }
+      })
+      dbPromise.then(resolve).catch(reject)
     })
   }, [])
 

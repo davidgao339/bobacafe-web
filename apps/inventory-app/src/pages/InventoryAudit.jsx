@@ -66,11 +66,11 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const isSuspiciouslyFast = isComplete && (Date.now() - startTime.current) < 60000 && totalCount > 10
   const isFlagged = hasVarianceFlags || isSuspiciouslyFast
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isComplete) {
       const msg = hideHeader 
-        ? `Вы посчитали только ${filledCount} из ${totalCount} позиций. Вы уверены, что хотите сохранить неполную инвентаризацию?`
-        : `You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to save an incomplete audit?`
+        ? `Вы посчитали только ${filledCount} из ${totalCount} позиций. Вы уверены, что хотите завершить неполную инвентаризацию? (Чтобы просто сохранить текущий результат без завершения, нажмите "Сохранить прогресс")`
+        : `You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to COMPLETE an incomplete audit? (Use "Save Progress" if you just want to save your current work without clearing the screen)`
       if (!window.confirm(msg)) return
     }
     const auditCounts = {}
@@ -79,12 +79,33 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
       if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
     }
     const status = isFlagged ? 'pending' : 'approved'
-    addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
     
-    setSaved(true)
-    setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
-    startTime.current = Date.now()
-    setTimeout(() => setSaved(false), 3500)
+    try {
+      await addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
+      setSaved(true)
+      setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+      startTime.current = Date.now()
+      setTimeout(() => setSaved(false), 3500)
+    } catch (err) {
+      alert(hideHeader ? `Ошибка сохранения. Убедитесь, что интернет работает, и попробуйте еще раз.\n\nДетали: ${err.message}` : `Save failed. Please check your connection and try again.\n\nDetails: ${err.message}`)
+    }
+  }
+
+  const handleSaveProgress = async () => {
+    const auditCounts = {}
+    for (const product of visibleIngredients) {
+      const val = getValue(product.id)
+      if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
+    }
+    const status = isFlagged ? 'pending' : 'approved'
+    
+    try {
+      await addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3500)
+    } catch (err) {
+      alert(hideHeader ? `Ошибка сохранения прогресса. Убедитесь, что интернет работает.\n\nДетали: ${err.message}` : `Save progress failed. Please check your connection.\n\nDetails: ${err.message}`)
+    }
   }
 
   const suppName  = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
@@ -234,7 +255,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
        </div>
       </div>
 
-      <div className="flex items-center justify-between mt-4">
+      <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4 flex items-center justify-between mt-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-20 -mx-4 px-4 sm:mx-0 sm:px-4 sm:rounded-b-xl">
         <div className="flex items-center gap-6">
           <button onClick={() => {
             const msg = hideHeader
@@ -248,7 +269,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
             {t('audit.clearAll')}
           </button>
           
-          <div className="flex flex-col">
+          <div className="flex flex-col hidden sm:flex">
             <span className="text-xs font-medium text-gray-500">Progress</span>
             <div className="flex items-center gap-2">
               <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -258,24 +279,30 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {saved && (
-            <span className="text-sm text-green-600 font-medium flex items-center gap-1.5">
+            <span className="text-sm text-green-600 font-medium flex items-center gap-1.5 hidden sm:flex">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
               {t('audit.savedFor', { store })}
             </span>
           )}
+          <button onClick={handleSaveProgress} disabled={filledCount === 0}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filledCount > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+            }`}>
+            {hideHeader ? 'Сохранить прогресс' : 'Save Progress'}
+          </button>
           <button onClick={handleSave} disabled={filledCount === 0}
-            className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm ${
               filledCount > 0 ? (isFlagged ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700') : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}>
-            {isFlagged ? 'Submit for Review' : t('audit.saveAudit')}
+            {isFlagged ? (hideHeader ? 'Завершить (Требует проверки)' : 'Complete (Needs Review)') : (hideHeader ? 'Завершить инвент.' : 'Complete Audit')}
           </button>
         </div>
       </div>
-      <div className="text-xs text-gray-400 text-right mt-2">
-        <p>⚠️ Remember to count individual units, not full cases! Explicitly enter '0' if an item is out of stock.</p>
-        {isFlagged && <p className="text-amber-600 mt-1">High variance or suspicious speed detected. Saving will submit this count for manager review.</p>}
+      <div className="text-xs text-gray-400 text-right mt-2 px-2">
+        <p>⚠️ {hideHeader ? 'Вносите штуки, а не упаковки. Если пусто, обязательно ставьте 0.' : 'Remember to count individual units, not full cases! Explicitly enter 0 if an item is out of stock.'}</p>
+        {isFlagged && <p className="text-amber-600 mt-1">{hideHeader ? 'Высокая дисперсия. Будет передано на проверку.' : 'High variance or suspicious speed detected. Saving will submit this count for manager review.'}</p>}
       </div>
     </>
   )
@@ -697,11 +724,18 @@ function ImportTab() {
     reader.readAsText(file, 'UTF-8')
   }
 
-  const handleImport = () => {
-    parsed?.audits.forEach(a => addAudit(a.store, a.date, a.counts, a.time ? `${a.date}T${a.time}:00` : undefined))
-    setResult({ imported: parsed?.audits.length ?? 0 })
-    setParsed(null)
-    if (fileRef.current) fileRef.current.value = ''
+  const handleImport = async () => {
+    if (!parsed?.audits) return;
+    try {
+      for (const a of parsed.audits) {
+        await addAudit(a.store, a.date, a.counts, a.time ? `${a.date}T${a.time}:00` : undefined)
+      }
+      setResult({ imported: parsed.audits.length })
+      setParsed(null)
+      if (fileRef.current) fileRef.current.value = ''
+    } catch (err) {
+      alert("Import error: " + err.message)
+    }
   }
 
   return (
