@@ -14,8 +14,8 @@ function SalesTab() {
   const todayStr     = new Date().toISOString().slice(0, 10)
 
   const [filterStore,    setFilterStore]    = useState('All')
-  const [filterFrom,     setFilterFrom]     = useState(reportFrom !== todayStr ? reportFrom : sevenDaysAgo)
-  const [filterTo,       setFilterTo]       = useState(reportTo)
+  const [filterFrom,     setFilterFrom]     = useState(sevenDaysAgo)
+  const [filterTo,       setFilterTo]       = useState(todayStr)
   const [expanded,       setExpanded]       = useState(null)
   const [page,           setPage]           = useState(0)
   const [refreshing,     setRefreshing]     = useState(false)
@@ -53,16 +53,9 @@ function SalesTab() {
       warehouseId = match[1]
     }
 
-    // Optimize the fetch range to avoid downloading redundant data
-    const fetchFrom = lastSync && filterFrom < lastSync ? lastSync : filterFrom
-    const fetchTo = todayStr
-
     setRefreshing(true); setRefreshMsg(null)
     try {
-      const result = await refreshSales(token, warehouseId, fetchFrom, fetchTo)
-      
-      // Expand the UI view to show the newly fetched data
-      setFilterTo(fetchTo)
+      const result = await refreshSales(token, warehouseId, filterFrom, filterTo)
       
       if (result.upToDate) {
         setRefreshMsg({ type: 'ok', text: `Already up to date through ${result.throughDate}.` })
