@@ -53,9 +53,17 @@ function SalesTab() {
       warehouseId = match[1]
     }
 
+    // Optimize the fetch range to avoid downloading redundant data
+    const fetchFrom = lastSync && filterFrom < lastSync ? lastSync : filterFrom
+    const fetchTo = todayStr
+
     setRefreshing(true); setRefreshMsg(null)
     try {
-      const result = await refreshSales(token, warehouseId, filterFrom, filterTo)
+      const result = await refreshSales(token, warehouseId, fetchFrom, fetchTo)
+      
+      // Expand the UI view to show the newly fetched data
+      setFilterTo(fetchTo)
+      
       if (result.upToDate) {
         setRefreshMsg({ type: 'ok', text: `Already up to date through ${result.throughDate}.` })
       } else {
