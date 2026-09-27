@@ -13,6 +13,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const [counts,  setCounts]  = useState({})
   const [saved,   setSaved]   = useState(false)
   const [search,  setSearch]  = useState('')
+  const [showGuide, setShowGuide] = useState(false)
   const [sortKey, setSortKey] = useState('supplier')
   const [sortDir, setSortDir] = useState('desc')
   const [time,    setTime]    = useState(() => new Date().toTimeString().slice(0, 5))
@@ -112,13 +113,29 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
   return (
     <>
-      <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 mb-6 text-sm space-y-2">
-        <p>✨ <strong>Сиропы</strong> = вносим в мл. В 1 бутылке 1000мл, если бутылка открыта наполовину то это 500мл, если половина половины то 250мл, если больше половины, то 750мл. В сиропнице 700мл. Половина сиропницы 350мл. Вносим только общее количество мл (например 1250мл)</p>
-        <p>✨ <strong>Пюре</strong> = вносим в гр. Вносим общее количество грамм на весах, вес бутылки не вычитаем, измеряем вместе с бутылкой. В закрытой бутылке 1065гр</p>
-        <p>✨ <strong>Топпинги</strong> также как и Пюре</p>
-        <p>✨ <strong>Стаканы и трубочки</strong> вносим в штуках (не в упаковках)</p>
-        <p>✨ Все что находится в контейнере нужно вычесть вес контейнера без порошка. Запишите вес контейнера на самом контейнере, чтобы было в дальнейшем проще вычитать.</p>
-        <p>✨ Все остальное смотрите на единицу измерения, открытые пачки в тонких упаковках измеряем на весах, вес упаковки не вычитаем. Сырный и кетчуп на упаковке написано вес в граммах, записываем примерно сколько осталось.</p>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50 shadow-sm mb-6 overflow-hidden transition-all duration-300">
+        <button onClick={() => setShowGuide(!showGuide)} className="w-full px-5 py-4 flex items-center justify-between text-left group">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Инструкция по инвентаризации</p>
+              <p className="text-xs text-blue-600/70 mt-0.5">{showGuide ? 'Скрыть детали' : 'Нажмите, чтобы прочитать правила подсчета'}</p>
+            </div>
+          </div>
+          <svg className={`w-5 h-5 text-blue-400 transition-transform duration-300 ${showGuide ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+        {showGuide && (
+          <div className="px-5 pb-5 pt-1 text-sm text-blue-800/80 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">✨</span><p><strong>Сиропы</strong> = вносим в мл. В 1 бутылке 1000мл, если бутылка открыта наполовину то это 500мл, если половина половины то 250мл, если больше половины, то 750мл. В сиропнице 700мл. Половина сиропницы 350мл. Вносим только общее количество мл (например 1250мл)</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">🍓</span><p><strong>Пюре</strong> = вносим в гр. Вносим общее количество грамм на весах, вес бутылки не вычитаем, измеряем вместе с бутылкой. В закрытой бутылке 1065гр</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">🍯</span><p><strong>Топпинги</strong> также как и Пюре</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">🥤</span><p><strong>Стаканы и трубочки</strong> вносим в штуках (не в упаковках)</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">⚖️</span><p>Все что находится в контейнере нужно вычесть вес контейнера без порошка. Запишите вес контейнера на самом контейнере, чтобы было в дальнейшем проще вычитать.</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">📦</span><p>Все остальное смотрите на единицу измерения, открытые пачки в тонких упаковках измеряем на весах, вес упаковки не вычитаем. Сырный и кетчуп на упаковке написано вес в граммах, записываем примерно сколько осталось.</p></div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-4 mb-6 flex-wrap">
@@ -165,9 +182,8 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto mb-6">
-       <div className="min-w-[480px]">
-        <div className={`px-6 py-3 bg-gray-50 border-b border-gray-200 grid ${hideHeader ? 'grid-cols-4' : 'grid-cols-5'} gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide`}>
+      <div className="mb-24 flex flex-col gap-3 md:gap-0 md:bg-white md:rounded-xl md:border md:border-gray-200 md:shadow-sm md:overflow-hidden">
+        <div className={`hidden md:grid px-6 py-3 bg-gray-50 border-b border-gray-200 ${hideHeader ? 'grid-cols-4' : 'grid-cols-5'} gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide`}>
           <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
             {t('common.ingredient')}{si('name')}
           </span>
@@ -214,30 +230,38 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
           return (
             <div key={product.id}
-              className={`px-6 py-4 grid ${hideHeader ? 'grid-cols-4' : 'grid-cols-5'} gap-4 items-center ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} border-b border-gray-100 last:border-0`}>
-              <div className="col-span-2">
-                <p className="font-medium text-gray-900 text-sm">{product.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
+              className={`p-4 md:px-6 md:py-4 flex flex-col md:grid ${hideHeader ? 'md:grid-cols-4' : 'md:grid-cols-5'} gap-3 md:gap-4 md:items-center bg-white rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 md:border-b md:border-gray-100 last:border-0 transition-all duration-300 hover:shadow-md md:hover:shadow-none hover:border-blue-200 md:hover:bg-blue-50/50 group`}>
+              <div className="md:col-span-2 flex justify-between items-start md:block">
+                <div>
+                  <p className="font-semibold text-gray-900 text-base md:text-sm group-hover:text-blue-700 transition-colors">{product.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
+                </div>
+                <div className="md:hidden text-[10px] font-medium tracking-wide uppercase px-2.5 py-1 bg-gradient-to-r from-gray-100 to-gray-50 rounded-full text-gray-500 truncate max-w-[140px] shadow-sm border border-gray-200/50">
+                  {suppName(product) || '—'}
+                </div>
               </div>
-              <div className="text-xs text-gray-500 truncate">
+              <div className="hidden md:block text-xs text-gray-500 truncate">
                 {suppName(product) || <span className="text-gray-300">—</span>}
               </div>
               {!hideHeader && (
-                <div className="text-sm text-gray-700 tabular-nums">
-                  {prev} <span className="text-gray-400 text-xs">{prev !== '—' ? product.unit : ''}</span>
+                <div className="text-sm text-gray-700 tabular-nums flex justify-between items-center md:block bg-gray-50 md:bg-transparent rounded-lg p-2 md:p-0 border border-gray-100 md:border-none">
+                  <span className="md:hidden text-xs font-medium text-gray-400 uppercase tracking-wider">{t('audit.prevCount')}</span>
+                  <div className="font-medium">
+                    {prev} <span className="text-gray-400 text-xs font-normal">{prev !== '—' ? product.unit : ''}</span>
+                  </div>
                 </div>
               )}
-              <div className="flex items-center gap-3">
-                <div className="relative">
+              <div className="flex items-center justify-between gap-3 w-full md:w-auto mt-2 md:mt-0">
+                <div className="relative flex-1 md:flex-none">
                   <input type="number" min="0" step="0.1" placeholder="0" value={val}
                     onChange={e => handleChange(product.id, e.target.value)}
-                    className={`w-32 border ${val === '' ? 'border-amber-300 bg-amber-50' : 'border-gray-300'} rounded-lg pl-3 pr-10 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums`} />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none select-none">
+                    className={`w-full md:w-32 border-2 ${val === '' ? 'border-blue-100 bg-blue-50/30' : 'border-gray-200 bg-gray-50'} rounded-xl pl-4 md:pl-3 pr-10 py-3 md:py-2 text-lg md:text-sm font-semibold text-gray-900 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white tabular-nums transition-all`} />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm md:text-xs font-medium text-gray-400 pointer-events-none select-none">
                     {product.unit}
                   </span>
                 </div>
                 {!hideHeader && delta !== null && (
-                  <span className={`text-xs font-medium w-12 ${delta < 0 ? 'text-red-600' : delta > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                  <span className={`text-base md:text-sm font-bold w-14 text-right md:text-left flex-shrink-0 ${delta < 0 ? 'text-rose-500' : delta > 0 ? 'text-emerald-500' : 'text-gray-400'}`}>
                     {delta > 0 ? '+' : ''}{Math.round(delta * 10) / 10}
                   </span>
                 )}
@@ -245,59 +269,62 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
                    if (val === '' || prev === '—') return null
                    const v = parseFloat(val), p = parseFloat(prev)
                    const isWarning = (p === 0 && v > 10) || (p > 0 && (Math.abs(v - p) / p > 0.5) && Math.abs(v - p) > 5)
-                   if (isWarning) return <span className="text-amber-500" title="High variance detected">⚠️</span>
+                   if (isWarning) return <span className="text-amber-500 flex-shrink-0 text-xl md:text-base" title="High variance detected">⚠️</span>
                    return null
                 })()}
               </div>
             </div>
           )
         })}
-       </div>
       </div>
 
-      <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4 flex items-center justify-between mt-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-20 -mx-4 px-4 sm:mx-0 sm:px-4 sm:rounded-b-xl">
-        <div className="flex items-center gap-6">
-          <button onClick={() => {
-            const msg = hideHeader
-              ? "Вы уверены, что хотите очистить все введенные данные? Это действие нельзя отменить."
-              : "Are you sure you want to clear all entered counts? This cannot be undone."
-            if (window.confirm(msg)) {
-              setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
-            }
-          }}
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-            {t('audit.clearAll')}
-          </button>
-          
-          <div className="flex flex-col hidden sm:flex">
-            <span className="text-xs font-medium text-gray-500">Progress</span>
-            <div className="flex items-center gap-2">
-              <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all" style={{ width: `${totalCount ? (filledCount / totalCount) * 100 : 0}%` }} />
+      <div className="h-24"></div>
+
+      <div className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 py-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-50">
+        <div className="max-w-4xl mx-auto flex items-center justify-between w-full px-4 md:px-8">
+          <div className="flex items-center gap-6">
+            <button onClick={() => {
+              const msg = hideHeader
+                ? "Вы уверены, что хотите очистить все введенные данные? Это действие нельзя отменить."
+                : "Are you sure you want to clear all entered counts? This cannot be undone."
+              if (window.confirm(msg)) {
+                setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+              }
+            }}
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              {t('audit.clearAll')}
+            </button>
+            
+            <div className="flex flex-col hidden sm:flex">
+              <span className="text-xs font-medium text-gray-500">Progress</span>
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${totalCount ? (filledCount / totalCount) * 100 : 0}%` }} />
+                </div>
+                <span className="text-xs text-gray-500 tabular-nums">{filledCount} / {totalCount}</span>
               </div>
-              <span className="text-xs text-gray-500 tabular-nums">{filledCount} / {totalCount}</span>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {saved && (
-            <span className="text-sm text-green-600 font-medium flex items-center gap-1.5 hidden sm:flex">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-              {t('audit.savedFor', { store })}
-            </span>
-          )}
-          <button onClick={handleSaveProgress} disabled={filledCount === 0}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filledCount > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-            }`}>
-            {hideHeader ? 'Сохранить прогресс' : 'Save Progress'}
-          </button>
-          <button onClick={handleSave} disabled={filledCount === 0}
-            className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm ${
-              filledCount > 0 ? (isFlagged ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700') : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            }`}>
-            {isFlagged ? (hideHeader ? 'Завершить (Требует проверки)' : 'Complete (Needs Review)') : (hideHeader ? 'Завершить инвент.' : 'Complete Audit')}
-          </button>
+          <div className="flex items-center gap-3">
+            {saved && (
+              <span className="text-sm text-green-600 font-medium flex items-center gap-1.5 hidden sm:flex">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                {t('audit.savedFor', { store })}
+              </span>
+            )}
+            <button onClick={handleSaveProgress} disabled={filledCount === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filledCount > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+              }`}>
+              {hideHeader ? 'Сохранить прогресс' : 'Save Progress'}
+            </button>
+            <button onClick={handleSave} disabled={filledCount === 0}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm ${
+                filledCount > 0 ? (isFlagged ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700') : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}>
+              {isFlagged ? (hideHeader ? 'Завершить (Требует проверки)' : 'Complete (Needs Review)') : (hideHeader ? 'Завершить инвент.' : 'Complete Audit')}
+            </button>
+          </div>
         </div>
       </div>
       <div className="text-xs text-gray-400 text-right mt-2 px-2">
