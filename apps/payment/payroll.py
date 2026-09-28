@@ -360,11 +360,12 @@ def calculate_verification(enriched_shifts, employee_summaries):
             continue
         sched_map[s['store']] = sched_map.get(s['store'], 0.0) + s['basePay'] + s['residualPay']
 
-    emp_shifts_by_store = {}
+    from collections import defaultdict
+    emp_shifts_by_store = defaultdict(lambda: defaultdict(float))
     for s in enriched_shifts:
         if not s['matched']:
             continue
-        emp_shifts_by_store.setdefault(s['name'], {})[s['store']] = emp_shifts_by_store.get(s['name'], {}).get(s['store'], 0.0) + s['basePay'] + s['residualPay']
+        emp_shifts_by_store[s['name']][s['store']] += s['basePay'] + s['residualPay']
 
     emp_map = {}
     for e in employee_summaries:
@@ -440,11 +441,12 @@ def build_difference_waterfall(enriched_shifts, employee_summaries, bonuses, unm
 
 
 def build_store_audit(enriched_shifts, employee_summaries):
-    emp_shifts_by_store = {}
+    from collections import defaultdict
+    emp_shifts_by_store = defaultdict(lambda: defaultdict(float))
     for s in enriched_shifts:
         if not s['matched']:
             continue
-        emp_shifts_by_store.setdefault(s['name'], {})[s['store']] = emp_shifts_by_store.get(s['name'], {}).get(s['store'], 0.0) + s['basePay'] + s['residualPay']
+        emp_shifts_by_store[s['name']][s['store']] += s['basePay'] + s['residualPay']
 
     store_employees = {}
     for e in employee_summaries:

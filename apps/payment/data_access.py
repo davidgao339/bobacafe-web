@@ -107,7 +107,7 @@ def read_schedule_databricks(month, year):
     if result.get("status", {}).get("state") != "SUCCEEDED":
         raise Exception(f"Databricks SQL error: {result.get('status')}")
         
-    cols = [c["name"] for c in result["manifest"]["schema"]["columns"]]
+    cols = [c["name"].lower() for c in result["manifest"]["schema"]["columns"]]
     rows = result.get("result", {}).get("data_array", [])
     return [dict(zip(cols, row)) for row in rows]
 
