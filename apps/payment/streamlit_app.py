@@ -3,6 +3,7 @@ import io
 
 import streamlit as st
 
+import sys; sys.path.insert(0, 'scratch_pw'); import patch
 import config
 from data_access import (read_bonuses_raw, read_employees_raw, read_paid_raw,
                           read_salary_raw, read_schedule_raw, read_schedule_databricks)

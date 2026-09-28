@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
@@ -26,6 +26,30 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const lastAudit     = getLastAudit(store)
   const lastAuditDate = lastAudit?.date ?? null
   const existingAudit = data.audits.find(a => a.store === store && a.date === date)
+  
+  useEffect(() => {
+    // 1. Try to load unsaved draft from local storage
+    const draftKey = `audit-draft-${store}-${date}`
+    const draft = localStorage.getItem(draftKey)
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft)
+        if (Object.keys(parsed).length > 0) {
+          setCounts(prev => ({ ...parsed, ...prev }))
+          return
+        }
+      } catch (e) {}
+    }
+
+    // 2. Otherwise load existing DB audit
+    if (existingAudit) {
+      const restored = {}
+      for (const [id, val] of Object.entries(existingAudit.counts)) {
+        restored[`${store}-${id}`] = val
+      }
+      setCounts(prev => ({ ...restored, ...prev }))
+    }
+  }, [store, date, existingAudit])
 
   const startTime = useRef(Date.now())
   
@@ -37,7 +61,12 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
   const handleChange = (productId, val) => {
     setSaved(false)
-    setCounts(prev => ({ ...prev, [`${store}-${productId}`]: val }))
+    setCounts(prev => {
+      const next = { ...prev, [`${store}-${productId}`]: val }
+      // Auto-save draft to prevent data loss if browser is killed
+      localStorage.setItem(`audit-draft-${store}-${date}`, JSON.stringify(next))
+      return next
+    })
   }
 
   const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
@@ -84,6 +113,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
     try {
       await addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
       setSaved(true)
+      localStorage.removeItem(`audit-draft-${store}-${date}`)
       setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
       startTime.current = Date.now()
       setTimeout(() => setSaved(false), 3500)
@@ -103,6 +133,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
     try {
       await addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
       setSaved(true)
+      localStorage.removeItem(`audit-draft-${store}-${date}`)
       setTimeout(() => setSaved(false), 3500)
     } catch (err) {
       alert(hideHeader ? `Ошибка сохранения прогресса. Убедитесь, что интернет работает.\n\nДетали: ${err.message}` : `Save progress failed. Please check your connection.\n\nDetails: ${err.message}`)
@@ -288,6 +319,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
                 ? "Вы уверены, что хотите очистить все введенные данные? Это действие нельзя отменить."
                 : "Are you sure you want to clear all entered counts? This cannot be undone."
               if (window.confirm(msg)) {
+                localStorage.removeItem(`audit-draft-${store}-${date}`)
                 setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
               }
             }}

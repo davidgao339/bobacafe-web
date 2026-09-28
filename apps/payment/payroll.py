@@ -451,6 +451,21 @@ def build_store_audit(enriched_shifts, employee_summaries):
     store_employees = {}
     for e in employee_summaries:
         emp_shifts = emp_shifts_by_store.get(e['name'], {})
+        
+        if not emp_shifts:
+            store = '—'
+            if store not in store_employees:
+                store_employees[store] = []
+            store_employees[store].append({
+                'name': e['name'],
+                'scheduled': 0.0,
+                'bonus': e['bonusTotal'],
+                'scheduled_plus_bonus': e['bonusTotal'],
+                'employee_total': e['monthlyTotal'],
+                'difference': e['monthlyTotal'] - e['bonusTotal'],
+            })
+            continue
+
         for store, shift_cost in emp_shifts.items():
             if store not in store_employees:
                 store_employees[store] = []
