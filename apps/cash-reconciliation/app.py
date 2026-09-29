@@ -244,7 +244,7 @@ def color_diff(val):
 
 display_df = display_df.sort_values(by=['Date', 'Store'], ascending=[False, True])
 
-styled_df = display_df.style.applymap(color_diff, subset=['Difference']).format({
+styled_df = display_df.style.map(color_diff, subset=['Difference']).format({
     'SBIS Cash': "${:,.2f}",
     'Envelope Cash': "${:,.2f}",
     'Difference': "${:,.2f}"
