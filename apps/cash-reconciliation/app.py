@@ -159,13 +159,23 @@ sbis_df['revenue'] = pd.to_numeric(sbis_df['revenue'], errors='coerce').fillna(0
 envelope_df['Store_Norm'] = envelope_df[store_col_env].astype(str).str.strip().str.lower()
 sbis_df['Store_Norm'] = sbis_df['store'].astype(str).str.strip().str.lower()
 
-merged_df = pd.merge(
-    sbis_df, 
-    envelope_df, 
-    left_on=['date', 'Store_Norm'], 
-    right_on=[date_col_env, 'Store_Norm'], 
-    how='outer'
-)
+# Create a skeleton of all dates and all unique stores
+all_dates = pd.date_range(start=d_start, end=d_end).date
+all_stores = list(set(sbis_df['Store_Norm'].dropna()) | set(envelope_df['Store_Norm'].dropna()))
+skeleton = pd.MultiIndex.from_product([all_dates, all_stores], names=['date', 'Store_Norm']).to_frame(index=False)
+
+# Map original store names
+store_map = {}
+for _, row in sbis_df.dropna(subset=['store']).iterrows():
+    store_map[row['Store_Norm']] = row['store']
+for _, row in envelope_df.dropna(subset=[store_col_env]).iterrows():
+    if row['Store_Norm'] not in store_map:
+        store_map[row['Store_Norm']] = row[store_col_env]
+skeleton['store'] = skeleton['Store_Norm'].map(store_map)
+
+# Merge SBIS and Envelope to skeleton
+merged_df = pd.merge(skeleton, sbis_df, on=['date', 'Store_Norm'], how='left', suffixes=('', '_drop'))
+merged_df = pd.merge(merged_df, envelope_df, left_on=['date', 'Store_Norm'], right_on=[date_col_env, 'Store_Norm'], how='left')
 
 # Fill NaNs
 merged_df['revenue'] = merged_df['revenue'].fillna(0)
@@ -179,8 +189,7 @@ display_df.rename(columns={
     'revenue': 'SBIS Cash',
     'Total_Envelope_Cash': 'Envelope Cash'
 }, inplace=True)
-display_df['Store'] = display_df['Store'].fillna(merged_df[store_col_env])
-display_df.dropna(subset=['Date'], inplace=True)
+display_df.dropna(subset=['Store'], inplace=True)
 
 # Store filter in sidebar
 store_list = sorted(display_df['Store'].dropna().unique().tolist())
