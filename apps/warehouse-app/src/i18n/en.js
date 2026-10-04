@@ -249,6 +249,7 @@ const en = {
   'po.all':                'All',
   'po.draft':              'Draft',
   'po.sent':               'Sent',
+  'po.partially_received': 'Partially Received',
   'po.received':           'Received',
   'po.colId':              'PO #',
   'po.colCreated':         'Created',
@@ -292,6 +293,11 @@ const en = {
   'po.days':                 'days',
   'po.from':                 'From',
   'po.to':                   'To',
+  'po.uploadOzon':           'Upload Ozon UPD',
+  'po.ozonNoItemsFound':     'No items found in this UPD.',
+  'po.ozonNoPoFound':        'No sent POs found expecting these items.',
+  'po.ozonSuccess':          'UPD uploaded successfully. Matched PO {{id}} ({{count}} items). Please verify quantities before saving.',
+  'po.ozonParseError':       'Error parsing the Excel file.',
 
   // Replenishment Report
   'report.title':            'Replenishment Report',
