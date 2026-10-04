@@ -256,6 +256,7 @@ const ru = {
   'po.all':                'Все',
   'po.draft':              'Черновик',
   'po.sent':               'Отправлен',
+  'po.partially_received': 'Частично получен',
   'po.received':           'Получен',
   'po.colId':              '№ заказа',
   'po.colCreated':         'Создан',
@@ -299,6 +300,11 @@ const ru = {
   'po.days':                 'дн.',
   'po.from':                 'Откуда',
   'po.to':                   'Куда',
+  'po.uploadOzon':           'Загрузить УПД',
+  'po.ozonNoItemsFound':     'Не удалось найти товары в этом УПД.',
+  'po.ozonNoPoFound':        'Не найдено отправленных заявок, ожидающих эти товары.',
+  'po.ozonSuccess':          'УПД успешно загружен. Совпадение с заявкой {{id}} ({{count}} товаров). Пожалуйста, проверьте количества перед подтверждением.',
+  'po.ozonParseError':       'Ошибка при чтении файла Excel.',
 
   // Replenishment Report
   'report.title':            'Отчёт по закупкам',

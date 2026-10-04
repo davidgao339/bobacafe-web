@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { DashIcon, AuditIcon, InventoryIcon, TxIcon, TapiocaIcon, RecipeIcon, VarianceIcon, POIcon, ReportIcon, UsageIcon } from '../icons'
+import { DashIcon, AuditIcon, InventoryIcon, TxIcon, RecipeIcon, POIcon, ReportIcon, UsageIcon } from '../icons'
 
 const NAV_GROUPS = [
   {
@@ -21,7 +21,7 @@ const NAV_GROUPS = [
         { id: 'history', labelKey: 'audit.tabHistory' },
         { id: 'import',  labelKey: 'audit.tabImport' },
       ]},
-      { id: 'variance',  labelKey: 'nav.losses',        icon: VarianceIcon },
+      { id: 'variance',  labelKey: 'nav.losses',        icon: ReportIcon },
     ]
   },
   {
@@ -43,7 +43,7 @@ const NAV_GROUPS = [
   {
     titleKey: 'nav.group.retailOps',
     items: [
-      { id: 'tapioca',  labelKey: 'nav.tapioca', icon: TapiocaIcon },
+      { id: 'tapioca',  labelKey: 'nav.tapioca', icon: TxIcon },
     ]
   }
 ]

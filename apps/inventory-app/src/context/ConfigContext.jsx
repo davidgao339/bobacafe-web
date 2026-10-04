@@ -102,7 +102,7 @@ export function ConfigProvider({ children }) {
   const [salesCache, setSalesCacheState] = useState(null)
   const [settings, setSettingsState] = useState(() => {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
-    return { token: '', warehouseId: '', ...stored }
+    return { token: '', warehouseId: '', ozonMappings: {}, ...stored }
   })
   const [stores, setStoresState] = useState(() => STORES)
   const [suppressedStores, setSuppressedStores] = useState(() => loadFromStorage(SUPPRESSED_STORES_KEY) ?? [])
@@ -175,6 +175,14 @@ export function ConfigProvider({ children }) {
   const saveSettings = useCallback((s) => {
     setSettingsState(s)
     saveToStorage(SETTINGS_KEY, s)
+  }, [])
+
+  const updateOzonMapping = useCallback((rawName, ingredientId) => {
+    setSettingsState(prev => {
+      const next = { ...prev, ozonMappings: { ...(prev.ozonMappings || {}), [rawName]: ingredientId } }
+      saveToStorage(SETTINGS_KEY, next)
+      return next
+    })
   }, [])
 
   const clearSalesCache = useCallback(() => {
@@ -607,7 +615,7 @@ export function ConfigProvider({ children }) {
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility,
-      settings, saveSettings, refreshSales,
+      settings, saveSettings, updateOzonMapping, refreshSales,
       reportFrom, reportTo,
       exportConfig, importConfig,
       addSupplier, updateSupplier, deleteSupplier,

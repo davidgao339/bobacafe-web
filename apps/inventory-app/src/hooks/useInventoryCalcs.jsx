@@ -159,7 +159,7 @@ export function useCalcs() {
     }
     
     for (const po of data.purchaseOrders) {
-      if (po.status !== 'received' || (po.fromLocation && po.toLocation)) continue
+      if (!['received', 'partially_received'].includes(po.status) || (po.fromLocation && po.toLocation)) continue
       const store = po.store
       if (!stores.includes(store)) continue
       const poTime = po.receivedAt ?? (po.receivedDate ? `${po.receivedDate}T12:00:00` : '2000-01-01T00:00:00')

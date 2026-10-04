@@ -2,7 +2,7 @@ import { useState, useMemo, Fragment, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { getProductType } from '../utils/productTypes'
+import { getProductType } from '@inventory/utils/productTypes'
 const r1 = n => Math.round(n * 10) / 10
 const todayStr = () => new Date().toISOString().slice(0, 10)
 

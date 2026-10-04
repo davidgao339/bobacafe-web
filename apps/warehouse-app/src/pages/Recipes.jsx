@@ -1,7 +1,7 @@
 import { useState, useRef, Fragment } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { PRODUCT_TYPES, getProductType, getRoundStep, detectProductType } from '../utils/productTypes'
+import { PRODUCT_TYPES, getProductType, getRoundStep, detectProductType } from '@inventory/utils/productTypes'
 
 // ─── Ingredients Tab ──────────────────────────────────────────────────────────
 

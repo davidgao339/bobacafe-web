@@ -77,7 +77,7 @@ export const PRODUCT_TYPES = [
     id: 'cups_plastic_500',
     nameRu: 'Пластиковые стаканы 500мл',
     nameEn: 'Plastic cups 500ml',
-    roundStep: 20,
+    roundStep: 30,
     defaultUnit: 'шт',
     keywords: [/(?=.*500)(?=.*(стакан|cup|пластик|plastic))/i, /стакан.*500/i],
   },

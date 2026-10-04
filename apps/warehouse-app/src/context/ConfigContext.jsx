@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
-import { stores as STORES } from '../data/fakeData'
-import { fetchDatabricksSales, queryD1 } from '../services/api'
+import { stores as STORES } from '@inventory/data/fakeData'
+import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 
 const SALES_CACHE_KEY       = 'bobacafe_sales_cache'

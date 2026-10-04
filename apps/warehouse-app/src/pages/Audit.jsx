@@ -1,7 +1,7 @@
 import { useState, useRef, Fragment } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
-import { getProductType } from '../utils/productTypes'
+import { getProductType } from '@inventory/utils/productTypes'
 // ─── Count tab ────────────────────────────────────────────────────────────────
 
 function CountTab({ store, date, setDate }) {

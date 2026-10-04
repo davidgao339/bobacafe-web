@@ -1,8 +1,10 @@
-import { useState, Fragment } from 'react'
+import { useState, Fragment, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
 import DraftForm from '../components/PurchaseOrders/DraftForm'
+import OzonMatcher from '../components/PurchaseOrders/OzonMatcher'
 
 
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -10,9 +12,10 @@ const TODAY = new Date().toISOString().slice(0, 10)
 const STATUS_STYLE = {
   draft:    'bg-gray-100 text-gray-600',
   sent:     'bg-blue-100 text-blue-700',
+  partially_received: 'bg-yellow-100 text-yellow-700',
   received: 'bg-green-100 text-green-700',
 }
-const STATUS_LABEL = { draft: 'Draft', sent: 'Sent', received: 'Received' }
+const STATUS_LABEL = { draft: 'Draft', sent: 'Sent', partially_received: 'Partially Received', received: 'Received' }
 // Note: STATUS_LABEL used only for logic; display uses t() calls
 
 // ─── Inline confirm ───────────────────────────────────────────────────────────
@@ -371,6 +374,9 @@ export default function PurchaseOrders({ initialCreate }) {
   const [editDateId,  setEditDateId]  = useState(null)
   const [editDateVal, setEditDateVal] = useState(TODAY)
   const [editDateTime,setEditDateTime]= useState('00:00')
+  const [ozonData,    setOzonData]    = useState(null)
+
+  const fileInputRef = useRef(null)
 
   const pos    = data.purchaseOrders
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
@@ -390,34 +396,36 @@ export default function PurchaseOrders({ initialCreate }) {
   const startReceive = (po, e) => {
     e.stopPropagation()
     const qtys = {}
-    po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(l.ordered) })
-    po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(c.ordered) })
+    po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0))) })
+    po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(Math.max(0, c.ordered - (c.received || 0))) })
     setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys)
     setExpanded(po.id); setConfirm(null)
   }
 
   const confirmReceive = (po) => {
-    const updatedLines = po.lines.map(l => ({
-      ...l,
-      received: receiveQtys[l.ingredientId] !== undefined
-        ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0)
-        : l.ordered,
-    }))
-    const updatedCustomLines = po.customLines?.map(c => ({
-      ...c,
-      received: receiveQtys[c.id] !== undefined
-        ? Math.max(0, parseFloat(receiveQtys[c.id]) || 0)
-        : c.ordered,
-    }))
-    updatePurchaseOrder(po.id, { status: 'received', receivedDate: receiveDate, receivedAt: `${receiveDate}T${receiveTime}:00`, lines: updatedLines, customLines: updatedCustomLines })
+    const updatedLines = po.lines.map(l => {
+      const addedQty = receiveQtys[l.ingredientId] !== undefined ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0) : 0;
+      return { ...l, received: (l.received || 0) + addedQty }
+    })
+    const updatedCustomLines = po.customLines?.map(c => {
+      const addedQty = receiveQtys[c.id] !== undefined ? Math.max(0, parseFloat(receiveQtys[c.id]) || 0) : 0;
+      return { ...c, received: (c.received || 0) + addedQty }
+    })
+    
+    const isComplete = updatedLines.filter(l => l.ordered > 0).every(l => (l.received || 0) >= l.ordered) && 
+                       (!updatedCustomLines || updatedCustomLines.filter(c => c.ordered > 0).every(c => (c.received || 0) >= c.ordered))
+
+    const status = isComplete ? 'received' : 'partially_received'
+
+    updatePurchaseOrder(po.id, { status, receivedDate: receiveDate, receivedAt: `${receiveDate}T${receiveTime}:00`, lines: updatedLines, customLines: updatedCustomLines })
 
     // Handle transfer if both locations are set
     if (po.fromLocation && po.toLocation) {
       updatedLines.forEach(l => {
-        const qty = l.received ?? l.ordered
-        if (qty > 0) {
-          addTransaction({ ingredientId: l.ingredientId, store: po.fromLocation, date: receiveDate, type: 'adjustment', quantity: -qty,  poId: po.id })
-          addTransaction({ ingredientId: l.ingredientId, store: po.toLocation,   date: receiveDate, type: 'adjustment', quantity:  qty,  poId: po.id })
+        const addedQty = receiveQtys[l.ingredientId] !== undefined ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0) : 0;
+        if (addedQty > 0) {
+          addTransaction({ ingredientId: l.ingredientId, store: po.fromLocation, date: receiveDate, type: 'adjustment', quantity: -addedQty,  poId: po.id })
+          addTransaction({ ingredientId: l.ingredientId, store: po.toLocation,   date: receiveDate, type: 'adjustment', quantity:  addedQty,  poId: po.id })
         }
       })
     }
@@ -477,6 +485,65 @@ export default function PurchaseOrders({ initialCreate }) {
     setEditingId(null)
   }
 
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const fileData = new Uint8Array(evt.target.result)
+        const workbook = XLSX.read(fileData, { type: 'array' })
+        const firstSheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[firstSheetName]
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+        
+        const parsedItems = []
+        const exclusions = ['итого', 'товары', 'наименование', 'грузоотправитель', 'грузополучатель', 'поставщик', 'покупатель', 'основание', 'документ', 'инн', 'кпп', 'адрес', 'руководитель', 'бухгалтер', 'упд', 'счет-фактура', 'накладная', 'валюта', 'код', 'артикул', 'единица', 'количество', 'цена', 'сумма', 'без ндс', 'в т.ч. ндс', 'всего']
+        
+        for (const rawRow of rows) {
+          if (!Array.isArray(rawRow)) continue
+          const r = rawRow.filter(c => c !== undefined && c !== null && String(c).trim() !== '')
+          if (r.length < 2) continue
+          
+          let nameStr = ''
+          let qty = NaN
+          for (let i = 0; i < r.length; i++) {
+             const cell = r[i]
+             if (typeof cell === 'string' && cell.length > 5 && !nameStr) {
+               const lowerCell = cell.toLowerCase()
+               if (!exclusions.some(ex => lowerCell.includes(ex))) {
+                 nameStr = cell.trim()
+               }
+             } else if (nameStr && typeof cell === 'number' && isNaN(qty)) {
+               qty = cell
+             }
+          }
+          if (nameStr && isNaN(qty)) {
+             for (let i = r.indexOf(nameStr) + 1; i < r.length; i++) {
+                const num = parseFloat(String(r[i]).replace(',', '.'))
+                if (!isNaN(num)) { qty = num; break; }
+             }
+          }
+          if (nameStr && !isNaN(qty) && qty > 0) {
+            parsedItems.push({ rawName: nameStr, rawQty: qty })
+          }
+        }
+        
+        if (parsedItems.length === 0) {
+          alert(t('po.ozonNoItemsFound') || 'Не удалось найти товары в этом УПД.')
+          return
+        }
+        setOzonData({ items: parsedItems, filename: file.name })
+        
+      } catch (err) {
+        console.error(err)
+        alert(t('po.ozonParseError') || 'Ошибка при чтении файла Excel.')
+      }
+      e.target.value = null
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
   const CONFIRM_LABELS = {
     send:          { msg: t('po.confirmSend'),        danger: false },
     receive:       { msg: t('po.confirmReceive'),     danger: false },
@@ -493,10 +560,18 @@ export default function PurchaseOrders({ initialCreate }) {
           <p className="text-sm text-gray-500 mt-0.5">{t('po.subtitle')}</p>
         </div>
         {!creating && (
-          <button onClick={() => setCreating(true)}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
-            {t('po.newPO')}
-          </button>
+          <div className="flex gap-2 items-center">
+            <input type="file" accept=".xlsx,.xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+            <button onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 text-sm rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+              {t('po.uploadOzon') || 'Загрузить УПД'}
+            </button>
+            <button onClick={() => setCreating(true)}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+              {t('po.newPO')}
+            </button>
+          </div>
         )}
       </div>
 
@@ -514,11 +589,34 @@ export default function PurchaseOrders({ initialCreate }) {
         />
       )}
 
-      {!creating && (
+      {ozonData && (
+        <OzonMatcher 
+          parsedItems={ozonData.items} 
+          pos={pos} 
+          onConfirm={({ poId, receiveQtys }) => {
+            setOzonData(null)
+            const po = pos.find(p => p.id === poId)
+            if (po) {
+              const qtys = {}
+              po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(receiveQtys[l.ingredientId] || 0) })
+              po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(receiveQtys[c.id] || 0) })
+              setReceiveId(po.id)
+              setReceiveDate(TODAY)
+              setReceiveTime(new Date().toTimeString().slice(0, 5))
+              setReceiveQtys(qtys)
+              setExpanded(po.id)
+              setConfirm(null)
+            }
+          }}
+          onCancel={() => setOzonData(null)}
+        />
+      )}
+
+      {!creating && !ozonData && (
         <>
           <div className="flex items-center gap-4 mb-5 flex-wrap">
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-        {[['all', t('po.all')], ['draft', t('po.draft')], ['sent', t('po.sent')], ['received', t('po.received')]].map(([id, label]) => (
+        {[['all', t('po.all')], ['draft', t('po.draft')], ['sent', t('po.sent')], ['partially_received', t('po.partially_received') || 'Partial'], ['received', t('po.received')]].map(([id, label]) => (
           <button key={id} onClick={() => setFilter(id)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               filter === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -582,7 +680,7 @@ export default function PurchaseOrders({ initialCreate }) {
                           <button onClick={e => requestConfirm(po.id, 'delete', e)}
                             className="px-3 py-1.5 text-red-400 text-xs">{t('common.delete')}</button>
                         </>}
-                        {po.status === 'sent' && <>
+                        {(po.status === 'sent' || po.status === 'partially_received') && <>
                           <button onClick={e => startReceive(po, e)}
                             className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg">{t('po.markReceived')}</button>
                           <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
@@ -738,7 +836,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                   <button onClick={e => requestConfirm(po.id, 'delete', e)}
                                     className="px-2.5 py-1 text-red-400 text-xs hover:text-red-600">{t('common.delete')}</button>
                                 </>}
-                                {po.status === 'sent' && <>
+                                {(po.status === 'sent' || po.status === 'partially_received') && <>
                                   <button onClick={e => startReceive(po, e)}
                                     className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700">{t('po.markReceived')}</button>
                                   <button onClick={e => requestConfirm(po.id, 'revertToDraft', e)}
@@ -796,7 +894,8 @@ export default function PurchaseOrders({ initialCreate }) {
                                       <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
                                         <th className="px-4 py-2 font-medium">{t('common.ingredient')}</th>
                                         <th className="px-4 py-2 font-medium text-right">{t('po.orderedQty')}</th>
-                                        <th className="px-4 py-2 font-medium text-right">{t('po.actualQty')}</th>
+                                        <th className="px-4 py-2 font-medium text-right">{t('po.received') || 'Received'}</th>
+                                        <th className="px-4 py-2 font-medium text-right">+ {t('po.actualQty')}</th>
                                         <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
                                       </tr>
                                     </thead>
@@ -805,9 +904,10 @@ export default function PurchaseOrders({ initialCreate }) {
                                         <tr key={l.ingredientId}>
                                           <td className="px-4 py-2.5 font-medium text-gray-900">{ingredientName(l.ingredientId)}</td>
                                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{l.ordered}</td>
+                                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{l.received || 0}</td>
                                           <td className="px-4 py-2.5 text-right">
                                             <input type="number" min="0" step="0.1"
-                                              value={receiveQtys[l.ingredientId] ?? l.ordered}
+                                              value={receiveQtys[l.ingredientId] ?? ''}
                                               onChange={e => setReceiveQtys(prev => ({ ...prev, [l.ingredientId]: e.target.value }))}
                                               className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums" />
                                           </td>
@@ -818,9 +918,10 @@ export default function PurchaseOrders({ initialCreate }) {
                                         <tr key={c.id} className="bg-gray-50/50">
                                           <td className="px-4 py-2.5 font-medium text-gray-900">{c.name}</td>
                                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{c.ordered}</td>
+                                          <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{c.received || 0}</td>
                                           <td className="px-4 py-2.5 text-right">
                                             <input type="number" min="0" step="0.1"
-                                              value={receiveQtys[c.id] ?? c.ordered}
+                                              value={receiveQtys[c.id] ?? ''}
                                               onChange={e => setReceiveQtys(prev => ({ ...prev, [c.id]: e.target.value }))}
                                               className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums" />
                                           </td>

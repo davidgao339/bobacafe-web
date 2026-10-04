@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useConfig } from '../context/ConfigContext'
-import { roundOrderQty } from '../utils/productTypes'
+import { roundOrderQty } from '@inventory/utils/productTypes'
 
 export function useCalcs() {
   const { config, sales, posWaste, data, stores } = useConfig()
