@@ -14,7 +14,7 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
   useEffect(() => {
     const selectedPo = candidatePos.find(p => p.id === selectedPoId)
     if (!selectedPo) return
-    const poIngredientIds = new Set(selectedPo.lines.map(l => l.ingredientId))
+    const poIngredientIds = new Set(selectedPo.lines.map(l => String(l.ingredientId)))
     const initialMappings = {}
     const initialQtys = {}
     
@@ -25,7 +25,7 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
         const possible = config.ingredients.find(i => i.name && item.rawName.toLowerCase().includes(i.name.toLowerCase()))
         if (possible) mappedId = possible.id
       }
-      if (mappedId && poIngredientIds.has(mappedId)) {
+      if (mappedId && poIngredientIds.has(String(mappedId))) {
         initialMappings[idx] = mappedId
       }
     })
