@@ -9,14 +9,17 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
   const candidatePos = pos.filter(p => p.status === 'sent' || p.status === 'partially_received')
   const [selectedPoId, setSelectedPoId] = useState(candidatePos[0]?.id || '')
   const [mappings, setMappings] = useState({})
+  const [qtys, setQtys] = useState({})
 
   useEffect(() => {
     const selectedPo = candidatePos.find(p => p.id === selectedPoId)
     if (!selectedPo) return
     const poIngredientIds = new Set(selectedPo.lines.map(l => l.ingredientId))
     const initialMappings = {}
+    const initialQtys = {}
     
     parsedItems.forEach((item, idx) => {
+      initialQtys[idx] = item.rawQty
       let mappedId = settings.ozonMappings?.[item.rawName]
       if (!mappedId) {
         const possible = config.ingredients.find(i => i.name && item.rawName.toLowerCase().includes(i.name.toLowerCase()))
@@ -27,6 +30,7 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
       }
     })
     setMappings(initialMappings)
+    setQtys(initialQtys)
   }, [selectedPoId, parsedItems, settings.ozonMappings, config.ingredients, candidatePos])
 
   const handleConfirm = () => {
@@ -34,7 +38,7 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
     parsedItems.forEach((item, idx) => {
       const ingId = mappings[idx]
       if (ingId) {
-        receiveQtys[ingId] = (receiveQtys[ingId] || 0) + item.rawQty
+        receiveQtys[ingId] = (receiveQtys[ingId] || 0) + Number(qtys[idx] || 0)
         if (settings.ozonMappings?.[item.rawName] !== ingId) {
           updateOzonMapping(item.rawName, ingId)
         }
@@ -87,7 +91,15 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
                 {parsedItems.map((item, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-800 break-words max-w-xs">{item.rawName}</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-600 tabular-nums">{item.rawQty}</td>
+                    <td className="px-4 py-3 text-right">
+                      <input 
+                        type="number" 
+                        min="0" step="0.01" 
+                        value={qtys[idx] ?? ''} 
+                        onChange={e => setQtys(prev => ({ ...prev, [idx]: e.target.value }))}
+                        className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <select
                         value={mappings[idx] || ''}
