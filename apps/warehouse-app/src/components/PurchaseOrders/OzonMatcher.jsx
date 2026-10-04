@@ -31,7 +31,8 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
     })
     setMappings(initialMappings)
     setQtys(initialQtys)
-  }, [selectedPoId, parsedItems, settings.ozonMappings, config.ingredients, candidatePos])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPoId, parsedItems])
 
   const handleConfirm = () => {
     const receiveQtys = {}
