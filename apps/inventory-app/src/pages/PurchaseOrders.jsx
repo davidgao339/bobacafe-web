@@ -359,7 +359,8 @@ export default function PurchaseOrders({ initialCreate }) {
   const ingredientName = (id) => config.ingredients.find(p => p.id === id)?.name ?? '—'
   const ingredientUnit = (id) => config.ingredients.find(p => p.id === id)?.unit ?? ''
 
-  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+  const isWarehouse = window.location.pathname.includes('/warehouse')
+  const storeIngredients = isWarehouse ? config.ingredients : config.ingredients.filter(i => !i.warehouseOnly)
 
   const [expanded,    setExpanded]    = useState(null)
   const [creating,    setCreating]    = useState(!!initialCreate)
