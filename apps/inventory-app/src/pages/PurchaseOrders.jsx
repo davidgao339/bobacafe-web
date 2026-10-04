@@ -498,7 +498,7 @@ export default function PurchaseOrders({ initialCreate }) {
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
         
         const parsedItems = []
-        const exclusions = ['итого', 'товары', 'наименование', 'грузоотправитель', 'грузополучатель', 'поставщик', 'покупатель', 'основание', 'документ', 'инн', 'кпп', 'адрес', 'руководитель', 'бухгалтер', 'упд', 'счет-фактура', 'накладная', 'валюта', 'код', 'артикул', 'единица', 'количество', 'цена', 'сумма', 'без ндс', 'в т.ч. ндс', 'всего']
+        const exclusions = ['итого', 'товары', 'наименование', 'грузоотправитель', 'грузополучатель', 'поставщик', 'покупатель', 'основание', 'документ', 'инн', 'кпп', 'адрес', 'руководитель', 'бухгалтер', 'упд', 'счет-фактура', 'накладная', 'валюта', 'код', 'артикул', 'единица', 'количество', 'цена', 'сумма', 'без ндс', 'в т.ч. ндс', 'всего', 'статус', 'дата']
         
         for (const rawRow of rows) {
           if (!Array.isArray(rawRow)) continue
@@ -524,7 +524,7 @@ export default function PurchaseOrders({ initialCreate }) {
                 if (!isNaN(num)) { qty = num; break; }
              }
           }
-          if (nameStr && !isNaN(qty) && qty > 0) {
+          if (nameStr && !isNaN(qty) && qty > 0 && !/^[\d\s.,]+$/.test(nameStr)) {
             parsedItems.push({ rawName: nameStr, rawQty: qty })
           }
         }
