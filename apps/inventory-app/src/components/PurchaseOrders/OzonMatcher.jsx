@@ -19,7 +19,7 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
     parsedItems.forEach((item, idx) => {
       let mappedId = settings.ozonMappings?.[item.rawName]
       if (!mappedId) {
-        const possible = config.ingredients.find(i => item.rawName.toLowerCase().includes(i.id.toLowerCase()))
+        const possible = config.ingredients.find(i => i.name && item.rawName.toLowerCase().includes(i.name.toLowerCase()))
         if (possible) mappedId = possible.id
       }
       if (mappedId && poIngredientIds.has(mappedId)) {
