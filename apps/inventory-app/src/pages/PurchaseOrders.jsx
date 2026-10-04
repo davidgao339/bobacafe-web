@@ -524,6 +524,11 @@ export default function PurchaseOrders({ initialCreate }) {
                 if (!isNaN(num)) { qty = num; break; }
              }
           }
+          
+          const unitIdx = r.findIndex(c => typeof c === 'string' && ['шт', 'шт.', 'кг', 'л', 'упак', 'порц', 'упаковка'].includes(c.toLowerCase().trim()))
+          if (unitIdx !== -1 && typeof r[unitIdx + 1] === 'number') {
+            qty = r[unitIdx + 1]
+          }
           if (nameStr && !isNaN(qty) && qty > 0 && !/^[\d\s.,]+$/.test(nameStr)) {
             parsedItems.push({ rawName: nameStr, rawQty: qty })
           }
