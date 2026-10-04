@@ -739,13 +739,13 @@ export default function PurchaseOrders({ initialCreate }) {
                           <div className="divide-y divide-gray-100 bg-white rounded-lg border border-blue-100 overflow-hidden">
                             {po.lines.filter(l => l.ordered > 0).map(l => {
                               const received = l.received ?? l.ordered
-                              const diff = po.status === 'received' && received !== l.ordered
+                              const diff = (po.status === 'received' || po.status === 'partially_received') && received !== l.ordered
                               return (
                                 <div key={l.ingredientId} className="px-4 py-2 flex items-center justify-between text-sm">
                                   <span className="font-medium text-gray-800">{ingredientName(l.ingredientId)}</span>
                                   <span className="tabular-nums text-right">
                                     {diff && <span className="text-gray-400 line-through mr-1.5">{l.ordered}</span>}
-                                    <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{po.status === 'received' ? received : l.ordered}</span>
+                                    <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{(po.status === 'received' || po.status === 'partially_received') ? received : l.ordered}</span>
                                     <span className="text-gray-400 font-normal text-xs ml-1">{ingredientUnit(l.ingredientId)}</span>
                                   </span>
                                 </div>
@@ -753,13 +753,13 @@ export default function PurchaseOrders({ initialCreate }) {
                             })}
                             {po.customLines?.filter(c => c.ordered > 0).map(c => {
                               const received = c.received ?? c.ordered
-                              const diff = po.status === 'received' && received !== c.ordered
+                              const diff = (po.status === 'received' || po.status === 'partially_received') && received !== c.ordered
                               return (
                                 <div key={c.id} className="px-4 py-2 flex items-center justify-between text-sm bg-gray-50/50">
                                   <span className="font-medium text-gray-800">{c.name}</span>
                                   <span className="tabular-nums text-right">
                                     {diff && <span className="text-gray-400 line-through mr-1.5">{c.ordered}</span>}
-                                    <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{po.status === 'received' ? received : c.ordered}</span>
+                                    <span className={`font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>{(po.status === 'received' || po.status === 'partially_received') ? received : c.ordered}</span>
                                     <span className="text-gray-400 font-normal text-xs ml-1">{c.unit}</span>
                                   </span>
                                 </div>
@@ -966,7 +966,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
                                       <th className="px-4 py-2 font-medium">{t('common.ingredient')}</th>
                                       <th className="px-4 py-2 font-medium text-right">{t('po.orderedQty')}</th>
-                                      {po.status === 'received' && <th className="px-4 py-2 font-medium text-right">{t('po.actualQty')}</th>}
+                                      {(po.status === 'received' || po.status === 'partially_received') && <th className="px-4 py-2 font-medium text-right">{t('po.actualQty')}</th>}
                                       <th className="px-4 py-2 font-medium">{t('common.unit')}</th>
                                     </tr>
                                   </thead>
@@ -978,7 +978,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                         <tr key={l.ingredientId}>
                                           <td className="px-4 py-2 font-medium text-gray-800">{ingredientName(l.ingredientId)}</td>
                                           <td className="px-4 py-2 text-right tabular-nums text-gray-500">{l.ordered}</td>
-                                          {po.status === 'received' && (
+                                          {(po.status === 'received' || po.status === 'partially_received') && (
                                             <td className={`px-4 py-2 text-right tabular-nums font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>
                                               {received}
                                               {diff && <span className="text-xs font-normal ml-1">({received > l.ordered ? '+' : ''}{Math.round((received - l.ordered) * 10) / 10})</span>}
@@ -995,7 +995,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                         <tr key={c.id} className="bg-gray-50/50">
                                           <td className="px-4 py-2 font-medium text-gray-800">{c.name}</td>
                                           <td className="px-4 py-2 text-right tabular-nums text-gray-500">{c.ordered}</td>
-                                          {po.status === 'received' && (
+                                          {(po.status === 'received' || po.status === 'partially_received') && (
                                             <td className={`px-4 py-2 text-right tabular-nums font-semibold ${diff ? 'text-amber-600' : 'text-gray-900'}`}>
                                               {received}
                                               {diff && <span className="text-xs font-normal ml-1">({received > c.ordered ? '+' : ''}{Math.round((received - c.ordered) * 10) / 10})</span>}
