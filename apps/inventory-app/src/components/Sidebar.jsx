@@ -10,6 +10,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'inventory',    labelKey: 'nav.inventory',     icon: InventoryIcon },
       { id: 'purchases',    labelKey: 'nav.purchases',     icon: POIcon },
+      { id: 'ozon',         labelKey: 'nav.ozon',          icon: POIcon },
       { id: 'usage',        labelKey: 'nav.usage',         icon: UsageIcon },
     ]
   },

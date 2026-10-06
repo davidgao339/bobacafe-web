@@ -8,6 +8,7 @@ const en = {
   'nav.recipes':       'Recipes',
   'nav.losses':        'Unexplained Losses',
   'nav.purchases':     'Purchase Orders',
+  'nav.ozon':          'Ozon',
   'nav.replenishment': 'Replenishment',
   'nav.usage':         'Daily Ledger',
   'nav.dataThrough':   'Data through {{date}}',

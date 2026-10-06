@@ -4,9 +4,6 @@ import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
 import DraftForm from '../components/PurchaseOrders/DraftForm'
-import OzonMatcher from '../components/PurchaseOrders/OzonMatcher'
-
-
 const TODAY = new Date().toISOString().slice(0, 10)
 
 const STATUS_STYLE = {
@@ -375,11 +372,8 @@ export default function PurchaseOrders({ initialCreate }) {
   const [editDateId,  setEditDateId]  = useState(null)
   const [editDateVal, setEditDateVal] = useState(TODAY)
   const [editDateTime,setEditDateTime]= useState('00:00')
-  const [ozonData,    setOzonData]    = useState(null)
 
-  const fileInputRef = useRef(null)
-
-  const pos    = data.purchaseOrders
+  const pos    = (data.purchaseOrders || []).filter(po => !po.isOzon)
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
 
   const filtered = pos.filter(po => {
@@ -486,70 +480,6 @@ export default function PurchaseOrders({ initialCreate }) {
     setEditingId(null)
   }
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (evt) => {
-      try {
-        const fileData = new Uint8Array(evt.target.result)
-        const workbook = XLSX.read(fileData, { type: 'array' })
-        const firstSheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[firstSheetName]
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
-        
-        const parsedItems = []
-        const exclusions = ['итого', 'товары', 'наименование', 'грузоотправитель', 'грузополучатель', 'поставщик', 'покупатель', 'основание', 'документ', 'инн', 'кпп', 'адрес', 'руководитель', 'бухгалтер', 'упд', 'счет-фактура', 'накладная', 'валюта', 'код', 'артикул', 'единица', 'количество', 'цена', 'сумма', 'без ндс', 'в т.ч. ндс', 'всего', 'статус', 'дата']
-        
-        for (const rawRow of rows) {
-          if (!Array.isArray(rawRow)) continue
-          const r = rawRow.filter(c => c !== undefined && c !== null && String(c).trim() !== '')
-          if (r.length < 2) continue
-          
-          let nameStr = ''
-          let qty = NaN
-          for (let i = 0; i < r.length; i++) {
-             const cell = r[i]
-             if (typeof cell === 'string' && cell.length > 5 && !nameStr) {
-               const lowerCell = cell.toLowerCase()
-               if (!exclusions.some(ex => lowerCell.includes(ex))) {
-                 nameStr = cell.trim()
-               }
-             } else if (nameStr && typeof cell === 'number' && isNaN(qty)) {
-               qty = cell
-             }
-          }
-          if (nameStr && isNaN(qty)) {
-             for (let i = r.indexOf(nameStr) + 1; i < r.length; i++) {
-                const num = parseFloat(String(r[i]).replace(',', '.'))
-                if (!isNaN(num)) { qty = num; break; }
-             }
-          }
-          
-          const unitIdx = r.findIndex(c => typeof c === 'string' && ['шт', 'шт.', 'кг', 'л', 'упак', 'порц', 'упаковка'].includes(c.toLowerCase().trim()))
-          if (unitIdx !== -1 && typeof r[unitIdx + 1] === 'number') {
-            qty = r[unitIdx + 1]
-          }
-          if (nameStr && !isNaN(qty) && qty > 0 && !/^[\d\s.,]+$/.test(nameStr)) {
-            parsedItems.push({ rawName: nameStr, rawQty: qty })
-          }
-        }
-        
-        if (parsedItems.length === 0) {
-          alert(t('po.ozonNoItemsFound') || 'Не удалось найти товары в этом УПД.')
-          return
-        }
-        setOzonData({ items: parsedItems, filename: file.name })
-        
-      } catch (err) {
-        console.error(err)
-        alert(t('po.ozonParseError') || 'Ошибка при чтении файла Excel.')
-      }
-      e.target.value = null
-    }
-    reader.readAsArrayBuffer(file)
-  }
-
   const CONFIRM_LABELS = {
     send:          { msg: t('po.confirmSend'),        danger: false },
     receive:       { msg: t('po.confirmReceive'),     danger: false },
@@ -567,12 +497,6 @@ export default function PurchaseOrders({ initialCreate }) {
         </div>
         {!creating && (
           <div className="flex gap-2 items-center">
-            <input type="file" accept=".xlsx,.xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-            <button onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 text-sm rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-              {t('po.uploadOzon') || 'Загрузить УПД'}
-            </button>
             <button onClick={() => setCreating(true)}
               className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
               {t('po.newPO')}
@@ -595,30 +519,7 @@ export default function PurchaseOrders({ initialCreate }) {
         />
       )}
 
-      {ozonData && (
-        <OzonMatcher 
-          parsedItems={ozonData.items} 
-          pos={pos} 
-          onConfirm={({ poId, receiveQtys }) => {
-            setOzonData(null)
-            const po = pos.find(p => p.id === poId)
-            if (po) {
-              const qtys = {}
-              po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(receiveQtys[l.ingredientId] || 0) })
-              po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(receiveQtys[c.id] || 0) })
-              setReceiveId(po.id)
-              setReceiveDate(TODAY)
-              setReceiveTime(new Date().toTimeString().slice(0, 5))
-              setReceiveQtys(qtys)
-              setExpanded(po.id)
-              setConfirm(null)
-            }
-          }}
-          onCancel={() => setOzonData(null)}
-        />
-      )}
-
-      {!creating && !ozonData && (
+      {!creating && (
         <>
           <div className="flex items-center gap-4 mb-5 flex-wrap">
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">

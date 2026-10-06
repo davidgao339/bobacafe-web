@@ -8,6 +8,7 @@ const ru = {
   'nav.recipes':       'Рецептура',
   'nav.losses':        'Необъяснимые потери',
   'nav.purchases':     'Заказы',
+  'nav.ozon':          'Ozon',
   'nav.replenishment': 'Закупка',
   'nav.usage':         'Дневной журнал',
   'nav.dataThrough':   'Данные по {{date}}',

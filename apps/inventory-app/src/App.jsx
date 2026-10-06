@@ -8,6 +8,7 @@ import TapiocaCookingPlan from './pages/TapiocaCookingPlan'
 import Recipes from './pages/Recipes'
 import VarianceReport from './pages/VarianceReport'
 import PurchaseOrders from './pages/PurchaseOrders'
+import OzonDeliveries from './pages/OzonDeliveries'
 import InventoryLevels from './pages/InventoryLevels'
 import UsageReport from './pages/UsageReport'
 
@@ -249,6 +250,7 @@ function AppContent({ role, onLogout }) {
             <Route path="/recipes/:tab?" element={<RecipesWrapper />} />
             <Route path="/variance" element={<VarianceReport />} />
             <Route path="/purchases" element={<PurchaseOrdersWrapper />} />
+            <Route path="/ozon" element={<OzonDeliveries />} />
             <Route path="/inventory" element={<InventoryLevels onNavigate={(pageId, tabId, params) => {
               const url = `/${pageId}${tabId ? '/' + tabId : ''}`
               if (params) {
