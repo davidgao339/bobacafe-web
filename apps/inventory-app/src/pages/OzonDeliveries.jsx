@@ -29,45 +29,63 @@ export default function OzonDeliveries() {
       let parsed = []
       let parsedDate = null
       
+      let currentDocumentDate = null
+      const months = ['янв', 'фев', 'мар', 'апр', 'ма', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i)
         const content = await page.getTextContent()
         
-        // Sort items by roughly Y (desc), then X (asc)
+        // Sort items by Y (desc), then X (asc)
         const items = content.items.sort((a, b) => {
           const yDiff = b.transform[5] - a.transform[5]
           if (Math.abs(yDiff) > 5) return yDiff
           return a.transform[4] - b.transform[4]
         })
         
-        const exclusions = ['итого', 'наименование', 'грузоотправитель', 'поставщик', 'покупатель', 'сумма', 'ндс', 'всего']
-        let currentName = ''
+        const tokens = items.map(it => it.str.trim()).filter(Boolean)
         
-        for (const item of items) {
-          const str = item.str.trim()
-          if (!str) continue
+        for (let j = 0; j < tokens.length; j++) {
+          const str = tokens[j]
           
-          if (!parsedDate) {
-            const dateMatch = str.match(/(\d{2})\.(\d{2})\.(\d{4})/)
-            if (dateMatch) {
-              parsedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`
+          // Date extraction
+          const monthMatch = str.match(/от\s+(\d{1,2})\s+([а-яА-Я]+)\s+(20[2-9]\d)/)
+          if (monthMatch) {
+            const mIndex = months.findIndex(m => monthMatch[2].toLowerCase().startsWith(m))
+            if (mIndex >= 0) {
+              currentDocumentDate = `${monthMatch[3]}-${String(mIndex + 1).padStart(2, '0')}-${String(monthMatch[1]).padStart(2, '0')}`
             }
           }
-          
-          const lower = str.toLowerCase()
-          if (exclusions.some(ex => lower.includes(ex))) {
-            currentName = ''
-            continue
+          const simpleMatch = str.match(/(?:от\s+)?(\d{2})\.(\d{2})\.(20[2-9]\d)/)
+          if (simpleMatch && !str.includes('№1137') && !str.includes('№ 1137')) { // skip decree numbers
+            currentDocumentDate = `${simpleMatch[3]}-${simpleMatch[2]}-${simpleMatch[1]}`
           }
-          
-          const num = parseFloat(str.replace(',', '.'))
-          if (!isNaN(num) && num > 0 && currentName.length > 5 && !/^[\d\s.,]+$/.test(currentName)) {
-            // Found a number after a string, assume it's qty
-            let mappedId = settings?.ozonMappings?.[currentName] || ''
-            parsed.push({ rawName: currentName, qty: num, ingredientId: mappedId })
-            currentName = ''
-          } else if (isNaN(num)) {
-            currentName = currentName ? currentName + ' ' + str : str
+
+          // Item extraction
+          if (/^(шт|упак|кг|кор|набор)\.?$/i.test(str)) {
+            const qtyStr = tokens[j + 1]
+            if (!qtyStr) continue
+            const qty = parseFloat(qtyStr.replace(/\s/g, '').replace(',', '.'))
+            
+            if (!isNaN(qty) && qty > 0) {
+              let nameParts = []
+              for (let k = j - 1; k >= Math.max(0, j - 8); k--) {
+                const prev = tokens[k]
+                if (prev === '-' || prev === '796' || prev === '166' || prev === '796.00') continue
+                if (/^\d+$/.test(prev) && prev.length < 4) break // sequence number
+                if (/^[A-Za-z0-9-]+$/.test(prev) && !/[А-Яа-я]/.test(prev) && prev.length < 15) break // article code
+                if (['без ндс', 'х', 'без акциза'].includes(prev.toLowerCase())) break
+                if (prev.includes('Всего к оплате') || prev.includes('Документ')) break
+                
+                nameParts.unshift(prev)
+              }
+              
+              let rawName = nameParts.join(' ').replace(/\s+-\s*$/, '').trim()
+              if (rawName.length > 3) {
+                let mappedId = settings?.ozonMappings?.[rawName] || ''
+                parsed.push({ rawName, qty, ingredientId: mappedId, date: currentDocumentDate })
+              }
+            }
           }
         }
       }
@@ -76,7 +94,7 @@ export default function OzonDeliveries() {
         alert('No items found in PDF. Please check the file format.')
       } else {
         setLines(parsed)
-        if (parsedDate) setBatchDate(parsedDate)
+        if (parsed[0].date) setBatchDate(parsed[0].date)
       }
     } catch (err) {
       console.error(err)
@@ -88,29 +106,39 @@ export default function OzonDeliveries() {
   }
 
   const handleSave = () => {
-    const validLines = lines.filter(l => l.ingredientId && Number(l.qty) > 0).map(l => {
-      // Save mapping
+    const groups = {}
+    for (const l of lines) {
+      if (!l.ingredientId || Number(l.qty) <= 0) continue
+      
       if (settings?.ozonMappings?.[l.rawName] !== l.ingredientId) {
         updateOzonMapping?.(l.rawName, l.ingredientId)
       }
-      return {
+      
+      const d = l.date || batchDate
+      if (!groups[d]) groups[d] = []
+      groups[d].push({
         ingredientId: Number(l.ingredientId),
         ordered: Number(l.qty),
         received: Number(l.qty)
-      }
-    })
+      })
+    }
     
-    if (!validLines.length) return alert('No valid mapped items to receive')
+    if (Object.keys(groups).length === 0) return alert('No valid mapped items to receive')
 
-    addPurchaseOrder({
-      id: nextId,
-      store,
-      lines: validLines,
-      status: 'received',
-      createdDate: batchDate,
-      receivedDate: batchDate,
-      isOzon: true
-    })
+    let idOffset = 0
+    for (const [d, groupLines] of Object.entries(groups)) {
+      const pId = `OZON-${String((data._nextPoId || 1) + idOffset).padStart(3, '0')}`
+      addPurchaseOrder({
+        id: pId,
+        store,
+        lines: groupLines,
+        status: 'received',
+        createdDate: d,
+        receivedDate: d,
+        isOzon: true
+      })
+      idOffset++
+    }
     setLines([])
   }
 
@@ -149,7 +177,10 @@ export default function OzonDeliveries() {
           <div className="space-y-2 mb-4">
             {lines.map((l, i) => (
               <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                <div className="flex-1 truncate" title={l.rawName}>{l.rawName || 'Unknown Item'}</div>
+                <div className="flex-1 truncate" title={l.rawName}>
+                  {l.rawName || 'Unknown Item'}
+                  {l.date && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">{l.date}</span>}
+                </div>
                 <select value={l.ingredientId} onChange={e => {
                   const n = [...lines]; n[i].ingredientId = e.target.value; setLines(n)
                 }} className="border border-gray-300 rounded px-2 py-1 w-48 shrink-0">
