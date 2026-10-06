@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -12,6 +12,8 @@ export default function OzonDeliveries() {
   const [batchDate, setBatchDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [lines, setLines] = useState([])
   const [isParsing, setIsParsing] = useState(false)
+  const [pdfFile, setPdfFile] = useState(null)
+  const [previewItem, setPreviewItem] = useState(null)
   
   const fileInputRef = useRef(null)
 
@@ -43,10 +45,10 @@ export default function OzonDeliveries() {
           return a.transform[4] - b.transform[4]
         })
         
-        const tokens = items.map(it => it.str.trim()).filter(Boolean)
+        const tokens = items.map(it => ({ str: it.str.trim(), y: it.transform[5] })).filter(it => it.str)
         
         for (let j = 0; j < tokens.length; j++) {
-          const str = tokens[j]
+          const { str, y } = tokens[j]
           
           // Date extraction
           const monthMatch = str.match(/от\s+(\d{1,2})\s+([а-яА-Я]+)\s+(20[2-9]\d)/)
@@ -63,14 +65,14 @@ export default function OzonDeliveries() {
 
           // Item extraction
           if (/^(шт|упак|кг|кор|набор)\.?$/i.test(str)) {
-            const qtyStr = tokens[j + 1]
+            const qtyStr = tokens[j + 1]?.str
             if (!qtyStr) continue
             const qty = parseFloat(qtyStr.replace(/\s/g, '').replace(',', '.'))
             
             if (!isNaN(qty) && qty > 0) {
               let nameParts = []
               for (let k = j - 1; k >= Math.max(0, j - 8); k--) {
-                const prev = tokens[k]
+                const prev = tokens[k].str
                 if (prev === '-' || prev === '796' || prev === '166' || prev === '796.00') continue
                 if (/^\d+$/.test(prev) && prev.length < 4) break // sequence number
                 if (/^[A-Za-z0-9-]+$/.test(prev) && !/[А-Яа-я]/.test(prev) && prev.length < 15) break // article code
@@ -83,13 +85,13 @@ export default function OzonDeliveries() {
               let rawName = nameParts.join(' ').replace(/\s+-\s*$/, '').trim()
               if (rawName.length > 3) {
                 let mappedId = settings?.ozonMappings?.[rawName] || ''
-                const contextStr = tokens.slice(Math.max(0, j - 10), Math.min(tokens.length, j + 5)).join(' ')
                 parsed.push({ 
                   rawName, qty, 
                   ingredientId: mappedId, 
-                  ingredientName: mappedId ? storeIngredients.find(i => i.id == mappedId)?.name || '' : '',
+                  ingredientName: mappedId ? storeIngredients.find(ing => ing.id == mappedId)?.name || '' : '',
                   date: currentDocumentDate,
-                  context: contextStr
+                  pageNum: i,
+                  y: y
                 })
               }
             }
@@ -101,6 +103,7 @@ export default function OzonDeliveries() {
         alert('No items found in PDF. Please check the file format.')
       } else {
         setLines(parsed)
+        setPdfFile(file)
         if (parsed[0].date) setBatchDate(parsed[0].date)
       }
     } catch (err) {
@@ -194,7 +197,12 @@ export default function OzonDeliveries() {
                     {l.rawName || 'Unknown Item'}
                     {l.date && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">{l.date}</span>}
                   </div>
-                  {l.context && <div className="text-xs text-gray-400 font-mono truncate mt-0.5" title={l.context}>pdf: {l.context}</div>}
+                  {pdfFile && l.pageNum && (
+                    <button onClick={() => setPreviewItem({ pageNum: l.pageNum, y: l.y })} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium mt-1 inline-flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      Preview in PDF
+                    </button>
+                  )}
                 </div>
                 
                 <div className="w-full sm:w-64 shrink-0">
@@ -247,8 +255,7 @@ export default function OzonDeliveries() {
                     qty: pl.received || pl.ordered,
                     ingredientId: pl.ingredientId,
                     ingredientName: storeIngredients.find(i => i.id == pl.ingredientId)?.name || '',
-                    date: po.receivedDate,
-                    context: pl.context || ''
+                    date: po.receivedDate
                   }))
                   setLines(prev => [...prev, ...restoredLines])
                   setStore(po.store)
@@ -263,6 +270,64 @@ export default function OzonDeliveries() {
             </div>
           </div>
         ))}
+      </div>
+      {previewItem && <PdfPreviewModal file={pdfFile} pageNum={previewItem.pageNum} highlightY={previewItem.y} onClose={() => setPreviewItem(null)} />}
+    </div>
+  )
+}
+
+function PdfPreviewModal({ file, pageNum, highlightY, onClose }) {
+  const canvasRef = useRef(null)
+  
+  useEffect(() => {
+    if (!file) return;
+    let renderTask = null;
+    (async () => {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        renderTask = page.render({ canvasContext: context, viewport });
+        await renderTask.promise;
+        
+        const [, vpY] = viewport.convertToViewportPoint(0, highlightY);
+        
+        context.fillStyle = 'rgba(250, 204, 21, 0.4)'; // yellow transparent
+        context.fillRect(0, vpY - 30, canvas.width, 40); 
+        
+        // auto scroll to highlight
+        const container = canvas.parentElement;
+        if (container) {
+          container.scrollTop = Math.max(0, vpY - container.clientHeight / 2);
+        }
+      } catch (e) {
+        console.error('PDF preview error:', e);
+      }
+    })();
+    return () => {
+      if (renderTask) renderTask.cancel();
+    }
+  }, [file, pageNum, highlightY])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-full max-w-5xl w-full">
+        <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+          <h3 className="font-semibold text-lg text-gray-800">PDF Verification — Page {pageNum}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 bg-white border border-gray-200 rounded-lg p-1.5">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-4 overflow-auto bg-gray-200 flex-1 flex justify-center h-[80vh]">
+          <canvas ref={canvasRef} className="shadow-lg bg-white" />
+        </div>
       </div>
     </div>
   )
