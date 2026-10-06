@@ -131,7 +131,7 @@ function formatRussianDate(dateStr) {
 function exportPO(po, config) {
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const suppliers = config.suppliers ?? []
-  const active = po.lines
+  const active = (po.lines || [])
     .filter(l => l.ordered > 0)
     .map(l => {
       const ing = config.ingredients.find(i => i.id === l.ingredientId)
@@ -391,14 +391,14 @@ export default function PurchaseOrders({ initialCreate }) {
   const startReceive = (po, e) => {
     e.stopPropagation()
     const qtys = {}
-    po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0))) })
+    (po.lines || []).filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0))) })
     po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(Math.max(0, c.ordered - (c.received || 0))) })
     setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys)
     setExpanded(po.id); setConfirm(null)
   }
 
   const confirmReceive = (po) => {
-    const updatedLines = po.lines.map(l => {
+    const updatedLines = (po.lines || []).map(l => {
       const addedQty = receiveQtys[l.ingredientId] !== undefined ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0) : 0;
       return { ...l, received: (l.received || 0) + addedQty }
     })
@@ -554,7 +554,7 @@ export default function PurchaseOrders({ initialCreate }) {
               {filtered.map(po => {
                 const pendingConfirm = confirm?.poId === po.id ? confirm.action : null
                 const cl = pendingConfirm ? CONFIRM_LABELS[pendingConfirm] : null
-                const lineCount = po.lines.filter(l => l.ordered > 0).length + (po.customLines?.filter(c => c.ordered > 0).length || 0)
+                const lineCount = (po.lines || []).filter(l => l.ordered > 0).length + (po.customLines?.filter(c => c.ordered > 0).length || 0)
                 return (
                   <div key={po.id} className={expanded === po.id ? 'bg-blue-50' : ''}>
                     <div onClick={() => toggle(po.id)} className="px-4 py-3 cursor-pointer">
@@ -638,7 +638,7 @@ export default function PurchaseOrders({ initialCreate }) {
                           />
                         ) : (
                           <div className="divide-y divide-gray-100 bg-white rounded-lg border border-blue-100 overflow-hidden">
-                            {po.lines.filter(l => l.ordered > 0).map(l => {
+                            {(po.lines || []).filter(l => l.ordered > 0).map(l => {
                               const received = l.received ?? l.ordered
                               const diff = (po.status === 'received' || po.status === 'partially_received') && received !== l.ordered
                               return (
@@ -721,7 +721,7 @@ export default function PurchaseOrders({ initialCreate }) {
                           <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.createdDate}</td>
                           <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.sentDate ?? '—'}</td>
                           <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.receivedDate ?? '—'}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">{po.lines.filter(l => l.ordered > 0).length}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{(po.lines || []).filter(l => l.ordered > 0).length}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
                               {t(`po.${po.status}`)}
@@ -807,7 +807,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
-                                      {po.lines.filter(l => l.ordered > 0).map(l => (
+                                      {(po.lines || []).filter(l => l.ordered > 0).map(l => (
                                         <tr key={l.ingredientId}>
                                           <td className="px-4 py-2.5 font-medium text-gray-900">{ingredientName(l.ingredientId)}</td>
                                           <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">{l.ordered}</td>
@@ -872,7 +872,7 @@ export default function PurchaseOrders({ initialCreate }) {
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-50">
-                                    {po.lines.filter(l => l.ordered > 0).map(l => {
+                                    {(po.lines || []).filter(l => l.ordered > 0).map(l => {
                                       const received = l.received ?? l.ordered
                                       const diff = received !== l.ordered
                                       return (
