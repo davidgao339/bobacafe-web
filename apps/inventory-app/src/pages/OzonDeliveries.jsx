@@ -25,7 +25,7 @@ export default function OzonDeliveries() {
     setIsParsing(true)
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
       let parsed = []
       let parsedDate = null
       
