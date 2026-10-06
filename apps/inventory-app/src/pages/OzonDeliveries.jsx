@@ -230,8 +230,27 @@ export default function OzonDeliveries() {
             ))}
           </div>
           
-          <div className="flex justify-end pt-4 border-t border-gray-100">
-            <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Save & Receive</button>
+          <div className="flex gap-4 items-center mt-6 pt-4 border-t border-gray-100">
+            <button onClick={() => {
+              setLines([])
+              setIsParsing(false)
+              setPdfFile(null)
+              if (fileInputRef.current) fileInputRef.current.value = ''
+            }} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium text-sm">Cancel</button>
+            <div className="flex-1"></div>
+            
+            {Array.from(new Set(lines.filter(l => l.date).map(l => l.date))).some(d => 
+              pos.some(po => po.store === store && po.receivedDate === d)
+            ) && (
+              <div className="text-sm text-amber-700 bg-amber-50 px-3 py-1.5 rounded border border-amber-200 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                Warning: An Ozon delivery for {store} on this date already exists
+              </div>
+            )}
+            
+            <button onClick={handleSave} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm text-sm">
+              Save & Receive
+            </button>
           </div>
         </div>
       )}
