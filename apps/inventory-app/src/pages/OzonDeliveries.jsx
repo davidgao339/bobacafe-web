@@ -6,7 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
 
 export default function OzonDeliveries() {
-  const { config, addPurchaseOrder, stores, data, updateOzonMapping, saveSettings, settings } = useConfig()
+  const { config, addPurchaseOrder, deletePurchaseOrder, stores, data, updateOzonMapping, saveSettings, settings } = useConfig()
   const { t } = useLanguage()
   const [store, setStore] = useState(stores?.[0] || '')
   const [batchDate, setBatchDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -83,7 +83,14 @@ export default function OzonDeliveries() {
               let rawName = nameParts.join(' ').replace(/\s+-\s*$/, '').trim()
               if (rawName.length > 3) {
                 let mappedId = settings?.ozonMappings?.[rawName] || ''
-                parsed.push({ rawName, qty, ingredientId: mappedId, date: currentDocumentDate })
+                const contextStr = tokens.slice(Math.max(0, j - 10), Math.min(tokens.length, j + 5)).join(' ')
+                parsed.push({ 
+                  rawName, qty, 
+                  ingredientId: mappedId, 
+                  ingredientName: mappedId ? storeIngredients.find(i => i.id == mappedId)?.name || '' : '',
+                  date: currentDocumentDate,
+                  context: contextStr
+                })
               }
             }
           }
@@ -119,7 +126,9 @@ export default function OzonDeliveries() {
       groups[d].push({
         ingredientId: Number(l.ingredientId),
         ordered: Number(l.qty),
-        received: Number(l.qty)
+        received: Number(l.qty),
+        rawName: l.rawName,
+        context: l.context
       })
     }
     
@@ -160,6 +169,9 @@ export default function OzonDeliveries() {
 
       {(lines.length > 0 || isParsing) && (
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-8">
+          <datalist id="ingredients-list">
+            {storeIngredients.map(ing => <option key={ing.id} value={ing.name} />)}
+          </datalist>
           <h2 className="text-lg font-medium mb-4">Map & Receive Batch</h2>
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
@@ -176,19 +188,32 @@ export default function OzonDeliveries() {
           
           <div className="space-y-2 mb-4">
             {lines.map((l, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                <div className="flex-1 truncate" title={l.rawName}>
-                  {l.rawName || 'Unknown Item'}
-                  {l.date && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">{l.date}</span>}
+              <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm bg-gray-50 p-2 rounded">
+                <div className="flex-1 min-w-0" title={l.rawName}>
+                  <div className="truncate font-medium text-gray-800">
+                    {l.rawName || 'Unknown Item'}
+                    {l.date && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">{l.date}</span>}
+                  </div>
+                  {l.context && <div className="text-xs text-gray-400 font-mono truncate mt-0.5" title={l.context}>pdf: {l.context}</div>}
                 </div>
-                <select value={l.ingredientId} onChange={e => {
-                  const n = [...lines]; n[i].ingredientId = e.target.value; setLines(n)
-                }} className="border border-gray-300 rounded px-2 py-1 w-48 shrink-0">
-                  <option value="">Skip item...</option>
-                  {storeIngredients.map(ing => (
-                    <option key={ing.id} value={ing.id}>{ing.name}</option>
-                  ))}
-                </select>
+                
+                <div className="w-full sm:w-64 shrink-0">
+                  <input
+                    type="text"
+                    list="ingredients-list"
+                    placeholder="Search/Map item..."
+                    value={l.ingredientName || ''}
+                    onChange={e => {
+                      const name = e.target.value
+                      const match = storeIngredients.find(ing => ing.name === name)
+                      const n = [...lines]
+                      n[i].ingredientName = name
+                      n[i].ingredientId = match ? match.id : ''
+                      setLines(n)
+                    }}
+                    className="border border-gray-300 rounded px-2 py-1 w-full"
+                  />
+                </div>
                 <input type="number" placeholder="Qty" value={l.qty} onChange={e => {
                   const n = [...lines]; n[i].qty = e.target.value; setLines(n)
                 }} className="border border-gray-300 rounded px-2 py-1 w-20 shrink-0" min="0" step="any" />
@@ -207,12 +232,35 @@ export default function OzonDeliveries() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
         {pos.length === 0 && <p className="p-4 text-sm text-gray-500 text-center">No Ozon deliveries yet.</p>}
         {pos.map(po => (
-          <div key={po.id} className="p-4 flex justify-between items-center">
+          <div key={po.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
             <div>
-              <div className="font-medium text-sm">{po.id} <span className="text-gray-400 text-xs ml-2">{po.store}</span></div>
+              <div className="font-medium text-sm text-gray-900">{po.id} <span className="text-gray-400 text-xs ml-2">{po.store}</span></div>
               <div className="text-xs text-gray-500 mt-1">{po.receivedDate} • {po.lines.length} items</div>
             </div>
-            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Received</span>
+            <div className="flex gap-4 items-center">
+              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Received</span>
+              <button onClick={() => {
+                if (confirm('Load this delivery back into the editor? This will delete the saved record so you can remap/re-save it.')) {
+                  deletePurchaseOrder(po.id)
+                  const restoredLines = po.lines.map(pl => ({
+                    rawName: pl.rawName || 'Restored Item',
+                    qty: pl.received || pl.ordered,
+                    ingredientId: pl.ingredientId,
+                    ingredientName: storeIngredients.find(i => i.id == pl.ingredientId)?.name || '',
+                    date: po.receivedDate,
+                    context: pl.context || ''
+                  }))
+                  setLines(prev => [...prev, ...restoredLines])
+                  setStore(po.store)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }
+              }} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
+              <button onClick={() => {
+                if (confirm('Delete this Ozon delivery? This cannot be undone.')) {
+                  deletePurchaseOrder(po.id)
+                }
+              }} className="text-sm text-red-600 hover:text-red-800 font-medium">Delete</button>
+            </div>
           </div>
         ))}
       </div>
