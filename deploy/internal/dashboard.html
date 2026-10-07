@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика — Boba Cafe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:      #f8f9fa;
+            --surface: #ffffff;
+            --border:  #dadce0;
+            --text-1:  #202124;
+            --text-2:  #5f6368;
+            --text-3:  #80868b;
+            --accent:  #8d6e63;
+            --accent-bg: #f4ede9;
+            --shadow-sm: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px rgba(60,64,67,.15);
+            --shadow-md: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px rgba(60,64,67,.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text-1);
+            min-height: 100vh;
+            font-size: 16px;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── PIN modal ────────────────────────────────────────────────────── */
+        #pin-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.54);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #pin-overlay.hidden { display: none; }
+
+        .auth-card {
+            background: var(--surface);
+            border-radius: 28px;
+            padding: 40px 40px 32px;
+            width: 360px;
+            text-align: center;
+            box-shadow: 0 11px 15px rgba(0,0,0,0.2), 0 9px 46px rgba(0,0,0,0.12);
+        }
+
+        .auth-logo { font-size: 40px; margin-bottom: 12px; }
+
+        .auth-card h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-1);
+            margin-bottom: 6px;
+        }
+
+        .auth-card p {
+            font-size: 15px;
+            color: var(--text-2);
+            margin-bottom: 28px;
+        }
+
+        .pin-dots {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+        .pin-dots span {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            transition: background 0.12s, border-color 0.12s;
+        }
+        .pin-dots span.filled { background: var(--accent); border-color: var(--accent); }
+        .pin-dots.error span { background: #d93025; border-color: #d93025; }
+
+        @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            20%      { transform: translateX(-8px); }
+            60%      { transform: translateX(8px); }
+        }
+        .pin-dots.shake { animation: shake 0.3s ease; }
+
+        .auth-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .key {
+            height: 56px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 20px;
+            font-weight: 500;
+            font-family: 'Roboto', Arial, sans-serif;
+            color: var(--text-1);
+            cursor: pointer;
+            transition: background 0.1s, box-shadow 0.1s;
+        }
+        .key:hover { background: #f1f3f4; box-shadow: var(--shadow-sm); }
+        .key:active { background: #e8eaed; }
+        .key.del { font-size: 16px; color: var(--text-2); }
+        .key.cancel { font-size: 13px; color: var(--text-2); }
+
+        .auth-error {
+            font-size: 13px;
+            color: #d93025;
+            min-height: 18px;
+        }
+
+        /* ── Navbar ───────────────────────────────────────────────────────── */
+        nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            height: 56px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-1);
+            text-decoration: none;
+        }
+
+        .nav-sep { color: var(--border); font-size: 18px; }
+
+        .nav-page {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-2);
+        }
+
+        .nav-tag {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-3);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 3px 8px;
+        }
+
+        /* ── Dashboard container ──────────────────────────────────────────── */
+        #dashboard-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        #dashboard-container {
+            width: 100%;
+            height: calc(100vh - 56px);
+            background: var(--bg);
+        }
+
+        #dashboard-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* Loading / error states */
+        #dashboard-state {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            color: var(--text-2);
+            font-size: 15px;
+        }
+        #dashboard-state .state-icon { font-size: 36px; }
+        #dashboard-state.hidden { display: none; }
+
+        @media (max-width: 640px) {
+            nav { padding: 0 16px; }
+            .nav-sep, .nav-page { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- PIN modal -->
+<div id="pin-overlay">
+    <div class="auth-card">
+        <div class="auth-logo">📈</div>
+        <h2>Аналитика</h2>
+        <p>Введите PIN для доступа к дашборду</p>
+        <div class="pin-dots" id="pin-dots">
+            <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="auth-keypad" id="keypad">
+            <button class="key" data-d="1">1</button>
+            <button class="key" data-d="2">2</button>
+            <button class="key" data-d="3">3</button>
+            <button class="key" data-d="4">4</button>
+            <button class="key" data-d="5">5</button>
+            <button class="key" data-d="6">6</button>
+            <button class="key" data-d="7">7</button>
+            <button class="key" data-d="8">8</button>
+            <button class="key" data-d="9">9</button>
+            <button class="key cancel" id="key-cancel" onclick="history.back()">Назад</button>
+            <button class="key" data-d="0">0</button>
+            <button class="key del" id="key-del">⌫</button>
+        </div>
+        <div class="auth-error" id="auth-error"></div>
+    </div>
+</div>
+
+<!-- Navbar -->
+<nav>
+    <div class="nav-left">
+        <a href="/internal/" class="nav-brand">🐰 Boba Cafe</a>
+        <span class="nav-sep">/</span>
+        <span class="nav-page">Аналитика</span>
+    </div>
+    <span class="nav-tag">Внутренний</span>
+</nav>
+
+<!-- Dashboard embed -->
+<div id="dashboard-wrapper">
+    <div id="dashboard-state">
+        <div class="state-icon">⏳</div>
+        <div>Загрузка дашборда…</div>
+    </div>
+    <div id="dashboard-container"></div>
+</div>
+
+<script type="module">
+    // ── Config ────────────────────────────────────────────────────────────────
+    // Replace DATABRICKS_TOKEN with a read-only Databricks PAT or service
+    // principal token. Do NOT commit a real token to the public repository —
+    // set it here only in your local build or via a secret manager.
+    const DATABRICKS_TOKEN  = 'YOUR_DATABRICKS_TOKEN_HERE';
+
+    const INSTANCE_URL  = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com';
+    const WORKSPACE_ID  = '3366289008245555';
+    const DASHBOARD_ID  = '01f14724493017eb83de2e8f2f33b5dc';
+
+    const PAGE_PIN      = '2244';   // same as Reports
+    const MASTER_PIN    = '7530';
+    const SESSION_KEY   = 'bc_pin_dashboard';
+
+    // ── PIN auth ──────────────────────────────────────────────────────────────
+    const overlay  = document.getElementById('pin-overlay');
+    const dotsEl   = document.getElementById('pin-dots');
+    const dots     = dotsEl.querySelectorAll('span');
+    const errEl    = document.getElementById('auth-error');
+    const keypad   = document.getElementById('keypad');
+
+    let pin = '';
+
+    function updateDots() {
+        dots.forEach((d, i) => d.classList.toggle('filled', i < pin.length));
+    }
+
+    function unlock() {
+        sessionStorage.setItem(SESSION_KEY, '1');
+        overlay.classList.add('hidden');
+        initDashboard();
+    }
+
+    function attempt() {
+        if (pin === PAGE_PIN || pin === MASTER_PIN) {
+            unlock();
+        } else {
+            dotsEl.classList.add('error', 'shake');
+            errEl.textContent = 'Неверный PIN. Попробуйте ещё раз.';
+            setTimeout(() => {
+                dotsEl.classList.remove('error', 'shake');
+                errEl.textContent = '';
+                pin = ''; updateDots();
+            }, 700);
+        }
+    }
+
+    keypad.addEventListener('click', e => {
+        const key = e.target.closest('.key');
+        if (!key) return;
+        if (key.id === 'key-del') { pin = pin.slice(0, -1); updateDots(); return; }
+        if (key.dataset.d !== undefined && pin.length < 4) {
+            pin += key.dataset.d; updateDots();
+            if (pin.length === 4) setTimeout(attempt, 80);
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        if (overlay.classList.contains('hidden')) return;
+        if (e.key === 'Escape') { history.back(); return; }
+        if (e.key >= '0' && e.key <= '9' && pin.length < 4) {
+            pin += e.key; updateDots();
+            if (pin.length === 4) setTimeout(attempt, 80);
+        } else if (e.key === 'Backspace') { pin = pin.slice(0, -1); updateDots(); }
+    });
+
+    // Skip PIN if already unlocked this session
+    if (sessionStorage.getItem(SESSION_KEY) === '1') {
+        overlay.classList.add('hidden');
+        initDashboard();
+    }
+
+    // ── Databricks AI/BI embed ────────────────────────────────────────────────
+    async function initDashboard() {
+        const stateEl     = document.getElementById('dashboard-state');
+        const containerEl = document.getElementById('dashboard-container');
+
+        if (!DATABRICKS_TOKEN || DATABRICKS_TOKEN.length < 20) {
+            stateEl.innerHTML = `
+                <div class="state-icon">⚠️</div>
+                <div>Токен не настроен.</div>
+                <div style="font-size:13px;color:var(--text-3)">
+                    Databricks token is missing or invalid.
+                </div>`;
+            return;
+        }
+
+        try {
+            const { DatabricksDashboard } = await import(
+                'https://esm.sh/@databricks/aibi-client'
+            );
+
+            stateEl.classList.add('hidden');
+
+            const dashboard = new DatabricksDashboard({
+                instanceUrl: INSTANCE_URL,
+                workspaceId: WORKSPACE_ID,
+                dashboardId: DASHBOARD_ID,
+                token:       DATABRICKS_TOKEN,
+                container:   containerEl,
+            });
+
+            await dashboard.initialize();
+        } catch (err) {
+            console.error('Databricks dashboard error:', err);
+            stateEl.classList.remove('hidden');
+            stateEl.innerHTML = `
+                <div class="state-icon">❌</div>
+                <div>Не удалось загрузить дашборд.</div>
+                <div style="font-size:13px;color:var(--text-3)">${err.message}</div>`;
+        }
+    }
+</script>
+</body>
+</html>

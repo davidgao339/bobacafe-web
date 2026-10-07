@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Boba Cafe - Премиум Bubble Tea. Найдите наши филиалы в Новороссийске и Краснодаре.">
+    <title>Boba Cafe | Премиум Bubble Tea</title>
+    <link rel="stylesheet" href="index.css">
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=8d381380-bced-4d5d-9c77-4ac6700ce366&lang=ru_RU" type="text/javascript"></script>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>🐰 Boba Cafe</h1>
+            <nav>
+                <a href="#products">Наше Меню</a>
+                <a href="#locations">Найти Нас</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h2>Откройте для себя идеальный вкус Bubble Tea</h2>
+            <p>Премиальные ингредиенты, уникальные рецепты и неповторимая атмосфера.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="#locations" class="btn">Найти ближайший филиал</a>
+                <a href="https://eda.yandex.ru/novorossijsk/r/boba_rabbit?placeSlug=boba_kafe_j5l7n" target="_blank" rel="noopener noreferrer" class="btn" style="background: var(--surface-solid); color: var(--primary); border: 2px solid var(--primary); box-shadow: none;">Заказать Доставку</a>
+            </div>
+        </section>
+
+        <section id="products" class="container">
+            <h2 class="section-title">Наше Меню</h2>
+            <div class="menu-placeholder">
+                <span class="icon">📋</span>
+                <h3>Смотрите наше меню онлайн</h3>
+                <p>Мы тщательно отбираем лучшие вкусы для вас. Ознакомьтесь с полным меню и сделайте заказ прямо сейчас!</p>
+                <div style="margin-top: 2rem;">
+                    <a href="https://eda.yandex.ru/novorossijsk/r/boba_rabbit?placeSlug=boba_kafe_j5l7n" target="_blank" rel="noopener noreferrer" class="btn">Перейти в Яндекс Еду</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="locations" class="container">
+            <h2 class="section-title">Наши Филиалы</h2>
+            
+            <div class="map-container">
+                <div id="storeMap"></div>
+            </div>
+
+            <div class="location-grid">
+                <div class="location-card">
+                    <h3>📍 Новороссийск</h3>
+                    <p>Анапское шоссе, 39А</p>
+                    <p>Фуд-корт, 3 этаж</p>
+                </div>
+
+                <div class="location-card">
+                    <h3>📍 Краснодар</h3>
+                    <p>Улица Дзержинского, 100</p>
+                </div>
+
+                <div class="location-card">
+                    <h3>📍 Новороссийск</h3>
+                    <p>Улица Героев Десантников, 2</p>
+                </div>
+
+                <div class="location-card">
+                    <h3>📍 Новороссийск</h3>
+                    <p>Анапское шоссе, 2</p>
+                </div>
+
+                <div class="location-card">
+                    <h3>📍 Новороссийск</h3>
+                    <p>Улица Советов, 34</p>
+                </div>
+
+                <div class="location-card">
+                    <h3>📍 Новороссийск</h3>
+                    <p>Набережная Адмирала Серебрякова, 27А</p>
+                    <p>1 этаж</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-links">
+            <a href="#products">Меню</a>
+            <a href="#locations">Филиалы</a>
+        </div>
+        <p class="copyright">&copy; 2026 Boba Cafe. Все права защищены.</p>
+        <a href="/internal/" class="internal-link">Для сотрудников</a>
+    </footer>
+
+    <script type="text/javascript">
+        ymaps.ready(init);
+        function init() {
+            const storeLocations = [
+                { name: 'Новороссийск', lat: 44.7301, lng: 37.7568, address: 'Анапское шоссе, 39А, Фуд-корт, 3 этаж' },
+                { name: 'Краснодар', lat: 45.0683, lng: 38.9832, address: 'Улица Дзержинского, 100' },
+                { name: 'Новороссийск', lat: 44.6865, lng: 37.7850, address: 'Улица Героев Десантников, 2' },
+                { name: 'Новороссийск', lat: 44.7265, lng: 37.7601, address: 'Анапское шоссе, 2' },
+                { name: 'Новороссийск', lat: 44.7170, lng: 37.7785, address: 'Улица Советов, 34' },
+                { name: 'Новороссийск', lat: 44.7125, lng: 37.7901, address: 'Набережная Адмирала Серебрякова, 27А, 1 этаж' }
+            ];
+
+            var map = new ymaps.Map('storeMap', {
+                center: [44.7200, 37.7700],
+                zoom: 11
+            });
+
+            storeLocations.forEach(store => {
+                var placemark = new ymaps.Placemark(
+                    [store.lat, store.lng],
+                    {
+                        hintContent: store.name,
+                        balloonContent: `<strong>${store.name}</strong><br>${store.address}`
+                    },
+                    {
+                        preset: 'islands#brownCircleDotIcon'
+                    }
+                );
+                map.geoObjects.add(placemark);
+            });
+
+            var clusterer = new ymaps.Clusterer({
+                preset: 'islands#invertedBrownClusterer'
+            });
+            map.geoObjects.add(clusterer);
+        }
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import Adjustments from './pages/Adjustments'
 import Recipes from './pages/Recipes'
 import Audit from './pages/Audit'
 import Ledger from './pages/Ledger'
+import OzonDeliveries from './pages/OzonDeliveries'
 
 
 
@@ -151,6 +152,7 @@ function AppContent({ role, onLogout }) {
           <Route path="/recipes" element={<Recipes />} />
           <Route path="/audit" element={<Audit />} />
           <Route path="/ledger" element={<Ledger />} />
+          <Route path="/ozon" element={<OzonDeliveries />} />
         </Routes>
       </main>
 
@@ -158,6 +160,7 @@ function AppContent({ role, onLogout }) {
       <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex items-center overflow-x-auto pb-safe custom-scrollbar">
         <NavItem to="/inventory" icon={<Layers className="w-5 h-5" />} label="Inventory" />
         <NavItem to="/pos" icon={<ClipboardList className="w-5 h-5" />} label="Receive" />
+        <NavItem to="/ozon" icon={<Package className="w-5 h-5" />} label="Ozon" />
         <NavItem to="/production" icon={<Package className="w-5 h-5" />} label="Produce" />
         <NavItem to="/audit" icon={<ClipboardList className="w-5 h-5" />} label="Audit" />
         <NavItem to="/ledger" icon={<Settings className="w-5 h-5" />} label="Ledger" />

@@ -192,9 +192,14 @@ export function ConfigProvider({ children }) {
     saveToStorage(SETTINGS_KEY, s)
   }, [])
 
-  const updateOzonMapping = useCallback((rawName, ingredientId) => {
+  const updateOzonMapping = useCallback((rawName, ingredientId, multiplier = null) => {
     setSettingsState(prev => {
-      const next = { ...prev, ozonMappings: { ...(prev.ozonMappings || {}), [rawName]: ingredientId } }
+      const next = { ...prev, ozonMappings: { ...(prev.ozonMappings || {}) } }
+      if (multiplier !== null) {
+        next.ozonMappings[rawName] = { id: ingredientId, multiplier }
+      } else {
+        next.ozonMappings[rawName] = ingredientId
+      }
       saveToStorage(SETTINGS_KEY, next)
       return next
     })
