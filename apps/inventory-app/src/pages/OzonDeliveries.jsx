@@ -84,10 +84,21 @@ export default function OzonDeliveries() {
               
               let rawName = nameParts.join(' ').replace(/\s+-\s*$/, '').trim()
               if (rawName.length > 3) {
-                let mappedId = settings?.ozonMappings?.[rawName] || ''
+                const mapping = settings?.ozonMappings?.[rawName]
+                let mappedId = ''
+                let multiplier = 1
+                if (mapping) {
+                  if (typeof mapping === 'object') {
+                    mappedId = mapping.id
+                    multiplier = mapping.multiplier || 1
+                  } else {
+                    mappedId = mapping
+                  }
+                }
                 parsed.push({ 
                   rawName, qty, 
                   ingredientId: mappedId, 
+                  multiplier,
                   ingredientName: mappedId ? storeIngredients.find(ing => ing.id == mappedId)?.name || '' : '',
                   date: currentDocumentDate,
                   pageNum: i,
@@ -120,16 +131,21 @@ export default function OzonDeliveries() {
     for (const l of lines) {
       if (!l.ingredientId || Number(l.qty) <= 0) continue
       
-      if (settings?.ozonMappings?.[l.rawName] !== l.ingredientId) {
-        updateOzonMapping?.(l.rawName, l.ingredientId)
+      const mult = Number(l.multiplier || 1)
+      const currentMap = settings?.ozonMappings?.[l.rawName]
+      const needsUpdate = !currentMap || 
+                          (typeof currentMap === 'object' ? (currentMap.id !== l.ingredientId || currentMap.multiplier !== mult) : currentMap !== l.ingredientId)
+      
+      if (needsUpdate) {
+        updateOzonMapping?.(l.rawName, l.ingredientId, mult)
       }
       
       const d = l.date || batchDate
       if (!groups[d]) groups[d] = []
       groups[d].push({
         ingredientId: Number(l.ingredientId),
-        ordered: Number(l.qty),
-        received: Number(l.qty),
+        ordered: Number(l.qty) * mult,
+        received: Number(l.qty) * mult,
         rawName: l.rawName,
         context: l.context
       })
@@ -222,9 +238,18 @@ export default function OzonDeliveries() {
                     className="border border-gray-300 rounded px-2 py-1 w-full"
                   />
                 </div>
-                <input type="number" placeholder="Qty" value={l.qty} onChange={e => {
-                  const n = [...lines]; n[i].qty = e.target.value; setLines(n)
-                }} className="border border-gray-300 rounded px-2 py-1 w-20 shrink-0" min="0" step="any" />
+                <div className="flex items-center border border-gray-300 rounded overflow-hidden shrink-0">
+                  <input type="number" title="Ozon Qty" value={l.qty} onChange={e => {
+                    const n = [...lines]; n[i].qty = e.target.value; setLines(n)
+                  }} className="px-2 py-1 w-16 text-center focus:outline-none border-r border-gray-200" min="0" step="any" />
+                  <span className="text-gray-400 text-sm px-2 bg-gray-50">×</span>
+                  <input type="number" title="Base units per Ozon item" value={l.multiplier || 1} onChange={e => {
+                    const n = [...lines]; n[i].multiplier = e.target.value; setLines(n)
+                  }} className="px-2 py-1 w-20 text-center focus:outline-none border-l border-gray-200" min="0" step="any" />
+                </div>
+                <div className="w-24 shrink-0 text-right text-sm text-gray-600 font-medium whitespace-nowrap">
+                  = {Math.round((l.qty || 0) * (l.multiplier || 1))} {l.ingredientId ? storeIngredients.find(ing => ing.id === Number(l.ingredientId))?.unit : ''}
+                </div>
                 <button onClick={() => setLines(lines.filter((_, idx) => idx !== i))} className="text-red-500 px-2 shrink-0">✕</button>
               </div>
             ))}
