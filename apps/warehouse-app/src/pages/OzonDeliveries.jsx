@@ -133,8 +133,11 @@ export default function OzonDeliveries() {
       
       const mult = Number(l.multiplier || 1)
       const currentMap = settings?.ozonMappings?.[l.rawName]
-      const needsUpdate = !currentMap || 
-                          (typeof currentMap === 'object' ? (currentMap.id !== l.ingredientId || currentMap.multiplier !== mult) : currentMap !== l.ingredientId)
+      const isCurrentObject = typeof currentMap === 'object' && currentMap !== null
+      const currentId = isCurrentObject ? currentMap.id : currentMap
+      const currentMult = isCurrentObject ? (currentMap.multiplier || 1) : 1
+      
+      const needsUpdate = !currentMap || currentId !== l.ingredientId || currentMult !== mult
       
       if (needsUpdate) {
         updateOzonMapping?.(l.rawName, l.ingredientId, mult)

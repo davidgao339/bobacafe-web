@@ -188,8 +188,11 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const saveSettings = useCallback((s) => {
-    setSettingsState(s)
-    saveToStorage(SETTINGS_KEY, s)
+    setSettingsState(prev => {
+      const next = { ...prev, ...s }
+      saveToStorage(SETTINGS_KEY, next)
+      return next
+    })
   }, [])
 
   const updateOzonMapping = useCallback((rawName, ingredientId, multiplier = null) => {
