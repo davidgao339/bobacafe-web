@@ -14,3 +14,5 @@ ALTER TABLE recipes_new RENAME TO recipes;
 
 ALTER TABLE purchase_orders ADD COLUMN fromLocation TEXT;
 ALTER TABLE purchase_orders ADD COLUMN toLocation TEXT;
+ALTER TABLE recipes ADD COLUMN hidden INTEGER DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN hidden INTEGER DEFAULT 0;

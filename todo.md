@@ -6,3 +6,6 @@ Traceback:
 File "/mount/src/bobacafe-web/apps/payment/streamlit_app.py", line 6, in <module>
     import sys; sys.path.insert(0, 'scratch_pw'); import patch_dbx
                                                   ^^^^^^^^^^^^^^^^
+
+- [x] Recipe update for prod is not saved. Maybe the update doesn't push to D1. This is for inventory app
+

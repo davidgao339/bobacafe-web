@@ -75,13 +75,33 @@ export async function queryD1(sql, params = [], retries = 2) {
       })
       if (!resp.ok) {
         const text = await resp.text().catch(() => '')
-        throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`)
+        let parsedMessage = text
+        try {
+          const parsed = JSON.parse(text)
+          parsedMessage = parsed.error || parsed.message || text
+        } catch {}
+        throw new Error(parsedMessage ? `D1 Error (${resp.status}): ${parsedMessage}` : `HTTP ${resp.status}`)
       }
       const data = await resp.json()
       return data.results || []
     } catch (err) {
-      if (i === retries) throw err
+      if (i === retries) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('d1-sync-error', {
+            detail: {
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              sql,
+              params,
+              message: err.message || String(err),
+              timestamp: new Date().toLocaleTimeString(),
+              retry: () => queryD1(sql, params, 0)
+            }
+          }))
+        }
+        throw err
+      }
       await new Promise(r => setTimeout(r, 1000 * (i + 1)))
     }
   }
 }
+
