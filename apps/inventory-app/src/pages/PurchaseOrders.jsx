@@ -391,10 +391,15 @@ export default function PurchaseOrders({ initialCreate }) {
   const startReceive = (po, e) => {
     e.stopPropagation()
     const qtys = {}
-    (Array.isArray(po.lines) ? po.lines : []).filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0))) })
+    const lines = Array.isArray(po.lines) ? po.lines : []
+    lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0))) })
     po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(Math.max(0, c.ordered - (c.received || 0))) })
-    setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys)
-    setExpanded(po.id); setConfirm(null)
+    setReceiveId(po.id)
+    setReceiveDate(TODAY)
+    setReceiveTime(new Date().toTimeString().slice(0, 5))
+    setReceiveQtys(qtys)
+    setExpanded(po.id)
+    setConfirm(null)
   }
 
   const confirmReceive = (po) => {
@@ -623,7 +628,68 @@ export default function PurchaseOrders({ initialCreate }) {
                     {expanded === po.id && (
                       <div className="px-4 pb-4 border-t border-blue-100">
                         <StatusStepper po={po} />
-                        {editingId === po.id ? (
+
+                        {receiveId === po.id && (
+                          <div className="bg-green-50 border border-green-200 rounded-xl p-3.5 mb-3">
+                            <h3 className="font-semibold text-gray-900 text-sm mb-2">{t('po.confirmReceiptTitle', { id: po.id })}</h3>
+                            <div className="flex items-center gap-2 flex-wrap mb-3">
+                              <label className="text-xs font-medium text-gray-600">{t('po.receivedDate')}</label>
+                              <input type="date" value={receiveDate} onChange={e => setReceiveDate(e.target.value)}
+                                className="border border-gray-300 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                              <input type="time" value={receiveTime} onChange={e => setReceiveTime(e.target.value)}
+                                className="border border-gray-300 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                            </div>
+                            <div className="space-y-2 mb-3">
+                              {(Array.isArray(po.lines) ? po.lines : []).filter(l => l.ordered > 0).map(l => (
+                                <div key={l.ingredientId} className="bg-white p-2.5 rounded-lg border border-green-100 flex items-center justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-gray-900 text-xs truncate">{ingredientName(l.ingredientId)}</div>
+                                    <div className="text-[11px] text-gray-500">
+                                      {t('po.orderedQty')}: {l.ordered} {ingredientUnit(l.ingredientId)} · {t('po.received') || 'Received'}: {l.received || 0}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-xs text-gray-400 font-medium">+</span>
+                                    <input type="number" min="0" step="0.1"
+                                      value={receiveQtys[l.ingredientId] ?? ''}
+                                      onChange={e => setReceiveQtys(prev => ({ ...prev, [l.ingredientId]: e.target.value }))}
+                                      placeholder="0"
+                                      className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-right text-xs focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums bg-white" />
+                                    <span className="text-[11px] text-gray-400 w-7 truncate">{ingredientUnit(l.ingredientId)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                              {po.customLines?.filter(c => c.ordered > 0).map(c => (
+                                <div key={c.id} className="bg-white p-2.5 rounded-lg border border-green-100 flex items-center justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-gray-900 text-xs truncate">{c.name}</div>
+                                    <div className="text-[11px] text-gray-500">
+                                      {t('po.orderedQty')}: {c.ordered} {c.unit} · {t('po.received') || 'Received'}: {c.received || 0}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-xs text-gray-400 font-medium">+</span>
+                                    <input type="number" min="0" step="0.1"
+                                      value={receiveQtys[c.id] ?? ''}
+                                      onChange={e => setReceiveQtys(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                      placeholder="0"
+                                      className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-right text-xs focus:outline-none focus:ring-2 focus:ring-green-500 tabular-nums bg-white" />
+                                    <span className="text-[11px] text-gray-400 w-7 truncate">{c.unit}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button onClick={cancelReceive} className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800">{t('common.cancel')}</button>
+                              <button onClick={() => confirmReceive(po)}
+                                className="px-3.5 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors font-medium">
+                                {t('po.confirmReceive')} ✓
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {!receiveId && (editingId === po.id ? (
                           <DraftForm
                             title={t('po.editTitle', { id: po.id })}
                             initialLines={po.lines} initialCustomLines={po.customLines} initialStore={po.store} initialStatus={po.status}
@@ -667,7 +733,7 @@ export default function PurchaseOrders({ initialCreate }) {
                               )
                             })}
                           </div>
-                        )}
+                        ))}
                         {po.editHistory?.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Edit History</p>
