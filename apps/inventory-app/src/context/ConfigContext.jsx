@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useState, useCallback, useEffect, u
 import { stores as STORES } from '../data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '../services/api'
 import { useCalcs } from '../hooks/useInventoryCalcs'
+import SyncErrorToast from '../components/SyncErrorToast'
 
 const SALES_CACHE_KEY       = 'bobacafe_sales_cache'
 const SETTINGS_KEY          = 'bobacafe_settings'
@@ -630,6 +631,7 @@ export function ConfigProvider({ children }) {
       addSupplier, updateSupplier, deleteSupplier,
     }}>
       {children}
+      <SyncErrorToast />
     </ConfigContext.Provider>
   )
 }
