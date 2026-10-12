@@ -350,6 +350,32 @@
             </div>
         </div>
     </div>
+
+    <div class="section">
+        <div class="section-label" data-ru="Склад и производство">Warehouse & Production</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">🏭 <span data-ru="Склад / Менеджер">Warehouse Manager</span></div>
+                    <div class="config-hint" data-ru="Полный доступ к складу, перемещениям и производству">Full access to warehouse, transfers & production</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_warehouse"></span>
+                    <button class="eye-btn" data-target="v_warehouse">👁</button>
+                </div>
+            </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">👨‍🍳 <span data-ru="Повар">Cook</span></div>
+                    <div class="config-hint" data-ru="Журнал варки и списания ингредиентов">Cooking log & ingredient logging interface</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_cook"></span>
+                    <button class="eye-btn" data-target="v_cook">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -435,6 +461,8 @@
             v_payroll:       P.payroll       || '2372',
             v_inv_admin:     P.inv_admin     || '7530',
             v_inv_logistics: P.inv_logistics || '9876',
+            v_warehouse:     P.warehouse     || '8888',
+            v_cook:          P.cook          || '3344',
         };
         Object.entries(MAP).forEach(([id, val]) => {
             document.getElementById(id).textContent = val;
