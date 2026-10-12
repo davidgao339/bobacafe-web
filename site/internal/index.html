@@ -672,6 +672,7 @@
         'warehouse': {
             url:    '/internal/warehouse/',
             pin:    _P.warehouse || '8888',
+            pins:   [_P.warehouse || '8888', _P.cook || '3344'],
             label:  'Warehouse & Production',
             labelRu: 'Склад и производство',
             icon:   '📦',
@@ -732,8 +733,18 @@
 
     function attempt() {
         const app = APPS[activeApp];
-        if (pin === app.pin || pin === MASTER_PIN) {
+        const allowed = app.pins ? [...app.pins, MASTER_PIN] : [app.pin, MASTER_PIN];
+        if (allowed.includes(pin)) {
             sessionStorage.setItem(SESSION_PREFIX + activeApp, '1');
+            if (activeApp === 'warehouse') {
+                if (pin === (_P.cook || '3344')) {
+                    localStorage.setItem('whRole', 'cook');
+                } else if (pin === (_P.warehouse || '8888')) {
+                    localStorage.setItem('whRole', 'warehouse');
+                } else {
+                    localStorage.setItem('whRole', 'admin');
+                }
+            }
             closeModal();
             navigate(app);
         } else {

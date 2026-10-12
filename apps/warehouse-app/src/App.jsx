@@ -33,13 +33,13 @@ function LoginScreen({ onLogin }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
   const PINS = { 
-    admin: window.BC_PINS?.inv_admin || '7530', 
-    warehouse: window.BC_PINS?.warehouse || '1122',
+    admin: window.BC_PINS?.inv_admin || window.BC_PINS?.master || '7530', 
+    warehouse: window.BC_PINS?.warehouse || '8888',
     cook: window.BC_PINS?.cook || '3344'
   }
 
   const submit = () => {
-    if (pin === PINS.admin) { onLogin('admin'); return }
+    if (pin === PINS.admin || pin === (window.BC_PINS?.master || '7530')) { onLogin('admin'); return }
     if (pin === PINS.warehouse) { onLogin('warehouse'); return }
     if (pin === PINS.cook) { onLogin('cook'); return }
     setError(true); setPin('')
@@ -72,7 +72,7 @@ function LoginScreen({ onLogin }) {
 }
 
 function AppRoot() {
-  const [role, setRole] = useState(() => localStorage.getItem('whRole') ?? null)
+  const [role, setRole] = useState(() => localStorage.getItem('whRole') || sessionStorage.getItem('whRole') || null)
 
   const handleLogin = (newRole) => {
     localStorage.setItem('whRole', newRole)
@@ -81,6 +81,8 @@ function AppRoot() {
 
   const handleLogout = () => {
     localStorage.removeItem('whRole')
+    sessionStorage.removeItem('whRole')
+    sessionStorage.removeItem('bc_pin_warehouse')
     setRole(null)
   }
 
