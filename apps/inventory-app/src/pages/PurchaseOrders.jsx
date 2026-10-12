@@ -129,12 +129,22 @@ function formatRussianDate(dateStr) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function exportPO(po, config) {
-  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const suppliers = config.suppliers ?? []
-  const active = (Array.isArray(po.lines) ? po.lines : [])
-    .filter(l => l.ordered > 0)
+
+  let rawLines = []
+  let customList = Array.isArray(po.customLines) ? po.customLines : []
+  if (Array.isArray(po.lines)) {
+    rawLines = po.lines
+  } else if (po.lines && typeof po.lines === 'object') {
+    rawLines = po.lines.regular || []
+    if (!customList.length) customList = po.lines.custom || []
+  }
+
+  const active = rawLines
+    .filter(l => (Number(l.ordered) || 0) > 0)
     .map(l => {
-      const ing = config.ingredients.find(i => i.id === l.ingredientId)
+      const ing = config.ingredients?.find(i => i.id === l.ingredientId)
       return { name: ing?.name ?? '?', unit: ing?.unit ?? '', ordered: l.ordered, supplierId: ing?.supplierId ?? null }
     })
 
@@ -144,7 +154,9 @@ function exportPO(po, config) {
     if (lines.length) groups.push({ name: s.name, lines })
   }
   const other = active.filter(l => !suppliers.find(s => s.id === l.supplierId))
-  const customActive = po.customLines?.filter(c => c.ordered > 0).map(c => ({ name: c.name, unit: c.unit, ordered: c.ordered, supplierId: null })) || []
+  const customActive = customList
+    .filter(c => c && (Number(c.ordered) > 0 || c.name?.trim()))
+    .map(c => ({ name: c.name?.trim() || '?', unit: c.unit?.trim() || 'шт', ordered: Number(c.ordered) || 0, supplierId: null }))
   const otherCombined = [...other, ...customActive]
   if (otherCombined.length) groups.push({ name: 'Остальное', lines: otherCombined })
 
@@ -787,7 +799,7 @@ export default function PurchaseOrders({ initialCreate }) {
                           <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.createdDate}</td>
                           <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.sentDate ?? '—'}</td>
                           <td className="px-4 py-3 text-gray-400 font-mono text-xs">{po.receivedDate ?? '—'}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">{(Array.isArray(po.lines) ? po.lines : []).filter(l => l.ordered > 0).length}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{(Array.isArray(po.lines) ? po.lines : []).filter(l => l.ordered > 0).length + (po.customLines?.filter(c => c.ordered > 0).length || 0)}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[po.status]}`}>
                               {t(`po.${po.status}`)}

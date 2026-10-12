@@ -8,4 +8,4 @@ File "/mount/src/bobacafe-web/apps/payment/streamlit_app.py", line 6, in <module
                                                   ^^^^^^^^^^^^^^^^
 
 - [x] Recipe update for prod is not saved. Maybe the update doesn't push to D1. This is for inventory app
-
+- [x] Bug: Custom items in PO are not saved & printed as PDF again

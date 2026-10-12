@@ -132,12 +132,28 @@ export function ConfigProvider({ children }) {
         
         setDataState({
           transactions: txRes,
-          purchaseOrders: poRes.map(po => ({
-            ...po, 
-            lines: JSON.parse(po.lines),
-            receivedDate: po.receivedAt ? po.receivedAt.split('T')[0] : null,
-            isOzon: po.id.startsWith('OZON-')
-          })),
+          purchaseOrders: poRes.map(po => {
+            let parsedLines = [];
+            let parsedCustomLines = [];
+            try {
+              const parsed = JSON.parse(po.lines || '[]');
+              if (Array.isArray(parsed)) {
+                parsedLines = parsed;
+              } else if (parsed && typeof parsed === 'object') {
+                parsedLines = parsed.regular || [];
+                parsedCustomLines = parsed.custom || [];
+              }
+            } catch (e) {
+              console.error(e);
+            }
+            return {
+              ...po, 
+              lines: parsedLines,
+              customLines: parsedCustomLines,
+              receivedDate: po.receivedAt ? po.receivedAt.split('T')[0] : null,
+              isOzon: po.id.startsWith('OZON-')
+            };
+          }),
           audits: audRes.map(a => ({...a, status: a.status || 'approved', counts: JSON.parse(a.counts)})),
           _nextTxId: Math.max(0, ...txRes.map(t => parseInt(t.id.replace('T-', '')) || 0)) + 1,
           _nextPoId: Math.max(0, ...poRes.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '').replace('OZON-', '')) || 0)) + 1,
@@ -289,7 +305,7 @@ export function ConfigProvider({ children }) {
     setDataState(prev => {
       queryD1(
         `INSERT INTO purchase_orders (id, store, status, receivedAt, createdDate, sentDate, fromLocation, toLocation, lines) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [po.id, po.store, po.status, po.receivedAt || null, po.createdDate || null, po.sentDate || null, po.fromLocation || null, po.toLocation || null, JSON.stringify(po.lines || [])]
+        [po.id, po.store, po.status, po.receivedAt || null, po.createdDate || null, po.sentDate || null, po.fromLocation || null, po.toLocation || null, JSON.stringify({ regular: po.lines || [], custom: po.customLines || [] })]
       ).catch(console.error)
       return { ...prev, purchaseOrders: [po, ...prev.purchaseOrders], _nextPoId: prev._nextPoId + 1 }
     })
@@ -307,7 +323,7 @@ export function ConfigProvider({ children }) {
       const updatedPo = { ...po, ...changes, editHistory }
       
       queryD1(`UPDATE purchase_orders SET status = ?, receivedAt = ?, createdDate = ?, sentDate = ?, fromLocation = ?, toLocation = ?, lines = ? WHERE id = ?`, 
-        [updatedPo.status, updatedPo.receivedAt || null, updatedPo.createdDate || null, updatedPo.sentDate || null, updatedPo.fromLocation || null, updatedPo.toLocation || null, JSON.stringify(updatedPo.lines), id]).catch(console.error)
+        [updatedPo.status, updatedPo.receivedAt || null, updatedPo.createdDate || null, updatedPo.sentDate || null, updatedPo.fromLocation || null, updatedPo.toLocation || null, JSON.stringify({ regular: updatedPo.lines || [], custom: updatedPo.customLines || [] }), id]).catch(console.error)
 
       let newTxns = prev.transactions
       let nextTxId = prev._nextTxId
@@ -585,7 +601,7 @@ export function ConfigProvider({ children }) {
             await queryD1(`DELETE FROM purchase_orders`)
             for (const po of d.purchaseOrders) {
               await queryD1(`INSERT INTO purchase_orders (id, store, status, receivedAt, createdDate, sentDate, fromLocation, toLocation, lines) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-                [po.id, po.store, po.status, po.receivedAt || null, po.createdDate || null, po.sentDate || null, po.fromLocation || null, po.toLocation || null, JSON.stringify(po.lines || [])])
+                [po.id, po.store, po.status, po.receivedAt || null, po.createdDate || null, po.sentDate || null, po.fromLocation || null, po.toLocation || null, JSON.stringify({ regular: po.lines || [], custom: po.customLines || [] })])
             }
 
             await queryD1(`DELETE FROM audits`)
