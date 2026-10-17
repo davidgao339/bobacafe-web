@@ -14,5 +14,9 @@ ALTER TABLE recipes_new RENAME TO recipes;
 
 ALTER TABLE purchase_orders ADD COLUMN fromLocation TEXT;
 ALTER TABLE purchase_orders ADD COLUMN toLocation TEXT;
+ALTER TABLE purchase_orders ADD COLUMN createdDate TEXT;
+ALTER TABLE purchase_orders ADD COLUMN sentDate TEXT;
 ALTER TABLE recipes ADD COLUMN hidden INTEGER DEFAULT 0;
-ALTER TABLE ingredients ADD COLUMN hidden INTEGER DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN hidden INTEGER DEFAULT 0;
+ALTER TABLE ingredients ADD COLUMN warehouseOnly INTEGER DEFAULT 0;
+ALTER TABLE audits ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';

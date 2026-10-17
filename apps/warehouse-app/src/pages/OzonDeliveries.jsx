@@ -166,6 +166,7 @@ export default function OzonDeliveries() {
         status: 'received',
         createdDate: d,
         receivedDate: d,
+        receivedAt: d ? `${d}T12:00:00.000Z` : new Date().toISOString(),
         isOzon: true
       })
       idOffset++

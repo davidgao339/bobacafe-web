@@ -192,8 +192,8 @@ async function syncToD1(db, payload) {
     statements.push(db.prepare(`DELETE FROM purchase_orders`))
     for (const po of data.purchaseOrders) {
       statements.push(db.prepare(
-        `INSERT INTO purchase_orders (id, store, status, receivedAt, fromLocation, toLocation, lines) VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).bind(po.id, po.store, po.status, po.receivedAt || null, po.fromLocation || null, po.toLocation || null, JSON.stringify(po.lines || [])))
+        `INSERT INTO purchase_orders (id, store, status, receivedAt, fromLocation, toLocation, createdDate, sentDate, lines) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(po.id, po.store, po.status, po.receivedAt || null, po.fromLocation || null, po.toLocation || null, po.createdDate || null, po.sentDate || null, JSON.stringify(po.lines || [])))
     }
   }
 
@@ -212,8 +212,8 @@ async function syncToD1(db, payload) {
     statements.push(db.prepare(`DELETE FROM audits`))
     for (const audit of data.audits) {
       statements.push(db.prepare(
-        `INSERT INTO audits (id, store, date, counts, timestamp) VALUES (?, ?, ?, ?, ?)`
-      ).bind(audit.id, audit.store, audit.date, JSON.stringify(audit.counts || {}), audit.timestamp || new Date().toISOString()))
+        `INSERT INTO audits (id, store, date, counts, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(audit.id, audit.store, audit.date, JSON.stringify(audit.counts || {}), audit.timestamp || new Date().toISOString(), audit.status || 'approved'))
     }
   }
 

@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     receivedAt TEXT,
     fromLocation TEXT,
     toLocation TEXT,
+    createdDate TEXT,
+    sentDate TEXT,
     lines JSON NOT NULL -- JSON array of { ingredientId, ordered, received, unitCost }
 );
 

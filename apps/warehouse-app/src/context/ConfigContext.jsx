@@ -149,12 +149,13 @@ export function ConfigProvider({ children }) {
               ...po, 
               lines: parsedLines,
               customLines: parsedCustomLines,
-              receivedDate: po.receivedAt ? po.receivedAt.split('T')[0] : null
+              receivedDate: po.receivedAt ? po.receivedAt.split('T')[0] : (po.createdDate || null),
+              isOzon: po.id.startsWith('OZON-')
             };
           }),
           audits: audRes.map(a => ({...a, counts: JSON.parse(a.counts)})),
           _nextTxId: Math.max(0, ...txRes.map(t => parseInt(t.id.replace('T-', '')) || 0)) + 1,
-          _nextPoId: Math.max(0, ...poRes.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '')) || 0)) + 1,
+          _nextPoId: Math.max(0, ...poRes.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '').replace('OZON-', '')) || 0)) + 1,
           _nextAuditId: Math.max(0, ...audRes.map(a => parseInt(a.id.replace('A-', '')) || 0)) + 1,
         })
         
@@ -577,7 +578,7 @@ export function ConfigProvider({ children }) {
               audits: nextData.audits || [],
             }
             d._nextTxId = Math.max(0, ...d.transactions.map(t => parseInt(t.id.replace('T-', '')) || 0)) + 1
-            d._nextPoId = Math.max(0, ...d.purchaseOrders.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '')) || 0)) + 1
+            d._nextPoId = Math.max(0, ...d.purchaseOrders.map(p => parseInt(p.id.replace('PO-', '').replace('TR-', '').replace('OZON-', '')) || 0)) + 1
             d._nextAuditId = Math.max(0, ...d.audits.map(a => parseInt(a.id.replace('A-', '')) || 0)) + 1
 
             await queryD1(`DELETE FROM transactions`)
