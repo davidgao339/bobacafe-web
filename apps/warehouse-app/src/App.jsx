@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ConfigProvider, useConfig } from './context/ConfigContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'
-import { ClipboardList, Package, PlusCircle, Factory, RefreshCw, Settings, LogOut, Layers } from 'lucide-react'
+import { ClipboardList, Package, PlusCircle, Factory, RefreshCw, Settings, LogOut, Layers, Coins } from 'lucide-react'
 import InventoryLevels from './pages/InventoryLevels'
 import PurchaseOrders from './pages/PurchaseOrders'
 import Production from './pages/Production'
@@ -11,6 +11,7 @@ import Recipes from './pages/Recipes'
 import Audit from './pages/Audit'
 import Ledger from './pages/Ledger'
 import OzonDeliveries from './pages/OzonDeliveries'
+import Payroll from './pages/Payroll'
 
 
 
@@ -150,6 +151,7 @@ function AppContent({ role, onLogout }) {
           <Route path="/inventory" element={<InventoryLevels />} />
           <Route path="/pos" element={<PurchaseOrders />} />
           <Route path="/production" element={<Production role={role} />} />
+          <Route path="/payroll" element={<Payroll />} />
           <Route path="/adjustments" element={<Adjustments />} />
           <Route path="/recipes" element={<Recipes />} />
           <Route path="/audit" element={<Audit />} />
@@ -164,6 +166,7 @@ function AppContent({ role, onLogout }) {
         <NavItem to="/pos" icon={<ClipboardList className="w-5 h-5" />} label="Receive" />
         <NavItem to="/ozon" icon={<Package className="w-5 h-5" />} label="Ozon" />
         <NavItem to="/production" icon={<Package className="w-5 h-5" />} label="Produce" />
+        <NavItem to="/payroll" icon={<Coins className="w-5 h-5" />} label="Payroll" />
         <NavItem to="/audit" icon={<ClipboardList className="w-5 h-5" />} label="Audit" />
         <NavItem to="/ledger" icon={<Settings className="w-5 h-5" />} label="Ledger" />
         <NavItem to="/recipes" icon={<Settings className="w-5 h-5" />} label="Recipes" />

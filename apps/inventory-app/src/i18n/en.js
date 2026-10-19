@@ -207,6 +207,8 @@ const en = {
   'recipes.subtitle':         'Manage ingredients and set recipes for each product sold',
   'recipes.importConfig':     'Import config',
   'recipes.exportConfig':     'Export config',
+  'recipes.recalc':           'Recalc Ingredients',
+  'recipes.recalcOk':         '✓ Updated',
   'recipes.tabIngredients':   'Ingredients',
   'recipes.tabRecipes':       'Recipes',
   'recipes.addIngredient':    '+ Add ingredient',

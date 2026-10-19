@@ -1,4 +1,10 @@
 import { useState, useRef, Fragment } from 'react'
+const RefreshCw = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+  </svg>
+)
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { PRODUCT_TYPES, getProductType, getRoundStep, detectProductType } from '../utils/productTypes'
@@ -821,10 +827,26 @@ function RecipesTab() {
 export default function Recipes({ activeTab = 'ingredients', onTabChange }) {
   const tab = activeTab
   const setTab = (t) => onTabChange?.(t)
-  const { exportConfig, importConfig } = useConfig()
+  const { exportConfig, importConfig, refreshRecipes } = useConfig()
   const { t } = useLanguage()
   const importRef = useRef()
   const [importError, setImportError] = useState(null)
+  const [recalcing, setRecalcing] = useState(false)
+  const [recalcOk, setRecalcOk] = useState(false)
+
+  const handleRecalc = async () => {
+    setRecalcing(true)
+    try {
+      await refreshRecipes()
+      setRecalcOk(true)
+      setTimeout(() => setRecalcOk(false), 2000)
+    } catch (e) {
+      console.error('Recalc failed:', e)
+      alert('Failed to refresh recipes: ' + e.message)
+    } finally {
+      setRecalcing(false)
+    }
+  }
 
   const handleImport = async (e) => {
     const file = e.target.files[0]
@@ -850,6 +872,14 @@ export default function Recipes({ activeTab = 'ingredients', onTabChange }) {
         <div className="flex items-center gap-2">
           {importError && <span className="text-xs text-red-500">{importError}</span>}
           <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <button
+            onClick={handleRecalc}
+            disabled={recalcing}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${recalcing ? 'animate-spin' : ''}`} />
+            {recalcOk ? t('recipes.recalcOk') : t('recipes.recalc')}
+          </button>
           <button onClick={() => importRef.current.click()}
             className="px-3 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
             {t('recipes.importConfig')}

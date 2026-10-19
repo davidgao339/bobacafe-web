@@ -449,6 +449,15 @@ export function ConfigProvider({ children }) {
     })
   }, [])
 
+  const refreshRecipes = useCallback(async () => {
+    const recRes = await queryD1("SELECT * FROM recipes WHERE type = 'retail'")
+    setConfigState(prev => ({
+      ...prev,
+      recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
+      hiddenRecipes: Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)])),
+    }))
+  }, [])
+
   const addSupplier = useCallback((name) => {
     setConfigState(prev => {
       const id = prev._nextSupplierId ?? 1
@@ -635,7 +644,7 @@ export function ConfigProvider({ children }) {
 
   return (
     <ConfigContext.Provider value={{
-      config, setConfig,
+      config, setConfig, refreshRecipes,
       data, setData,
       addAudit, deleteAudit, updateAudit, updateAuditStatus, addTransaction, deleteTransaction,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,

@@ -207,6 +207,8 @@ const ru = {
   'recipes.subtitle':         'Управление ингредиентами и рецептурой',
   'recipes.importConfig':     'Импорт',
   'recipes.exportConfig':     'Экспорт',
+  'recipes.recalc':           'Пересчитать ингредиенты',
+  'recipes.recalcOk':         '✓ Обновлено',
   'recipes.tabIngredients':   'Ингредиенты',
   'recipes.tabRecipes':       'Рецепты',
   'recipes.addIngredient':    '+ Добавить ингредиент',

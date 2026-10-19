@@ -7,6 +7,7 @@ import SyncErrorToast from '@inventory/components/SyncErrorToast'
 const SALES_CACHE_KEY       = 'bobacafe_sales_cache'
 const SETTINGS_KEY          = 'bobacafe_settings'
 const SUPPRESSED_STORES_KEY = 'bobacafe_suppressed_stores'
+const COOK_UNIT_PAY_KEY     = 'bobacafe_cook_unit_pay'
 
 // ─── Config defaults ──────────────────────────────────────────────────────────
 
@@ -96,7 +97,14 @@ const ConfigContext = createContext(null)
 
 export function ConfigProvider({ children }) {
   // Initialize with empty defaults, will populate from D1
-  const [config, setConfigState] = useState({ ingredients: DEFAULT_INGREDIENTS, recipes: DEFAULT_RECIPES, suppliers: [], _nextIngId: 1, _nextSupplierId: 1 })
+  const [config, setConfigState] = useState(() => ({
+    ingredients: DEFAULT_INGREDIENTS,
+    recipes: DEFAULT_RECIPES,
+    unitPay: loadFromStorage(COOK_UNIT_PAY_KEY) || {},
+    suppliers: [],
+    _nextIngId: 1,
+    _nextSupplierId: 1
+  }))
   const [data, setDataState] = useState(DEFAULT_DATA)
   
   const [isD1Loaded, setIsD1Loaded] = useState(false)
@@ -112,18 +120,30 @@ export function ConfigProvider({ children }) {
   useEffect(() => {
     async function loadFromD1() {
       try {
-        const [ingRes, recRes, suppRes, txRes, poRes, audRes] = await Promise.all([
+        const [ingRes, recRes, suppRes, txRes, poRes, audRes, payRes] = await Promise.all([
           queryD1('SELECT * FROM ingredients'),
           queryD1("SELECT * FROM recipes WHERE type = 'production'"),
           queryD1('SELECT * FROM suppliers'),
           queryD1('SELECT * FROM transactions'),
           queryD1('SELECT * FROM purchase_orders'),
-          queryD1('SELECT * FROM audits')
+          queryD1('SELECT * FROM audits'),
+          queryD1("SELECT value FROM settings WHERE key = 'cook_unit_pay'").catch(() => [])
         ])
+
+        let unitPay = loadFromStorage(COOK_UNIT_PAY_KEY) || {}
+        if (payRes && payRes[0]?.value) {
+          try {
+            unitPay = typeof payRes[0].value === 'string' ? JSON.parse(payRes[0].value) : payRes[0].value
+            saveToStorage(COOK_UNIT_PAY_KEY, unitPay)
+          } catch (e) {
+            console.error('Failed to parse cook_unit_pay from settings:', e)
+          }
+        }
         
         setConfigState({
           ingredients: ingRes.map(i => ({ ...i, hidden: Boolean(i.hidden), warehouseOnly: Boolean(i.warehouseOnly) })),
           recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
+          unitPay,
           suppliers: suppRes,
           _nextIngId: Math.max(0, ...ingRes.map(i => i.id)) + 1,
           _nextSupplierId: Math.max(0, ...suppRes.map(s => s.id)) + 1,
@@ -442,6 +462,45 @@ export function ConfigProvider({ children }) {
     })
   }, [])
 
+  const refreshRecipes = useCallback(async () => {
+    const [recRes, payRes] = await Promise.all([
+      queryD1("SELECT * FROM recipes WHERE type = 'production'"),
+      queryD1("SELECT value FROM settings WHERE key = 'cook_unit_pay'").catch(() => [])
+    ])
+    let unitPayUpdate = null
+    if (payRes && payRes[0]?.value) {
+      try {
+        unitPayUpdate = typeof payRes[0].value === 'string' ? JSON.parse(payRes[0].value) : payRes[0].value
+        saveToStorage(COOK_UNIT_PAY_KEY, unitPayUpdate)
+      } catch (e) {
+        console.error('Failed to parse cook_unit_pay on refresh:', e)
+      }
+    }
+    setConfigState(prev => ({
+      ...prev,
+      recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
+      ...(unitPayUpdate ? { unitPay: unitPayUpdate } : {})
+    }))
+  }, [])
+
+  const saveUnitPay = useCallback((productName, rate) => {
+    setConfigState(prev => {
+      const nextUnitPay = { ...(prev.unitPay || {}) }
+      const numRate = parseFloat(rate)
+      if (!isNaN(numRate) && numRate >= 0) {
+        nextUnitPay[productName] = numRate
+      } else {
+        delete nextUnitPay[productName]
+      }
+      saveToStorage(COOK_UNIT_PAY_KEY, nextUnitPay)
+      queryD1("INSERT OR REPLACE INTO settings (key, value) VALUES ('cook_unit_pay', ?)", [JSON.stringify(nextUnitPay)]).catch(console.error)
+      return {
+        ...prev,
+        unitPay: nextUnitPay
+      }
+    })
+  }, [])
+
   const addSupplier = useCallback((name) => {
     setConfigState(prev => {
       const id = prev._nextSupplierId ?? 1
@@ -547,6 +606,7 @@ export function ConfigProvider({ children }) {
           const conf = {
             ingredients: nextConfig.ingredients || [],
             recipes: nextConfig.recipes || {},
+            unitPay: nextConfig.unitPay || config.unitPay || {},
             suppliers: nextConfig.suppliers || [],
             _nextIngId: Math.max(0, ...(nextConfig.ingredients || []).map(i => i.id)) + 1,
             _nextSupplierId: Math.max(0, ...(nextConfig.suppliers || []).map(s => s.id)) + 1,
@@ -566,6 +626,11 @@ export function ConfigProvider({ children }) {
           await queryD1(`DELETE FROM suppliers`)
           for (const supp of conf.suppliers) {
             await queryD1(`INSERT INTO suppliers (id, name) VALUES (?, ?)`, [supp.id, supp.name])
+          }
+
+          if (conf.unitPay) {
+            saveToStorage(COOK_UNIT_PAY_KEY, conf.unitPay)
+            await queryD1("INSERT OR REPLACE INTO settings (key, value) VALUES ('cook_unit_pay', ?)", [JSON.stringify(conf.unitPay)]).catch(console.error)
           }
 
           setConfigState(conf)
@@ -633,7 +698,7 @@ export function ConfigProvider({ children }) {
 
   return (
     <ConfigContext.Provider value={{
-      config, setConfig,
+      config, setConfig, refreshRecipes, saveUnitPay,
       data: filteredData, setData,
       addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction, deleteProductionEvent, updateProductionEvent,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,

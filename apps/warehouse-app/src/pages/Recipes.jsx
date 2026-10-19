@@ -1,4 +1,5 @@
 import { useState, useRef, Fragment } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { PRODUCT_TYPES, getProductType, getRoundStep, detectProductType } from '@inventory/utils/productTypes'
@@ -419,13 +420,14 @@ function SuppliersTab() {
 // ─── Recipes Tab ──────────────────────────────────────────────────────────────
 
 function RecipesTab() {
-  const { config, sales, posWaste, setConfig } = useConfig()
+  const { config, sales, posWaste, setConfig, saveUnitPay } = useConfig()
   const { t } = useLanguage()
   const [search,    setSearch]    = useState('')
   const [filter,    setFilter]    = useState('all')
   const [selected,  setSelected]  = useState(null)
   const [editing,   setEditing]   = useState(false)
   const [draftQtys, setDraftQtys] = useState({})
+  const [draftUnitPay, setDraftUnitPay] = useState('')
   const [adding,     setAdding]     = useState(false)
   const [newIng,     setNewIng]     = useState({ ingredientId: '', qty: '' })
   const [ingSearch,  setIngSearch]  = useState('')
@@ -449,11 +451,13 @@ function RecipesTab() {
   const selectedRecipe    = config.recipes[selected] ?? {}
   const recipeIngredients = config.ingredients.filter(i => (selectedRecipe[i.id] ?? 0) > 0)
   const unusedIngredients = config.ingredients.filter(i => !((selectedRecipe[i.id] ?? 0) > 0))
+  const selectedProductUnit = config.ingredients.find(i => i.name === selected)?.unit || 'ед.'
 
   const startEditing = () => {
     const draft = {}
     recipeIngredients.forEach(i => { draft[i.id] = String(selectedRecipe[i.id] ?? '') })
     setDraftQtys(draft)
+    setDraftUnitPay(config.unitPay?.[selected] != null ? String(config.unitPay[selected]) : '')
     setEditing(true)
   }
 
@@ -462,6 +466,7 @@ function RecipesTab() {
   const cancelEditing = () => {
     setEditing(false)
     setDraftQtys({})
+    setDraftUnitPay(config.unitPay?.[selected] != null ? String(config.unitPay[selected]) : '')
     setAdding(false)
     setCreating(false)
     setNewIng({ ingredientId: '', qty: '' })
@@ -478,6 +483,7 @@ function RecipesTab() {
       })
       return { ...prev, recipes: { ...prev.recipes, [selected]: recipe } }
     })
+    saveUnitPay?.(selected, draftUnitPay)
     setEditing(false)
     setDraftQtys({})
     setAdding(false)
@@ -518,6 +524,7 @@ function RecipesTab() {
     setSelected(p)
     setEditing(false)
     setDraftQtys({})
+    setDraftUnitPay(config.unitPay?.[p] != null ? String(config.unitPay[p]) : '')
     setAdding(false)
     setCreating(false)
     setNewIng({ ingredientId: '', qty: '' })
@@ -564,10 +571,17 @@ function RecipesTab() {
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-gray-800 truncate leading-snug">{p}</p>
                     </div>
-                    {count > 0
-                      ? <p className="text-xs text-green-600 mt-0.5">{count !== 1 ? t('recipes.ingredientsCount', { count }) : t('recipes.ingredientCount', { count })}</p>
-                      : <p className="text-xs text-amber-500 mt-0.5">{t('recipes.noRecipeYet')}</p>
-                    }
+                    <div className="flex items-center justify-between mt-0.5">
+                      {count > 0
+                        ? <p className="text-xs text-green-600">{count !== 1 ? t('recipes.ingredientsCount', { count }) : t('recipes.ingredientCount', { count })}</p>
+                        : <p className="text-xs text-amber-500">{t('recipes.noRecipeYet')}</p>
+                      }
+                      {config.unitPay?.[p] > 0 && (
+                        <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                          ₽{config.unitPay[p]}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 )
               })
@@ -616,6 +630,46 @@ function RecipesTab() {
                   className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
                   {t('recipes.modify')}
                 </button>
+              )}
+            </div>
+          </div>
+
+          {/* Cook Pay Rate Section */}
+          <div className="px-5 py-3 bg-gray-50/70 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                ₽
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-gray-800 block">{t('recipes.unitPay')}</span>
+                <span className="text-[11px] text-gray-400">{t('recipes.unitPayHint')}</span>
+              </div>
+            </div>
+            <div>
+              {editing ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-gray-500">₽</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={draftUnitPay}
+                    onChange={e => setDraftUnitPay(e.target.value)}
+                    className="w-24 border border-blue-300 rounded-lg px-2.5 py-1 text-sm font-mono font-medium text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                  <span className="text-xs text-gray-500">/ {selectedProductUnit}</span>
+                </div>
+              ) : (
+                config.unitPay?.[selected] != null && config.unitPay[selected] > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-blue-900 font-mono bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                    ₽{Number(config.unitPay[selected]).toLocaleString()} <span className="text-xs font-normal text-gray-500">/ {selectedProductUnit}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg">
+                    {t('recipes.noRate')}
+                  </span>
+                )
               )}
             </div>
           </div>
@@ -787,10 +841,26 @@ function RecipesTab() {
 
 export default function Recipes() {
   const [tab, setTab] = useState('ingredients')
-  const { exportConfig, importConfig } = useConfig()
+  const { exportConfig, importConfig, refreshRecipes } = useConfig()
   const { t } = useLanguage()
   const importRef = useRef()
   const [importError, setImportError] = useState(null)
+  const [recalcing, setRecalcing] = useState(false)
+  const [recalcOk, setRecalcOk] = useState(false)
+
+  const handleRecalc = async () => {
+    setRecalcing(true)
+    try {
+      await refreshRecipes()
+      setRecalcOk(true)
+      setTimeout(() => setRecalcOk(false), 2000)
+    } catch (e) {
+      console.error('Recalc failed:', e)
+      alert('Failed to refresh recipes: ' + e.message)
+    } finally {
+      setRecalcing(false)
+    }
+  }
 
   const handleImport = async (e) => {
     const file = e.target.files[0]
@@ -810,6 +880,14 @@ export default function Recipes() {
         <div>
           <h1 className="text-lg font-semibold text-gray-900">{t('recipes.title')}</h1>
         </div>
+        <button
+          onClick={handleRecalc}
+          disabled={recalcing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${recalcing ? 'animate-spin' : ''}`} />
+          {recalcOk ? t('recipes.recalcOk') : t('recipes.recalc')}
+        </button>
       </div>
 
       <div className="flex gap-4 border-b border-gray-200 mb-4 shrink-0 overflow-x-auto">
