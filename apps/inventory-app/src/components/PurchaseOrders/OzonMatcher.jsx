@@ -20,7 +20,8 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
     
     parsedItems.forEach((item, idx) => {
       initialQtys[idx] = item.rawQty
-      let mappedId = settings.ozonMappings?.[item.rawName]
+      const rawMapping = settings.ozonMappings?.[item.rawName]
+      let mappedId = (rawMapping && typeof rawMapping === 'object') ? rawMapping.id : rawMapping
       if (!mappedId) {
         const possible = config.ingredients.find(i => i.name && item.rawName.toLowerCase().includes(i.name.toLowerCase()))
         if (possible) mappedId = possible.id
@@ -40,7 +41,9 @@ export default function OzonMatcher({ parsedItems, pos, onConfirm, onCancel }) {
       const ingId = mappings[idx]
       if (ingId) {
         receiveQtys[ingId] = (receiveQtys[ingId] || 0) + Number(qtys[idx] || 0)
-        if (settings.ozonMappings?.[item.rawName] !== ingId) {
+        const currentMap = settings.ozonMappings?.[item.rawName]
+        const currentId = (currentMap && typeof currentMap === 'object') ? currentMap.id : currentMap
+        if (currentId !== ingId) {
           updateOzonMapping(item.rawName, ingId)
         }
       }
