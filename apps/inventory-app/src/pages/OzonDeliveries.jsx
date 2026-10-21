@@ -8,7 +8,8 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLi
 export default function OzonDeliveries() {
   const { config, addPurchaseOrder, deletePurchaseOrder, stores, data, updateOzonMapping, saveSettings, settings } = useConfig()
   const { t } = useLanguage()
-  const [store, setStore] = useState(stores?.[0] || '')
+  const availableStores = (stores || []).filter(s => s !== 'Warehouse')
+  const [store, setStore] = useState(availableStores[0] || '')
   const [batchDate, setBatchDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [lines, setLines] = useState([])
   const [isParsing, setIsParsing] = useState(false)
@@ -99,7 +100,7 @@ export default function OzonDeliveries() {
                   rawName, qty, 
                   ingredientId: mappedId, 
                   multiplier,
-                  ingredientName: mappedId ? storeIngredients.find(ing => ing.id == mappedId)?.name || '' : '',
+                  ingredientName: mappedId ? (config.ingredients.find(ing => ing.id == mappedId)?.name || '') : '',
                   date: currentDocumentDate,
                   pageNum: i,
                   y: y
@@ -200,7 +201,7 @@ export default function OzonDeliveries() {
             <div className="flex-1">
               <label className="block text-sm text-gray-600 mb-1">Store</label>
               <select value={store} onChange={e => setStore(e.target.value)} className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs">
-                {stores.map(s => <option key={s} value={s}>{s}</option>)}
+                {availableStores.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="flex-1">
@@ -252,7 +253,7 @@ export default function OzonDeliveries() {
                   }} className="px-2 py-1 w-20 text-center focus:outline-none border-l border-gray-200" min="0" step="any" />
                 </div>
                 <div className="w-24 shrink-0 text-right text-sm text-gray-600 font-medium whitespace-nowrap">
-                  = {Math.round((l.qty || 0) * (l.multiplier || 1))} {l.ingredientId ? storeIngredients.find(ing => ing.id === Number(l.ingredientId))?.unit : ''}
+                  = {Math.round((l.qty || 0) * (l.multiplier || 1))} {l.ingredientId ? (config.ingredients.find(ing => ing.id === Number(l.ingredientId))?.unit || '') : ''}
                 </div>
                 <button onClick={() => setLines(lines.filter((_, idx) => idx !== i))} className="text-red-500 px-2 shrink-0">✕</button>
               </div>
@@ -302,7 +303,7 @@ export default function OzonDeliveries() {
                     rawName: pl.rawName || 'Restored Item',
                     qty: pl.received || pl.ordered,
                     ingredientId: pl.ingredientId,
-                    ingredientName: storeIngredients.find(i => i.id == pl.ingredientId)?.name || '',
+                    ingredientName: config.ingredients.find(i => i.id == pl.ingredientId)?.name || '',
                     date: po.receivedDate
                   }))
                   setLines(prev => [...prev, ...restoredLines])

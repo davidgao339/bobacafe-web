@@ -359,8 +359,8 @@ export default function PurchaseOrders({ initialCreate }) {
   const ingredientName = (id) => config.ingredients.find(p => p.id === id)?.name ?? '—'
   const ingredientUnit = (id) => config.ingredients.find(p => p.id === id)?.unit ?? ''
 
-  const isWarehouse = window.location.pathname.includes('/warehouse')
-  const storeIngredients = isWarehouse ? config.ingredients : config.ingredients.filter(i => !i.warehouseOnly)
+  const isWarehouse = true
+  const storeIngredients = config.ingredients
 
   const [expanded,    setExpanded]    = useState(null)
   const [creating,    setCreating]    = useState(!!initialCreate)
@@ -588,7 +588,7 @@ export default function PurchaseOrders({ initialCreate }) {
           suppliers={config.suppliers}
           getOrderQty={getOrderQty}
           stores={stores}
-          initialStore={initialCreate?.store}
+          initialStore={initialCreate?.store || (stores?.includes('Warehouse') ? 'Warehouse' : stores?.[0])}
           autoApplySuggested={!!initialCreate}
           onSave={handleCreate}
           onCancel={() => setCreating(false)}

@@ -8,7 +8,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLi
 export default function OzonDeliveries() {
   const { config, addPurchaseOrder, deletePurchaseOrder, stores, data, updateOzonMapping, saveSettings, settings } = useConfig()
   const { t } = useLanguage()
-  const [store, setStore] = useState(stores?.[0] || '')
+  const store = 'Warehouse'
   const [batchDate, setBatchDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [lines, setLines] = useState([])
   const [isParsing, setIsParsing] = useState(false)
@@ -17,7 +17,7 @@ export default function OzonDeliveries() {
   
   const fileInputRef = useRef(null)
 
-  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+  const storeIngredients = config.ingredients
   const pos = data.purchaseOrders?.filter(po => po.isOzon) || []
   const nextId = `OZON-${String((data._nextPoId || 1)).padStart(3, '0')}`
 
@@ -99,7 +99,7 @@ export default function OzonDeliveries() {
                   rawName, qty, 
                   ingredientId: mappedId, 
                   multiplier,
-                  ingredientName: mappedId ? storeIngredients.find(ing => ing.id == mappedId)?.name || '' : '',
+                  ingredientName: mappedId ? (config.ingredients.find(ing => ing.id == mappedId)?.name || '') : '',
                   date: currentDocumentDate,
                   pageNum: i,
                   y: y
@@ -198,10 +198,11 @@ export default function OzonDeliveries() {
           <h2 className="text-lg font-medium mb-4">Map & Receive Batch</h2>
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
-              <label className="block text-sm text-gray-600 mb-1">Store</label>
-              <select value={store} onChange={e => setStore(e.target.value)} className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs">
-                {stores.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <label className="block text-sm text-gray-600 mb-1">Store / Location</label>
+              <div className="border border-gray-200 bg-gray-50 text-gray-800 font-medium rounded px-3 py-2 w-full max-w-xs text-sm flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                Warehouse
+              </div>
             </div>
             <div className="flex-1">
               <label className="block text-sm text-gray-600 mb-1">Date</label>
@@ -252,7 +253,7 @@ export default function OzonDeliveries() {
                   }} className="px-2 py-1 w-20 text-center focus:outline-none border-l border-gray-200" min="0" step="any" />
                 </div>
                 <div className="w-24 shrink-0 text-right text-sm text-gray-600 font-medium whitespace-nowrap">
-                  = {Math.round((l.qty || 0) * (l.multiplier || 1))} {l.ingredientId ? storeIngredients.find(ing => ing.id === Number(l.ingredientId))?.unit : ''}
+                  = {Math.round((l.qty || 0) * (l.multiplier || 1))} {l.ingredientId ? (config.ingredients.find(ing => ing.id === Number(l.ingredientId))?.unit || '') : ''}
                 </div>
                 <button onClick={() => setLines(lines.filter((_, idx) => idx !== i))} className="text-red-500 px-2 shrink-0">✕</button>
               </div>
@@ -302,11 +303,10 @@ export default function OzonDeliveries() {
                     rawName: pl.rawName || 'Restored Item',
                     qty: pl.received || pl.ordered,
                     ingredientId: pl.ingredientId,
-                    ingredientName: storeIngredients.find(i => i.id == pl.ingredientId)?.name || '',
+                    ingredientName: config.ingredients.find(i => i.id == pl.ingredientId)?.name || '',
                     date: po.receivedDate
                   }))
                   setLines(prev => [...prev, ...restoredLines])
-                  setStore(po.store)
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }
               }} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
