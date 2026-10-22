@@ -10,6 +10,7 @@ ALLOWED_EMAILS = [
 # Exact column headers from the Google Form responses sheet
 COL_TS     = "Timestamp"
 COL_MONTH  = "Месяц"
+COL_YEAR   = "Год"
 COL_NAME   = "Имя и Фамилия"
 COL_MORN   = "Утренние смены (выбрать даты)"
 COL_EVE    = "Вечерние смены (выбрать даты)"
@@ -42,6 +43,7 @@ STRINGS: dict[str, dict] = {
         "sign_in_btn": "Sign in with Google",
         "access_denied": "Access denied. Your account is not authorized.",
         "sign_out": "Sign out",
+        "year_label": "Year",
         "month_label": "Month",
         "solver_expander": "Solver Settings",
         "max_shifts_label": "Max shifts per employee",
@@ -57,7 +59,7 @@ STRINGS: dict[str, dict] = {
         "metric_responses": "Responses this month",
         "metric_employees": "Employees",
         "metric_cafes": "Cafes",
-        "no_month_warning": "No data for {month}. Select another month or reload.",
+        "no_month_warning": "No data for {month} {year}. Select another month/year or reload.",
         "store_settings_header": "Cafe Settings",
         "store_settings_caption": "Adjust priority weight and staffing per cafe.",
         "col_store": "Cafe",
@@ -87,8 +89,8 @@ STRINGS: dict[str, dict] = {
         "download_btn": "Download CSV",
         "guide_expander": "How to use this tool",
         "guide_body": (
-            "**Step 1 — Select month**\n"
-            "Choose the month you want to schedule from the sidebar dropdown.\n\n"
+            "**Step 1 — Select year and month**\n"
+            "Choose the year and month you want to schedule from the sidebar dropdowns.\n\n"
             "**Step 2 — Load data**\n"
             "Click «Load Data» in the sidebar. This pulls employee availability responses from Google Sheets.\n\n"
             "**Step 3 — Review cafe settings**\n"
@@ -118,6 +120,7 @@ STRINGS: dict[str, dict] = {
         "sign_in_btn": "Войти через Google",
         "access_denied": "Доступ запрещён. Ваш аккаунт не авторизован.",
         "sign_out": "Выйти",
+        "year_label": "Год",
         "month_label": "Месяц",
         "solver_expander": "Настройки солвера",
         "max_shifts_label": "Макс. смен на сотрудника",
@@ -133,7 +136,7 @@ STRINGS: dict[str, dict] = {
         "metric_responses": "Ответов за месяц",
         "metric_employees": "Сотрудников",
         "metric_cafes": "Кафе",
-        "no_month_warning": "Нет данных за {month}. Выберите другой месяц или перезагрузите данные.",
+        "no_month_warning": "Нет данных за {month} {year} г. Выберите другой месяц/год или перезагрузите данные.",
         "store_settings_header": "Настройки кафе",
         "store_settings_caption": "Измените вес приоритета и количество сотрудников на смену для каждого кафе.",
         "col_store": "Кафе",
@@ -163,8 +166,8 @@ STRINGS: dict[str, dict] = {
         "download_btn": "Скачать CSV",
         "guide_expander": "Как пользоваться инструментом",
         "guide_body": (
-            "**Шаг 1 — Выбрать месяц**\n"
-            "Выберите нужный месяц в выпадающем списке в боковой панели.\n\n"
+            "**Шаг 1 — Выбрать год и месяц**\n"
+            "Выберите нужный год и месяц в выпадающих списках в боковой панели.\n\n"
             "**Шаг 2 — Загрузить данные**\n"
             "Нажмите «Загрузить данные» в боковой панели. Данные о доступности сотрудников загружаются из Google Sheets.\n\n"
             "**Шаг 3 — Проверить настройки кафе**\n"
@@ -189,3 +192,4 @@ STRINGS: dict[str, dict] = {
                    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"],
     },
 }
+

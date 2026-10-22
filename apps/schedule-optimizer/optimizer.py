@@ -5,7 +5,11 @@ from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 
-from config import COL_TS, COL_MONTH, COL_NAME, COL_MORN, COL_EVE, COL_STORES, SHIFTS, SHIFT_LABEL
+from config import (
+    COL_TS, COL_MONTH, COL_YEAR, COL_NAME,
+    COL_MORN, COL_EVE, COL_STORES,
+    SHIFTS, SHIFT_LABEL,
+)
 
 
 def norm_space(s: str) -> str:
@@ -29,6 +33,136 @@ def parse_stores(cell) -> list:
     return [norm_space(p) for p in str(cell).replace(";", ",").split(",") if norm_space(p)]
 
 
+def parse_ts(val) -> datetime | None:
+    if pd.isna(val) or val is None or str(val).strip() == "":
+        return None
+    s = str(val).strip()
+    try:
+        dt = pd.to_datetime(s, dayfirst=True)
+        if pd.notna(dt):
+            return dt
+    except Exception:
+        pass
+    try:
+        dt = pd.to_datetime(s, dayfirst=False)
+        if pd.notna(dt):
+            return dt
+    except Exception:
+        pass
+    m = re.search(r"\b(20\d\d)\b", s)
+    if m:
+        try:
+            return datetime(int(m.group(1)), 1, 1)
+        except Exception:
+            pass
+    return None
+
+
+def extract_month_num(val) -> int | None:
+    if pd.isna(val) or val is None or str(val).strip() == "":
+        return None
+    try:
+        m = int(float(str(val).strip()))
+        if 1 <= m <= 12:
+            return m
+    except (ValueError, TypeError):
+        pass
+
+    val_str = str(val).strip().lower()
+    months_ru = ["январ", "феврал", "март", "апрел", "ма", "июн",
+                 "июл", "август", "сентябр", "октябр", "ноябр", "декабр"]
+    for idx, prefix in enumerate(months_ru, 1):
+        if val_str.startswith(prefix):
+            return idx
+    months_en = ["jan", "feb", "mar", "apr", "may", "jun",
+                 "jul", "aug", "sep", "oct", "nov", "dec"]
+    for idx, prefix in enumerate(months_en, 1):
+        if val_str.startswith(prefix):
+            return idx
+    return None
+
+
+def extract_year_and_month(row: pd.Series | dict) -> tuple[int | None, int | None]:
+    """
+    Extracts (target_year, target_month) from a response row.
+    If the sheet does not have an explicit year column, infers target_year from Timestamp.
+    """
+    month = extract_month_num(row.get(COL_MONTH))
+    if month is None:
+        return None, None
+
+    # Check for explicit Year column (e.g. 'Год', 'Year', COL_YEAR)
+    for col in [COL_YEAR, "Год", "год", "Year", "year"]:
+        if col in row and pd.notna(row.get(col)):
+            try:
+                y = int(float(str(row[col]).strip()))
+                if 2000 <= y <= 2100:
+                    return y, month
+            except (ValueError, TypeError):
+                pass
+
+    # Infer from Timestamp column
+    ts_val = None
+    for col in [COL_TS, "Timestamp", "timestamp", "Отметка времени", "отметка времени"]:
+        if col in row and pd.notna(row.get(col)) and str(row.get(col)).strip():
+            ts_val = row.get(col)
+            break
+
+    if ts_val is not None:
+        ts = parse_ts(ts_val)
+        if ts is not None:
+            sub_year = ts.year
+            sub_month = ts.month
+
+            # Submissions for target_month are typically filled out shortly before or during the month.
+            # If target_month is Jan/Feb/Mar (1, 2, 3) and sub_month is Oct/Nov/Dec (10, 11, 12),
+            # the submission is for the following year.
+            # If target_month is Nov/Dec (11, 12) and sub_month is Jan/Feb (1, 2),
+            # it's a late submission for the previous year.
+            diff = (month - sub_month) % 12
+            if diff in [1, 2, 3, 4] and month < sub_month:
+                target_year = sub_year + 1
+            elif diff in [10, 11] and month > sub_month:
+                target_year = sub_year - 1
+            else:
+                target_year = sub_year
+            return target_year, month
+
+    return None, month
+
+
+def filter_df_by_year_month(df: pd.DataFrame, target_year: int | None, target_month: int) -> pd.DataFrame:
+    """
+    Filter DataFrame for responses matching target_month and target_year.
+    If target_year is None, returns rows matching target_month.
+    """
+    if df.empty:
+        return df.copy()
+
+    matching_indices = []
+    current_year = datetime.today().year
+    for idx, row in df.iterrows():
+        y, m = extract_year_and_month(row)
+        if m == target_month:
+            row_year = y if y is not None else current_year
+            if target_year is None or row_year == target_year:
+                matching_indices.append(idx)
+
+    return df.loc[matching_indices].copy()
+
+
+def get_available_years_from_df(df: pd.DataFrame) -> list[int]:
+    """Return sorted list of unique years inferred from form responses."""
+    if df.empty:
+        return []
+    years = set()
+    for _, row in df.iterrows():
+        y, _ = extract_year_and_month(row)
+        if y is not None:
+            years.add(y)
+    return sorted(years)
+
+
 def get_stores_from_df(df: pd.DataFrame) -> list[str]:
     """Return sorted list of unique stores found in a dataframe."""
     stores = set()
@@ -38,7 +172,7 @@ def get_stores_from_df(df: pd.DataFrame) -> list[str]:
     return sorted(stores)
 
 
-def _prepare_inputs(df: pd.DataFrame):
+def _prepare_inputs(df: pd.DataFrame, target_year: int | None = None, target_month: int | None = None):
     acc = defaultdict(lambda: {"name": None, "by_store": defaultdict(lambda: {"m": set(), "v": set()})})
     for _, r in df.iterrows():
         name = norm_space(r.get(COL_NAME, ""))
@@ -60,17 +194,25 @@ def _prepare_inputs(df: pd.DataFrame):
     stores_list = sorted({st for rec in records for st in rec["stores"]})
     rec_by_name = {rec["name"]: rec for rec in records}
 
-    if COL_MONTH in df and df[COL_MONTH].notna().any():
-        month = int(df[COL_MONTH].dropna().iloc[0])
+    if target_month is not None:
+        month = int(target_month)
     else:
-        raise ValueError("Column 'Месяц' is missing or empty.")
+        month = None
+        for _, r in df.iterrows():
+            m = extract_month_num(r.get(COL_MONTH))
+            if m is not None:
+                month = m
+                break
+        if month is None:
+            raise ValueError("Column 'Месяц' is missing, empty, or has invalid values.")
 
-    year = None
-    if COL_TS in df and df[COL_TS].notna().any():
-        try:
-            year = int(pd.to_datetime(df[COL_TS].dropna().iloc[0]).year)
-        except Exception:
-            pass
+    year = target_year
+    if year is None:
+        for _, r in df.iterrows():
+            y, _ = extract_year_and_month(r)
+            if y is not None:
+                year = y
+                break
     if year is None:
         year = datetime.today().year
 
@@ -91,6 +233,7 @@ def run_optimization(
     default_need: dict,  # {"Утро": 1, "Вечер": 1}
     max_shifts: int = 32,
     time_limit: int = 30,
+    year_filter: int | None = None,
 ) -> tuple:
     """
     Returns (schedule_df, coverage_df, status_str, stats) or raises on bad input.
@@ -98,11 +241,14 @@ def run_optimization(
     coverage_df: filled vs required per slot.
     stats: dict with summary metrics and raw data needed for the UI.
     """
-    filtered = df[df[COL_MONTH] == month_filter].copy()
+    filtered = filter_df_by_year_month(df, year_filter, month_filter)
     if filtered.empty:
-        raise ValueError(f"No responses for month {month_filter}.")
+        year_str = f" and year {year_filter}" if year_filter else ""
+        raise ValueError(f"No responses for month {month_filter}{year_str}.")
 
-    records, people, STORES, year, month, DAYS, rec_by_name = _prepare_inputs(filtered)
+    records, people, STORES, year, month, DAYS, rec_by_name = _prepare_inputs(
+        filtered, target_year=year_filter, target_month=month_filter
+    )
 
     def eligible(employee, day, store, shift):
         rec = rec_by_name.get(employee)
