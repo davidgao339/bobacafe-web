@@ -12,7 +12,13 @@ from config import (
     DEFAULT_STORE_WEIGHTS, SCHEDULE_SHEET_GID, STRINGS,
 )
 from data_access import read_responses, write_schedule
-from optimizer import get_stores_from_df, run_optimization, build_wide_table
+from optimizer import (
+    build_wide_table,
+    filter_df_by_year_month,
+    get_available_years_from_df,
+    get_stores_from_df,
+    run_optimization,
+)
 
 st.set_page_config(page_title="Schedule Optimizer — Boba Cafe", layout="wide")
 
@@ -52,12 +58,29 @@ with st.sidebar:
 
     st.button(T["sign_out"], on_click=st.logout, use_container_width=True)
     st.divider()
+    today = date.today()
+    current_year = today.year
+
+    available_years = set(range(current_year - 2, current_year + 3))
+    if "raw_df" in st.session_state and isinstance(st.session_state.raw_df, pd.DataFrame):
+        data_years = get_available_years_from_df(st.session_state.raw_df)
+        if data_years:
+            available_years.update(data_years)
+    year_options = sorted(available_years)
+
+    year_filter = st.selectbox(
+        T["year_label"],
+        options=year_options,
+        index=year_options.index(current_year) if current_year in year_options else 0,
+        key="selected_year",
+    )
 
     month_filter = st.selectbox(
         T["month_label"],
         options=list(range(1, 13)),
         format_func=lambda m: f"{T['months'][m - 1]} ({m})",
-        index=date.today().month - 1,
+        index=today.month - 1,
+        key="selected_month",
     )
 
     st.divider()
@@ -97,7 +120,7 @@ if COL_MONTH not in raw_df.columns:
     st.error(T["col_missing_error"].format(col=COL_MONTH))
     st.stop()
 
-month_df = raw_df[raw_df[COL_MONTH] == month_filter]
+month_df = filter_df_by_year_month(raw_df, year_filter, month_filter)
 detected_stores = get_stores_from_df(month_df)
 
 col1, col2, col3 = st.columns(3)
@@ -105,8 +128,8 @@ col1.metric(T["metric_responses"], len(month_df))
 col2.metric(T["metric_employees"], month_df[COL_NAME].nunique() if COL_NAME in month_df.columns else 0)
 col3.metric(T["metric_cafes"], len(detected_stores))
 
-if not detected_stores:
-    st.warning(T["no_month_warning"].format(month=T["months"][month_filter - 1]))
+if len(month_df) == 0 or not detected_stores:
+    st.warning(T["no_month_warning"].format(month=T["months"][month_filter - 1], year=year_filter))
     st.stop()
 
 # ── Store configuration table ─────────────────────────────────────────────────
@@ -185,6 +208,7 @@ else:
                     result = run_optimization(
                         raw_df,
                         month_filter=month_filter,
+                        year_filter=year_filter,
                         store_weights=store_weights,
                         store_need=store_need,
                         default_need={"Утро": 1, "Вечер": 1},
@@ -203,6 +227,10 @@ if not st.session_state.get("schedule_result"):
     st.stop()
 
 schedule_df, coverage_df, status_str, stats = st.session_state.schedule_result
+
+if stats.get("year") != year_filter or stats.get("month") != month_filter:
+    st.session_state.schedule_result = None
+    st.stop()
 
 status_color = {"OPTIMAL": "green", "FEASIBLE": "orange"}.get(status_str, "red")
 st.markdown(f"### {T['status_label']}: :{status_color}[{status_str}]")
