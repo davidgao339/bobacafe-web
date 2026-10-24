@@ -6,23 +6,30 @@ const PAGE_SIZE = 100
 
 // ─── Sales tab ────────────────────────────────────────────────────────────────
 
-function SalesTab() {
-  const { sales, salesCache, reportFrom, reportTo, settings, saveSettings, refreshSales, clearSalesCache, stores } = useConfig()
+function SalesTab({ customFrom, customTo }) {
+  const { sales, salesCache, reportFrom, reportTo, settings, saveSettings, refreshSales, recalculateUsage, clearSalesCache, stores } = useConfig()
   const { getSaleIngredientImpact } = useCalcs()
   const { t } = useLanguage()
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
   const todayStr     = new Date().toISOString().slice(0, 10)
 
   const [filterStore,    setFilterStore]    = useState('All')
-  const [filterFrom,     setFilterFrom]     = useState(sevenDaysAgo)
-  const [filterTo,       setFilterTo]       = useState(todayStr)
+  const [filterFrom,     setFilterFrom]     = useState(customFrom || sevenDaysAgo)
+  const [filterTo,       setFilterTo]       = useState(customTo || todayStr)
   const [expanded,       setExpanded]       = useState(null)
   const [page,           setPage]           = useState(0)
   const [refreshing,     setRefreshing]     = useState(false)
+  const [recalculating,  setRecalculating]  = useState(false)
   const [refreshMsg,     setRefreshMsg]     = useState(null)
   const [showSettings,   setShowSettings]   = useState(false)
   const [localToken,     setLocalToken]     = useState(settings.token ?? '')
   const [localWarehouse, setLocalWarehouse] = useState(settings.warehouseId ?? '')
+
+  // Sync if custom dates provided from parent
+  useMemo(() => {
+    if (customFrom) setFilterFrom(customFrom)
+    if (customTo)   setFilterTo(customTo)
+  }, [customFrom, customTo])
 
   const lastSync = salesCache?.lastRefreshDate ?? null
 
@@ -66,6 +73,26 @@ function SalesTab() {
       setRefreshMsg({ type: 'error', text: err.message })
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  const handleRecalcUsage = async () => {
+    if (filterFrom > filterTo) {
+      setRefreshMsg({ type: 'error', text: 'Start date cannot be after end date.' })
+      return
+    }
+    setRecalculating(true)
+    setRefreshMsg(null)
+    try {
+      const res = await recalculateUsage(filterFrom, filterTo, filterStore)
+      setRefreshMsg({
+        type: 'ok',
+        text: t('tx.recalcSuccess', { count: res.count, from: filterFrom, to: filterTo }) + (res.syncedDatabricks ? ' · Synced Databricks' : '')
+      })
+    } catch (err) {
+      setRefreshMsg({ type: 'error', text: 'Recalculation error: ' + err.message })
+    } finally {
+      setRecalculating(false)
     }
   }
 
@@ -121,15 +148,23 @@ function SalesTab() {
                 {t('tx.cachedThrough')} <span className="font-medium text-gray-600">{lastSync}</span>
               </span>
             )}
-            <button onClick={handleRefresh} disabled={refreshing}
+            <button onClick={handleRefresh} disabled={refreshing || recalculating}
               className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
               <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               {refreshing ? t('tx.syncing') : t('tx.refresh')}
             </button>
+            <button onClick={handleRecalcUsage} disabled={refreshing || recalculating}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+              title={t('tx.recalcDialogDesc')}>
+              <svg className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {recalculating ? t('tx.recalculating') : t('tx.recalcUsage')}
+            </button>
             <button onClick={() => { clearSalesCache(); setRefreshMsg({ type: 'ok', text: 'Cache cleared.' }) }}
-              title="Clear cached data" disabled={refreshing}
+              title="Clear cached data" disabled={refreshing || recalculating}
               className="px-2.5 py-2 rounded-lg border border-gray-200 text-xs text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-50">
               {t('tx.clearCache')}
             </button>
@@ -343,20 +378,47 @@ function SalesTab() {
 
 // ─── Waste tab (Non-Fiscal POS transactions) ─────────────────────────────────
 
-function WasteTab() {
-  const { posWaste, salesCache, reportFrom, reportTo, stores } = useConfig()
+function WasteTab({ customFrom, customTo }) {
+  const { posWaste, salesCache, reportFrom, reportTo, stores, recalculateUsage } = useConfig()
   const { getSaleIngredientImpact } = useCalcs()
   const { t } = useLanguage()
   const today = new Date().toISOString().slice(0, 10)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
   const [filterStore, setFilterStore] = useState('All')
-  const [filterFrom,  setFilterFrom]  = useState(posWaste.length > 0 ? reportFrom : thirtyDaysAgo)
-  const [filterTo,    setFilterTo]    = useState(posWaste.length > 0 ? reportTo   : today)
+  const [filterFrom,  setFilterFrom]  = useState(customFrom || (posWaste.length > 0 ? reportFrom : thirtyDaysAgo))
+  const [filterTo,    setFilterTo]    = useState(customTo || (posWaste.length > 0 ? reportTo   : today))
   const [expanded,    setExpanded]    = useState(null)
   const [page,        setPage]        = useState(0)
   const [sortAsc,     setSortAsc]     = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
+  const [recalcMsg,   setRecalcMsg]   = useState(null)
+
+  useMemo(() => {
+    if (customFrom) setFilterFrom(customFrom)
+    if (customTo)   setFilterTo(customTo)
+  }, [customFrom, customTo])
 
   const resetView = () => { setPage(0); setExpanded(null) }
+
+  const handleRecalcUsage = async () => {
+    if (filterFrom > filterTo) {
+      setRecalcMsg({ type: 'error', text: 'Start date cannot be after end date.' })
+      return
+    }
+    setRecalculating(true)
+    setRecalcMsg(null)
+    try {
+      const res = await recalculateUsage(filterFrom, filterTo, filterStore)
+      setRecalcMsg({
+        type: 'ok',
+        text: t('tx.recalcSuccess', { count: res.count, from: filterFrom, to: filterTo }) + (res.syncedDatabricks ? ' · Synced Databricks' : '')
+      })
+    } catch (err) {
+      setRecalcMsg({ type: 'error', text: 'Recalculation error: ' + err.message })
+    } finally {
+      setRecalculating(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const rows = posWaste.filter(r => {
@@ -376,7 +438,7 @@ function WasteTab() {
 
   return (
     <>
-      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4">
+      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 space-y-3">
         <div className="flex items-end gap-4 flex-wrap">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
@@ -397,12 +459,29 @@ function WasteTab() {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <span className="text-sm text-gray-500 pb-2">{t('tx.rows', { count: filtered.length })}</span>
-          {salesCache?.lastRefreshDate && (
-            <span className="text-xs text-gray-400 pb-2 ml-auto">
-              {t('tx.cachedThrough')} <span className="font-medium text-gray-600">{salesCache.lastRefreshDate}</span>
-            </span>
-          )}
+          <div className="flex-1" />
+          <div className="flex items-center gap-2 pb-0.5">
+            {salesCache?.lastRefreshDate && (
+              <span className="text-xs text-gray-400">
+                {t('tx.cachedThrough')} <span className="font-medium text-gray-600">{salesCache.lastRefreshDate}</span>
+              </span>
+            )}
+            <button onClick={handleRecalcUsage} disabled={recalculating}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+              title={t('tx.recalcDialogDesc')}>
+              <svg className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {recalculating ? t('tx.recalculating') : t('tx.recalcUsage')}
+            </button>
+          </div>
         </div>
+
+        {recalcMsg && (
+          <div className={`text-xs px-3 py-2 rounded-lg flex items-center justify-between ${recalcMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+            <span>{recalcMsg.text}</span>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -801,16 +880,201 @@ function MonthlyConsumptionTab() {
   )
 }
 
+// ─── Recalculate Usage Modal ──────────────────────────────────────────────────
+
+function RecalcUsageModal({ isOpen, onClose, onNavigateSales }) {
+  const { recalculateUsage, reportFrom, reportTo, stores, salesCache } = useConfig()
+  const { t } = useLanguage()
+  const sevenDaysAgo = useMemo(() => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10), [])
+  const todayStr     = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
+  const [from, setFrom] = useState(reportFrom || sevenDaysAgo)
+  const [to, setTo]     = useState(reportTo || todayStr)
+  const [store, setStore] = useState('All')
+  const [running, setRunning] = useState(false)
+  const [result, setResult]   = useState(null)
+  const [error, setError]     = useState(null)
+
+  const previewCount = useMemo(() => {
+    const rows = salesCache?.rows || []
+    return rows.filter(r => {
+      if (store !== 'All' && (r.store ?? r.store_name) !== store) return false
+      return r.date >= from && r.date <= to
+    }).length
+  }, [salesCache, from, to, store])
+
+  if (!isOpen) return null
+
+  const handleRecalculate = async () => {
+    if (from > to) {
+      setError('Start date cannot be after end date.')
+      return
+    }
+    setRunning(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await recalculateUsage(from, to, store)
+      setResult(res)
+    } catch (e) {
+      setError(e.message || 'Recalculation failed')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 max-w-lg w-full overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">{t('tx.recalcDialogTitle')}</h2>
+              <p className="text-xs text-gray-500">{t('tx.recalcDialogDesc')}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('common.from')}</label>
+              <input
+                type="date"
+                value={from}
+                onChange={e => { setFrom(e.target.value); setResult(null); setError(null) }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('common.to')}</label>
+              <input
+                type="date"
+                value={to}
+                onChange={e => { setTo(e.target.value); setResult(null); setError(null) }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('common.store')}</label>
+            <select
+              value={store}
+              onChange={e => { setStore(e.target.value); setResult(null); setError(null) }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              <option value="All">{t('common.allStores')}</option>
+              {stores.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-900 space-y-1">
+            <p className="font-medium flex items-center justify-between">
+              <span>Transactions in range:</span>
+              <span className="font-semibold text-indigo-700 tabular-nums">{previewCount} rows</span>
+            </p>
+            <p className="text-indigo-600">
+              Applies current recipes from Cloudflare D1 across all matching transactions from {from} to {to}.
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="bg-green-50 border border-green-200 text-green-800 text-xs px-3 py-2.5 rounded-lg space-y-2">
+              <p className="font-medium">
+                ✓ {t('tx.recalcSuccess', { count: result.count, from: result.fromDate, to: result.toDate })}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-green-700">
+                <span>{result.recipesCount} recipes loaded from D1</span>
+                {result.syncedDatabricks && <span>Synced with Databricks</span>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          {result ? (
+            <button
+              onClick={() => {
+                onNavigateSales?.(from, to, store)
+                onClose()
+              }}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              {t('tx.recalcViewSales')} →
+            </button>
+          ) : <div />}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              disabled={running}
+              className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {t('tx.recalcClose')}
+            </button>
+            <button
+              onClick={handleRecalculate}
+              disabled={running}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              <svg className={`w-3.5 h-3.5 ${running ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {running ? t('tx.recalculating') : t('tx.recalcUsage')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Transactions({ activeTab = 'sales', onTabChange }) {
   const { t } = useLanguage()
+  const [showRecalcModal, setShowRecalcModal] = useState(false)
+  const [salesDates, setSalesDates] = useState({ from: null, to: null })
+
+  const handleNavigateSales = (from, to) => {
+    setSalesDates({ from, to })
+    onTabChange?.('sales')
+  }
 
   return (
     <div className="p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">{t('tx.title')}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{t('tx.subtitle')}</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('tx.title')}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t('tx.subtitle')}</p>
+        </div>
+        <button
+          onClick={() => setShowRecalcModal(true)}
+          className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 shadow-sm transition-colors self-start sm:self-auto"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {t('tx.recalcUsage')}
+        </button>
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6 flex-wrap">
@@ -824,10 +1088,16 @@ export default function Transactions({ activeTab = 'sales', onTabChange }) {
         ))}
       </div>
 
-      {activeTab === 'sales'     && <SalesTab />}
-      {activeTab === 'waste'     && <WasteTab />}
+      {activeTab === 'sales'     && <SalesTab customFrom={salesDates.from} customTo={salesDates.to} />}
+      {activeTab === 'waste'     && <WasteTab customFrom={salesDates.from} customTo={salesDates.to} />}
       {activeTab === 'transfers' && <TransfersTab />}
       {activeTab === 'monthly'   && <MonthlyConsumptionTab />}
+
+      <RecalcUsageModal
+        isOpen={showRecalcModal}
+        onClose={() => setShowRecalcModal(false)}
+        onNavigateSales={handleNavigateSales}
+      />
     </div>
   )
 }

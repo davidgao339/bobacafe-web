@@ -201,6 +201,14 @@ const ru = {
   'tx.ingredientLoss':  'Потери — {{qty}} × {{product}}',
   'tx.noRecipe':        'нет рецепта',
   'tx.date':            'Дата',
+  'tx.recalcUsage':     'Пересчитать расход',
+  'tx.recalculating':   'Пересчет…',
+  'tx.recalcSuccess':   'Пересчитан расход для {{count}} транзакций ({{from}} → {{to}})',
+  'tx.recalcDialogTitle': 'Пересчитать расход',
+  'tx.recalcDialogDesc': 'Выберите диапазон дат для повторной загрузки транзакций и пересчета расхода ингредиентов по актуальным рецептам.',
+  'tx.recalcRange':     'Диапазон времени',
+  'tx.recalcClose':     'Закрыть',
+  'tx.recalcViewSales': 'Перейти к продажам',
 
   // Recipes
   'recipes.title':            'Рецептура и настройки',

@@ -201,6 +201,14 @@ const en = {
   'tx.ingredientLoss':  'Ingredient loss — {{qty}} × {{product}}',
   'tx.noRecipe':        'no recipe',
   'tx.date':            'Date',
+  'tx.recalcUsage':     'Recalculate Usage',
+  'tx.recalculating':   'Recalculating…',
+  'tx.recalcSuccess':   'Recalculated usage for {{count}} transactions ({{from}} → {{to}})',
+  'tx.recalcDialogTitle': 'Recalculate Usage',
+  'tx.recalcDialogDesc': 'Select a time range to re-fetch sales transactions and recompute ingredient consumption using the latest recipes.',
+  'tx.recalcRange':     'Time Range',
+  'tx.recalcClose':     'Close',
+  'tx.recalcViewSales': 'View in Sales Tab',
 
   // Recipes
   'recipes.title':            'Recipes & Config',

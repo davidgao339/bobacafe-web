@@ -532,6 +532,59 @@ export function ConfigProvider({ children }) {
     return { upToDate: false, newRows: newRows.length, fromDate, toDate }
   }, [salesCache])
 
+  const recalculateUsage = useCallback(async (fromDate, toDate, store = 'All') => {
+    // 1. Refresh retail recipes from D1 so current formulas are fresh
+    const recRes = await queryD1("SELECT * FROM recipes WHERE type = 'retail'")
+    const freshRecipes = Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)]))
+    const freshHidden = Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)]))
+    setConfigState(prev => ({
+      ...prev,
+      recipes: freshRecipes,
+      hiddenRecipes: freshHidden,
+    }))
+
+    // 2. Fetch fresh transactions from Databricks if token/warehouseId available
+    let syncedDatabricks = false
+    let newRowsCount = 0
+    const token = settings.token?.trim()
+    let warehouseId = settings.warehouseId?.trim()
+    if (warehouseId) {
+      const match = warehouseId.match(/(?:warehouses|endpoints)\/([a-zA-Z0-9]+)/) || warehouseId.match(/([a-fA-F0-9]{16})/)
+      if (match) warehouseId = match[1]
+    }
+
+    let latestRows = salesCache?.rows ?? []
+    if (token && warehouseId && fromDate && toDate) {
+      try {
+        const result = await refreshSales(token, warehouseId, fromDate, toDate)
+        syncedDatabricks = true
+        newRowsCount = result.newRows || 0
+        const updatedCache = await idbGet(SALES_CACHE_KEY)
+        if (updatedCache?.rows) {
+          latestRows = updatedCache.rows
+        }
+      } catch (err) {
+        console.warn('Databricks sync failed during recalculation, using cached data:', err)
+      }
+    }
+
+    // 3. Filter target transactions within range
+    const matchingRows = latestRows.filter(r => {
+      if (store !== 'All' && (r.store ?? r.store_name) !== store) return false
+      return r.date >= fromDate && r.date <= toDate
+    })
+
+    return {
+      success: true,
+      count: matchingRows.length,
+      fromDate,
+      toDate,
+      recipesCount: Object.keys(freshRecipes).length,
+      syncedDatabricks,
+      newRowsCount,
+    }
+  }, [settings, refreshSales, salesCache])
+
   // Removed cloud backups logic, D1 is now the source of truth
   const exportConfig = useCallback(() => {
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
@@ -650,7 +703,7 @@ export function ConfigProvider({ children }) {
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility,
-      settings, saveSettings, updateOzonMapping, refreshSales,
+      settings, saveSettings, updateOzonMapping, refreshSales, recalculateUsage,
       reportFrom, reportTo,
       exportConfig, importConfig,
       addSupplier, updateSupplier, deleteSupplier,
