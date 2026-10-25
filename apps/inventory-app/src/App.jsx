@@ -153,13 +153,13 @@ function LogisticsView({ onLogout }) {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 gap-4 flex-wrap">
-        <div className="flex items-center gap-6">
+      <header className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 bg-white border-b border-gray-200 gap-2">
+        <div className="flex items-center gap-4">
           <div>
             <p className="font-semibold text-gray-800 text-sm">Boba Cafe · Склад</p>
             <p className="text-xs text-gray-400">Менеджер</p>
           </div>
-          <div className="flex items-center bg-gray-100 p-1 rounded-lg">
+          <div className="hidden md:flex items-center bg-gray-100 p-1 rounded-lg">
             <button
               onClick={() => setActiveTab('levels')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -192,11 +192,11 @@ function LogisticsView({ onLogout }) {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2">
           {hasData && (
             <button onClick={handleLoad}
               className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors">
-              Обновить данные
+              Обновить
             </button>
           )}
           <button onClick={onLogout}
@@ -205,7 +205,7 @@ function LogisticsView({ onLogout }) {
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pb-16 md:pb-0">
         {activeTab === 'levels' ? (
           <InventoryLevels onNavigate={handleNavigateFromLevels} />
         ) : activeTab === 'ledger' ? (
@@ -218,7 +218,121 @@ function LogisticsView({ onLogout }) {
           <TapiocaCookingPlan />
         )}
       </div>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 px-2 py-1 flex items-center justify-around shadow-lg no-print">
+        <button
+          onClick={() => setActiveTab('levels')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+            activeTab === 'levels' ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <svg className={`w-5 h-5 ${activeTab === 'levels' ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          <span className="text-[10px] mt-0.5 leading-tight">{t('nav.inventory')}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('ledger')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+            activeTab === 'ledger' ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <svg className={`w-5 h-5 ${activeTab === 'ledger' ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span className="text-[10px] mt-0.5 leading-tight">{t('nav.usage')}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('tapioca')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+            activeTab === 'tapioca' ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <svg className={`w-5 h-5 ${activeTab === 'tapioca' ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+          </svg>
+          <span className="text-[10px] mt-0.5 leading-tight">{t('nav.tapioca')}</span>
+        </button>
+      </nav>
     </div>
+  )
+}
+
+function MobileBottomNav({ onOpenMenu }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { t } = useLanguage()
+  const current = location.pathname.split('/')[1] || 'inventory'
+
+  const items = [
+    {
+      id: 'inventory',
+      path: '/inventory',
+      label: t('nav.inventory'),
+      icon: (active) => (
+        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+      )
+    },
+    {
+      id: 'audit',
+      path: '/audit',
+      label: t('nav.countStock'),
+      icon: (active) => (
+        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3"/>
+        </svg>
+      )
+    },
+    {
+      id: 'tapioca',
+      path: '/tapioca',
+      label: t('nav.tapioca'),
+      icon: (active) => (
+        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+        </svg>
+      )
+    },
+    {
+      id: 'purchases',
+      path: '/purchases',
+      label: t('nav.purchases'),
+      icon: (active) => (
+        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      )
+    },
+  ]
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 px-1 py-1 flex items-center justify-around shadow-lg no-print">
+      {items.map(item => {
+        const active = current === item.id
+        return (
+          <button
+            key={item.id}
+            onClick={() => navigate(item.path)}
+            className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+              active ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            {item.icon(active)}
+            <span className="text-[10px] mt-0.5 truncate max-w-[68px] leading-tight text-center">{item.label}</span>
+          </button>
+        )
+      })}
+      <button
+        onClick={onOpenMenu}
+        className="flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] text-gray-500 hover:text-gray-900 transition-colors"
+      >
+        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        <span className="text-[10px] mt-0.5 leading-tight">{t('nav.more')}</span>
+      </button>
+    </nav>
   )
 }
 
@@ -253,21 +367,29 @@ function AppContent({ role, onLogout }) {
           />
         </div>
       )}
-      <main className="flex-1 overflow-auto flex flex-col">
+      <main className="flex-1 overflow-hidden flex flex-col">
         {!isStandalone && (
-          <div className="md:hidden flex items-center px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-10 no-print">
+          <div className="md:hidden flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-200 sticky top-0 z-10 no-print">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMobileNavOpen(true)}
+                className="p-1.5 -ml-1 rounded-md text-gray-600 hover:bg-gray-100 min-w-[36px] min-h-[36px] flex items-center justify-center"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+              </button>
+              <span className="font-semibold text-gray-800 text-sm">BOBA · Inventory</span>
+            </div>
             <button
-              onClick={() => setMobileNavOpen(true)}
-              className="p-1 rounded-md text-gray-600 hover:bg-gray-100"
+              onClick={onLogout}
+              className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 border border-gray-200 rounded-md transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
-              </svg>
+              Sign out
             </button>
-            <span className="ml-3 font-semibold text-gray-800 text-sm">BOBA · Inventory</span>
           </div>
         )}
-        <div className="flex-1 overflow-auto bg-gray-50">
+        <div className="flex-1 overflow-auto bg-gray-50 pb-16 md:pb-0">
           <Routes>
             <Route path="/" element={<Navigate to="/inventory" replace />} />
             <Route path="/quick-count" element={<StandaloneCount />} />
@@ -291,6 +413,7 @@ function AppContent({ role, onLogout }) {
             <Route path="*" element={<Navigate to="/inventory" replace />} />
           </Routes>
         </div>
+        <MobileBottomNav onOpenMenu={() => setMobileNavOpen(true)} />
       </main>
     </div>
   )

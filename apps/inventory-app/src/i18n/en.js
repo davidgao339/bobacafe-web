@@ -19,6 +19,7 @@ const en = {
   'nav.group.reconciliation': 'Reconciliation',
   'nav.group.masterData': 'Master Data & Setup',
   'nav.group.retailOps': 'Retail Ops',
+  'nav.more': 'More',
 
   // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Select an ingredient from the list',
@@ -56,6 +57,7 @@ const en = {
   'common.cancel':      'Cancel',
   'common.edit':        'Edit',
   'common.delete':      'Delete',
+  'common.back':        'Back',
   'common.yes':         'Yes',
   'common.no':          'No',
   'common.search':      'Search',
@@ -138,7 +140,8 @@ const en = {
   'audit.importSuccess':     'Successfully imported {{count}} audit(s)',
   'audit.importWarnings':    'Column warnings (skipped):',
   'audit.importNoRows':      'No data rows found in file',
-  'audit.importBadHeader':   'CSV must have "store" and "date" as first two columns',
+  'audit.details':           'Details',
+  'audit.hideDetails':       'Hide Details',
 
   // Inventory Levels
   'levels.title':          'Inventory Levels',

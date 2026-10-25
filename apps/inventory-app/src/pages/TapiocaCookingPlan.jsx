@@ -41,13 +41,13 @@ export default function TapiocaCookingPlan() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 space-y-5 max-w-7xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
           <span>🧋</span> Tapioca Cooking Plan
         </h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <p className="text-gray-500 text-xs sm:text-sm mt-1">
           Based on {tapiocaSales.length.toLocaleString()} tapioca transactions
           {lastSync && ` • Data as of: ${lastSync}`}
         </p>
@@ -57,10 +57,10 @@ export default function TapiocaCookingPlan() {
       </div>
 
       {/* Controls Bar */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
-        <div className="flex items-end gap-6 flex-wrap">
+      <div className="bg-white border border-gray-200 rounded-xl p-3.5 sm:p-4 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 flex-wrap">
           {/* Rolling Days Slider */}
-          <div>
+          <div className="w-full sm:w-48">
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Rolling Average Days: <strong className="text-gray-900">{rollingDays}</strong>
             </label>
@@ -70,9 +70,9 @@ export default function TapiocaCookingPlan() {
               max="180"
               value={rollingDays}
               onChange={e => setRollingDays(parseInt(e.target.value, 10))}
-              className="w-48 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
-            <div className="text-[11px] text-gray-400 mt-1 flex justify-between w-48">
+            <div className="text-[11px] text-gray-400 mt-1 flex justify-between w-full">
               <span>7d</span>
               <span>90d</span>
               <span>180d</span>
@@ -80,14 +80,14 @@ export default function TapiocaCookingPlan() {
           </div>
 
           {/* Percentile Selection */}
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Percentile Standard</label>
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 border border-gray-200">
+            <div className="grid grid-cols-5 sm:flex gap-1 bg-gray-100 rounded-lg p-1 border border-gray-200">
               {['avg', 'p75', 'p90', 'p95', 'max'].map(pct => (
                 <button
                   key={pct}
                   onClick={() => setPercentile(pct)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  className={`py-2 sm:px-3 sm:py-1.5 rounded-md text-xs font-medium text-center transition-all ${
                     percentile === pct
                       ? 'bg-slate-700 text-white shadow-xs'
                       : 'bg-transparent text-gray-600 hover:text-gray-900 hover:bg-white/50'
@@ -105,6 +105,7 @@ export default function TapiocaCookingPlan() {
             <div className="flex items-center gap-1.5">
               <input
                 type="number"
+                inputMode="numeric"
                 min="1"
                 max="200"
                 value={gramsPerPortion}

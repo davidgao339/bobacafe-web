@@ -145,6 +145,204 @@ function IngredientsTab() {
           Show hidden
         </label>
       </div>
+
+      {/* Mobile card list */}
+      <div className="md:hidden divide-y divide-gray-100">
+        {adding && (
+          <div className="p-4 bg-blue-50/80 space-y-3">
+            <p className="text-xs font-semibold text-blue-900">{t('recipes.addIngredient')}</p>
+            <div>
+              <label className="text-xs font-medium text-gray-700">{t('common.name')}</label>
+              <input autoFocus placeholder={t('recipes.namePlaceholder')} value={newIng.name}
+                onChange={e => setNewIng(v => ({ ...v, name: e.target.value }))}
+                className="mt-1 border border-blue-300 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-gray-700">{t('common.unit')}</label>
+                <input placeholder={t('recipes.unitPlaceholder')} value={newIng.unit}
+                  onChange={e => setNewIng(v => ({ ...v, unit: e.target.value }))}
+                  className="mt-1 border border-blue-300 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">{t('recipes.productType')}</label>
+                <select value={newIng.productType ?? ''}
+                  onChange={e => setNewIng(v => ({ ...v, productType: e.target.value }))}
+                  className="mt-1 border border-blue-300 rounded-lg px-2 py-2 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full">
+                  <option value="">{t('recipes.typeAuto')}</option>
+                  {PRODUCT_TYPES.filter(pt => pt.id !== 'other').map(pt => (
+                    <option key={pt.id} value={pt.id}>
+                      {isRu ? pt.nameRu : pt.nameEn} ({pt.roundStep} {pt.defaultUnit || newIng.unit})
+                    </option>
+                  ))}
+                  <option value="other">{isRu ? 'Другое' : 'Other'}</option>
+                </select>
+              </div>
+            </div>
+            {hasSuppliers && (
+              <div>
+                <label className="text-xs font-medium text-gray-700">{t('recipes.supplier')}</label>
+                <select value={newIng.supplierId ?? ''} onChange={e => setNewIng(v => ({ ...v, supplierId: e.target.value ? Number(e.target.value) : null }))}
+                  className="mt-1 border border-blue-300 rounded-lg px-2 py-2 text-xs text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full">
+                  <option value="">{t('recipes.supplierOther')}</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            )}
+            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer pt-1">
+              <input type="checkbox" checked={newIng.warehouseOnly} onChange={e => setNewIng(v => ({...v, warehouseOnly: e.target.checked}))} className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+              W.H. Only
+            </label>
+            <div className="flex gap-2 pt-1">
+              <button onClick={addIngredient} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 min-h-[36px]">{t('recipes.add')}</button>
+              <button onClick={() => { setAdding(false); setNewIng({ name: '', unit: '', supplierId: null, productType: '', warehouseOnly: false }) }} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-xs hover:bg-gray-50 min-h-[36px]">{t('common.cancel')}</button>
+            </div>
+          </div>
+        )}
+
+        {visibleIngredients.map(ing => {
+          const usedIn = Object.entries(config.recipes)
+            .filter(([, recipe]) => (recipe[ing.id] ?? 0) > 0)
+            .map(([product, recipe]) => ({ product, qty: recipe[ing.id] }))
+          const isExpanded = expandedIngId === ing.id
+          const effectivePt = getProductType(ing)
+          const detected = detectProductType(ing.name, ing.unit)
+          const supplier = suppliers.find(s => s.id === ing.supplierId)
+
+          if (editingId === ing.id) {
+            return (
+              <div key={ing.id} className="p-4 bg-blue-50/70 space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-700">{t('common.name')}</label>
+                  <input autoFocus value={editVals.name}
+                    onChange={e => setEditVals(v => ({ ...v, name: e.target.value }))}
+                    className="mt-1 border border-blue-300 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-gray-700">{t('common.unit')}</label>
+                    <input value={editVals.unit}
+                      onChange={e => setEditVals(v => ({ ...v, unit: e.target.value }))}
+                      className="mt-1 border border-blue-300 rounded-lg px-3 py-2 text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-700">{t('recipes.productType')}</label>
+                    <select value={editVals.productType ?? ''}
+                      onChange={e => setEditVals(v => ({ ...v, productType: e.target.value }))}
+                      className="mt-1 border border-blue-300 rounded-lg px-2 py-2 text-xs text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full">
+                      <option value="">
+                        {detected
+                          ? `✨ ${isRu ? detected.nameRu : detected.nameEn} (${detected.roundStep})`
+                          : t('recipes.typeAuto')}
+                      </option>
+                      {PRODUCT_TYPES.filter(pt => pt.id !== 'other').map(pt => (
+                        <option key={pt.id} value={pt.id}>
+                          {isRu ? pt.nameRu : pt.nameEn} ({pt.roundStep} {pt.defaultUnit || ing.unit})
+                        </option>
+                      ))}
+                      <option value="other">{isRu ? 'Другое' : 'Other'}</option>
+                    </select>
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer pt-1">
+                  <input type="checkbox" checked={editVals.warehouseOnly} onChange={e => setEditVals(v => ({...v, warehouseOnly: e.target.checked}))} className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+                  Warehouse Only
+                </label>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={saveEdit} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 min-h-[36px]">{t('common.save')}</button>
+                  <button onClick={() => setEditingId(null)} className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-xs hover:bg-gray-50 min-h-[36px]">{t('common.cancel')}</button>
+                </div>
+              </div>
+            )
+          }
+
+          return (
+            <div key={ing.id} className={`p-3.5 space-y-2 ${isExpanded ? 'bg-blue-50/30' : ''} ${ing.hidden ? 'opacity-60 bg-gray-50/50' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <button
+                    onClick={() => setExpandedIngId(id => id === ing.id ? null : ing.id)}
+                    className="text-left font-medium text-gray-900 flex items-center gap-1.5"
+                  >
+                    <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+                    <span>{ing.name}</span>
+                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1 ml-5">
+                    <span className="text-xs text-gray-500 font-medium bg-gray-100 px-1.5 py-0.5 rounded">{ing.unit}</span>
+                    {effectivePt && (
+                      <span className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded font-medium">
+                        {isRu ? effectivePt.nameRu : effectivePt.nameEn}
+                      </span>
+                    )}
+                    {supplier && (
+                      <span className="text-[10px] text-gray-600 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded">
+                        {supplier.name}
+                      </span>
+                    )}
+                    {ing.warehouseOnly && (
+                      <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded font-medium">
+                        W.H. Only
+                      </span>
+                    )}
+                    {ing.hidden && (
+                      <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                        Hidden
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold shrink-0">
+                  {usedIn.length} {isRu ? 'рец.' : 'recipes'}
+                </span>
+              </div>
+
+              {isExpanded && (
+                <div className="mt-2 ml-5 p-2.5 bg-blue-50/60 rounded-lg space-y-1.5">
+                  <p className="text-[11px] font-medium text-blue-900">Используется в:</p>
+                  {usedIn.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">{t('recipes.notUsedAnywhere')}</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {usedIn.map(({ product, qty }) => (
+                        <span key={product} className="inline-flex items-center gap-1 bg-white border border-blue-200 rounded-md px-2 py-0.5 text-xs text-gray-700 shadow-xs">
+                          <span className="font-medium">{product}:</span>
+                          <span className="text-blue-600 font-semibold">{qty} {ing.unit}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1 border-t border-gray-50 ml-5">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => toggleWarehouseOnly(ing.id)} className={`text-xs px-2 py-1 rounded min-h-[36px] ${ing.warehouseOnly ? 'text-purple-700 bg-purple-50 font-medium' : 'text-gray-400 hover:text-purple-600'}`}>
+                    W.H. Only
+                  </button>
+                  <button onClick={() => toggleHidden(ing.id)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 min-h-[36px]">
+                    {ing.hidden ? 'Unhide' : 'Hide'}
+                  </button>
+                </div>
+                {pendingDeleteId === ing.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-red-600">{t('recipes.removeFromRecipes')}?</span>
+                    <button onClick={() => { deleteIngredient(ing.id); setPendingDeleteId(null) }} className="text-xs px-2 py-1 bg-red-600 text-white rounded min-h-[32px]">Да</button>
+                    <button onClick={() => setPendingDeleteId(null)} className="text-xs px-2 py-1 text-gray-500 min-h-[32px]">Нет</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => startEdit(ing)} className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 min-h-[36px]">{t('common.edit')}</button>
+                    <button onClick={() => setPendingDeleteId(ing.id)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1 min-h-[36px]">{t('common.delete')}</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
@@ -339,10 +537,11 @@ function IngredientsTab() {
           )}
         </tbody>
       </table>
+      </div>
       {!adding && (
-        <div className="px-6 py-3 border-t border-gray-100">
-          <button onClick={() => setAdding(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-            {t('recipes.addIngredient')}
+        <div className="px-4 md:px-6 py-3 border-t border-gray-100 flex items-center justify-between">
+          <button onClick={() => setAdding(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium min-h-[36px] flex items-center">
+            + {t('recipes.addIngredient')}
           </button>
         </div>
       )}
@@ -568,7 +767,9 @@ function RecipesTab() {
   return (
     <div className="flex flex-col md:flex-row gap-4 md:h-[580px]">
       {/* Left: product list */}
-      <div className="w-full md:w-72 flex-shrink-0 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white h-52 md:h-auto">
+      <div className={`w-full md:w-72 flex-shrink-0 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white ${
+        selected ? 'hidden md:flex' : 'flex min-h-[460px] md:min-h-0'
+      }`}>
         <div className="p-3 border-b border-gray-100 space-y-2">
           <input type="text" placeholder={t('recipes.searchPlaceholder')} value={search}
             onChange={e => setSearch(e.target.value)}
@@ -622,15 +823,23 @@ function RecipesTab() {
 
       {/* Right: recipe viewer / editor */}
       {selected ? (
-        <div className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
-          <div className={`px-5 py-4 border-b border-gray-100 flex items-center justify-between ${editing ? 'bg-blue-50' : 'bg-gray-50'}`}>
-            <div>
-              <h3 className="font-semibold text-gray-900">{selected}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {editing
-                  ? t('recipes.editingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })
-                  : t('recipes.viewingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })}
-              </p>
+        <div className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white min-h-[460px] md:min-h-0">
+          <div className={`px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 ${editing ? 'bg-blue-50' : 'bg-gray-50'}`}>
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => setSelected(null)}
+                className="md:hidden flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 px-2 py-1 rounded-md shadow-xs min-h-[32px]"
+              >
+                ← {t('common.back') || 'Back'}
+              </button>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm sm:text-base leading-tight">{selected}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {editing
+                    ? t('recipes.editingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })
+                    : t('recipes.viewingLabel', { type: isWasteOnly(selected) ? t('recipes.wasted') : t('recipes.sold') })}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {editing ? (
@@ -814,7 +1023,7 @@ function RecipesTab() {
           )}
         </div>
       ) : (
-        <div className="flex-1 border border-gray-200 rounded-xl bg-gray-50/50 flex items-center justify-center">
+        <div className="hidden md:flex flex-1 border border-gray-200 rounded-xl bg-gray-50/50 items-center justify-center">
           <p className="text-sm text-gray-400">{t('recipes.selectProduct')}</p>
         </div>
       )}
@@ -861,31 +1070,31 @@ export default function Recipes({ activeTab = 'ingredients', onTabChange }) {
   }
 
   return (
-    <div className="p-4 md:p-8 flex flex-col">
-      <div className="mb-6 flex items-start justify-between">
+    <div className="p-3 sm:p-4 md:p-8 flex flex-col">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{t('recipes.title')}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">{t('recipes.title')}</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             {t('recipes.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {importError && <span className="text-xs text-red-500">{importError}</span>}
           <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
           <button
             onClick={handleRecalc}
             disabled={recalcing}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50 min-h-[36px]"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${recalcing ? 'animate-spin' : ''}`} />
             {recalcOk ? t('recipes.recalcOk') : t('recipes.recalc')}
           </button>
           <button onClick={() => importRef.current.click()}
-            className="px-3 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
+            className="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors min-h-[36px]">
             {t('recipes.importConfig')}
           </button>
           <button onClick={exportConfig}
-            className="px-3 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
+            className="px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors min-h-[36px]">
             {t('recipes.exportConfig')}
           </button>
         </div>

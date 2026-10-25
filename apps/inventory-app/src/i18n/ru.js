@@ -19,6 +19,7 @@ const ru = {
   'nav.group.reconciliation': 'Сверка',
   'nav.group.masterData': 'Справочники и Настройки',
   'nav.group.retailOps': 'Розница',
+  'nav.more': 'Ещё',
 
   // Usage Report (legacy keys kept for compatibility)
   'usage.selectIngredient': 'Выберите ингредиент из списка',
@@ -56,6 +57,7 @@ const ru = {
   'common.cancel':      'Отмена',
   'common.edit':        'Изменить',
   'common.delete':      'Удалить',
+  'common.back':        'Назад',
   'common.yes':         'Да',
   'common.no':          'Нет',
   'common.search':      'Поиск',
@@ -138,7 +140,8 @@ const ru = {
   'audit.importSuccess':     'Импортировано инвентаризаций: {{count}}',
   'audit.importWarnings':    'Предупреждения по столбцам (пропущены):',
   'audit.importNoRows':      'В файле не найдено строк данных',
-  'audit.importBadHeader':   'CSV должен начинаться со столбцов "store" и "date"',
+  'audit.details':           'Подробнее',
+  'audit.hideDetails':       'Скрыть',
 
   // Inventory Levels
   'levels.title':          'Уровень запасов',

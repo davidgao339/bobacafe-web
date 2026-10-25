@@ -686,54 +686,103 @@ function TransfersTab() {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-            <th className="px-5 py-3 font-medium">{t('tx.date')}</th>
-            <th className="px-4 py-3 font-medium">{t('common.store')}</th>
-            <th className="px-4 py-3 font-medium">{t('common.ingredient')}</th>
-            <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
-            <th className="px-4 py-3 font-medium text-gray-400 font-normal">PO</th>
-            <th className="px-4 py-3 w-32"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {txns.map(tx => (
-            <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
-              <td className="px-5 py-2.5 text-gray-500 font-mono text-xs">{tx.date}</td>
-              <td className="px-4 py-2.5 text-gray-800">{tx.store}</td>
-              <td className="px-4 py-2.5 text-gray-800">{ingName(tx.ingredientId)}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                <span className={tx.quantity >= 0 ? 'text-green-600' : 'text-red-500'}>
+      {/* Mobile cards view */}
+      <div className="md:hidden divide-y divide-gray-100">
+        {txns.map(tx => (
+          <div key={tx.id} className="p-3.5 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">{ingName(tx.ingredientId)}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-gray-500 font-mono">{tx.date}</span>
+                  <span className="text-xs text-gray-700 bg-gray-100 px-2 py-0.5 rounded font-medium">{tx.store}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`text-sm font-bold tabular-nums ${tx.quantity >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                   {tx.quantity >= 0 ? '+' : ''}{tx.quantity}{' '}
-                  <span className="text-gray-400 text-xs font-normal">{ingUnit(tx.ingredientId)}</span>
+                  <span className="text-xs font-normal text-gray-500">{ingUnit(tx.ingredientId)}</span>
                 </span>
-              </td>
-              <td className="px-4 py-2.5 text-xs">
-                {tx.poId == null
-                  ? <span className="text-gray-300">no link</span>
-                  : poExists(tx.poId)
-                    ? <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium">{tx.poId}</span>
-                    : <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-medium">{tx.poId} · orphaned</span>
-                }
-              </td>
-              <td className="px-4 py-2.5 text-right">
-                {pendingDelete === tx.id
-                  ? <div className="flex gap-2 items-center justify-end">
-                      <span className="text-xs text-red-600">{t('tx.confirmDelete')}</span>
-                      <button onClick={() => { deleteTransaction(tx.id); setPendingDelete(null) }}
-                        className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
-                      <button onClick={() => setPendingDelete(null)}
-                        className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
-                    </div>
-                  : <button onClick={() => setPendingDelete(tx.id)}
-                      className="text-xs text-red-400 hover:text-red-600">{t('tx.deleteTransfer')}</button>
-                }
-              </td>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-gray-50 text-xs">
+              <div>
+                {tx.poId == null ? (
+                  <span className="text-gray-300">no link</span>
+                ) : poExists(tx.poId) ? (
+                  <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium">{tx.poId}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-medium">{tx.poId} · orphaned</span>
+                )}
+              </div>
+              {pendingDelete === tx.id ? (
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs text-red-600">{t('tx.confirmDelete')}?</span>
+                  <button onClick={() => { deleteTransaction(tx.id); setPendingDelete(null) }}
+                    className="text-xs px-2.5 py-1 bg-red-500 text-white rounded hover:bg-red-600 min-h-[32px]">{t('common.yes')}</button>
+                  <button onClick={() => setPendingDelete(null)}
+                    className="text-xs px-2.5 py-1 text-gray-500 hover:text-gray-700 min-h-[32px]">{t('common.no')}</button>
+                </div>
+              ) : (
+                <button onClick={() => setPendingDelete(tx.id)}
+                  className="text-xs text-red-500 hover:text-red-700 py-1 px-2 min-h-[32px] font-medium">{t('tx.deleteTransfer')}</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+              <th className="px-5 py-3 font-medium">{t('tx.date')}</th>
+              <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+              <th className="px-4 py-3 font-medium">{t('common.ingredient')}</th>
+              <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
+              <th className="px-4 py-3 font-medium text-gray-400 font-normal">PO</th>
+              <th className="px-4 py-3 w-32"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {txns.map(tx => (
+              <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-5 py-2.5 text-gray-500 font-mono text-xs">{tx.date}</td>
+                <td className="px-4 py-2.5 text-gray-800">{tx.store}</td>
+                <td className="px-4 py-2.5 text-gray-800">{ingName(tx.ingredientId)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                  <span className={tx.quantity >= 0 ? 'text-green-600' : 'text-red-500'}>
+                    {tx.quantity >= 0 ? '+' : ''}{tx.quantity}{' '}
+                    <span className="text-gray-400 text-xs font-normal">{ingUnit(tx.ingredientId)}</span>
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-xs">
+                  {tx.poId == null
+                    ? <span className="text-gray-300">no link</span>
+                    : poExists(tx.poId)
+                      ? <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium">{tx.poId}</span>
+                      : <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-medium">{tx.poId} · orphaned</span>
+                  }
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  {pendingDelete === tx.id
+                    ? <div className="flex gap-2 items-center justify-end">
+                        <span className="text-xs text-red-600">{t('tx.confirmDelete')}</span>
+                        <button onClick={() => { deleteTransaction(tx.id); setPendingDelete(null) }}
+                          className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
+                        <button onClick={() => setPendingDelete(null)}
+                          className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
+                      </div>
+                    : <button onClick={() => setPendingDelete(tx.id)}
+                        className="text-xs text-red-400 hover:text-red-600">{t('tx.deleteTransfer')}</button>
+                  }
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -749,6 +798,7 @@ function MonthlyConsumptionTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortCol, setSortCol] = useState('name')
   const [sortAsc, setSortAsc] = useState(true)
+  const [expandedIng, setExpandedIng] = useState(null)
 
   // Calculate monthly consumption
   const data = useMemo(() => {
@@ -855,7 +905,63 @@ function MonthlyConsumptionTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto">
+      {/* Mobile Card View (md:hidden) */}
+      <div className="md:hidden space-y-2.5 mb-4">
+        {filteredAndSortedRows.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-gray-400 text-sm">
+            {t('tx.noMatch')}
+          </div>
+        ) : (
+          filteredAndSortedRows.map(r => {
+            const isExpanded = expandedIng === r.id
+            return (
+              <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-xs">
+                <button
+                  onClick={() => setExpandedIng(id => id === r.id ? null : r.id)}
+                  className="w-full flex items-start justify-between text-left"
+                >
+                  <div className="flex-1 pr-2">
+                    <p className="font-semibold text-gray-900 text-sm">{r.name}</p>
+                    <span className="text-xs text-gray-400">{r.unit}</span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-gray-400 block uppercase font-medium">{t('tx.colTotal') || 'Total'}</span>
+                    <span className="text-sm font-bold text-blue-700 tabular-nums">
+                      {r.total.toFixed(2).replace(/\.00$/, '')} {r.unit}
+                    </span>
+                  </div>
+                </button>
+
+                <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+                  <span className="text-gray-500 font-medium">{data.months.length} {data.months.length === 1 ? 'month' : 'months'}</span>
+                  <button
+                    onClick={() => setExpandedIng(id => id === r.id ? null : r.id)}
+                    className="text-blue-600 font-medium py-1 px-2 -mr-2"
+                  >
+                    {isExpanded ? 'Скрыть ▲' : 'По месяцам ▼'}
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 bg-gray-50 p-2.5 rounded-lg text-xs">
+                    {data.months.map(m => (
+                      <div key={m} className="flex items-center justify-between p-1 border-b border-gray-200/60 last:border-0">
+                        <span className="text-gray-500 font-mono text-[11px]">{m}:</span>
+                        <span className="font-semibold tabular-nums text-gray-800">
+                          {r.amounts[m] > 0 ? r.amounts[m].toFixed(2).replace(/\.00$/, '') : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop Table View (hidden md:block) */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">

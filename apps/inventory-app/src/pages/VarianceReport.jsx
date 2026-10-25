@@ -203,7 +203,91 @@ function StoreSection({ store, issuesOnly, search }) {
           : <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">{t('variance.allGood')}</span>
         }
       </div>
-      <div className="overflow-x-auto">
+      {/* Mobile card list */}
+      <div className="md:hidden divide-y divide-gray-100">
+        {visibleRows.length === 0 ? (
+          <p className="px-4 py-8 text-center text-gray-400 text-sm">
+            {rows.length === 0 ? t('variance.noData') : t('variance.noIssues')}
+          </p>
+        ) : (
+          visibleRows.map(r => {
+            const b      = badge(r.pct, t)
+            const isOpen = expanded === r.id
+            const rowBg  = isOpen ? 'bg-blue-50/70' : r.pct < -10 ? 'bg-red-50/40' : r.pct < -5 ? 'bg-amber-50/30' : ''
+            return (
+              <div key={r.id} className={`p-4 transition-colors ${rowBg}`}>
+                <div
+                  onClick={() => setExpanded(prev => prev === r.id ? null : r.id)}
+                  className="cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">{r.name}</p>
+                      {r.openDate && r.closeDate && (
+                        <p className="text-[11px] text-gray-400 font-mono mt-0.5">{r.openDate} → {r.closeDate}</p>
+                      )}
+                    </div>
+                    {r.expected === 0 && r.actual > 0
+                      ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 shrink-0">{t('variance.noRecipeSales')}</span>
+                      : <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${b.style}`}>
+                          {r.pct !== 0 ? `${r.pct > 0 ? '+' : ''}${r.pct}% ${b.label}` : b.label}
+                        </span>
+                    }
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 bg-white/70 border border-gray-100 rounded-lg p-2.5 text-xs text-center mb-2">
+                    <div>
+                      <span className="text-[10px] text-gray-400 block mb-0.5">{t('variance.shouldHaveUsed')}</span>
+                      <span className="font-medium text-gray-600 tabular-nums">
+                        {r.expected > 0 ? `${r.expected} ${r.unit}` : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 block mb-0.5">{t('variance.actuallyUsed')}</span>
+                      <span className="font-semibold text-gray-900 tabular-nums">{r.actual} {r.unit}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 block mb-0.5">{t('variance.colVariance')}</span>
+                      <span className={`font-bold tabular-nums ${
+                        r.lost < 0 ? 'text-red-600' : r.lost > 0 ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        {r.lost < 0 ? `${r.lost} ${r.unit}` : r.lost > 0 ? `+${r.lost} ${r.unit}` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 font-medium flex items-center gap-1"
+                  >
+                    {isOpen ? 'Скрыть баланс' : 'Детализация баланса'}
+                    <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+
+                {isOpen && (
+                  <div className="mt-3 pt-3 border-t border-blue-100">
+                    <DetailCard
+                      store={store}
+                      ingredient={{ id: r.id, name: r.name, unit: r.unit }}
+                      iwin={r.iwin}
+                      config={config}
+                      data={data}
+                      sales={sales}
+                      posWaste={posWaste}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-400 border-b border-gray-100">

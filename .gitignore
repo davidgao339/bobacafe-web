@@ -7,3 +7,4 @@
 !**/requirements.txt
 .streamlit/
 credentials.json
+scratch_pw/

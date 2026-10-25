@@ -358,8 +358,45 @@ export default function InventoryLevels({ onNavigate }) {
           )}
         </div>
       </div>
+      {/* Mobile matrix cards */}
+      <div className="md:hidden space-y-2.5">
+        {matrixRows.map(({ ing, cells }) => (
+          <div key={ing.id} className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-gray-900 text-sm">{ing.name}</span>
+              <span className="text-xs text-gray-400">{ing.unit}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {cells.map(({ store, qty, daysLeft, status, hasData }) => (
+                <div
+                  key={store}
+                  onClick={() => hasData && onNavigate?.('usage', null, { store, ingredientId: ing.id })}
+                  className={`p-2 rounded-lg border text-xs flex flex-col justify-between ${
+                    status === 'depleted' || status === 'critical' ? 'bg-red-50 border-red-200 text-red-800' :
+                    status === 'low' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    'bg-gray-50 border-gray-100 text-gray-700'
+                  } ${hasData && onNavigate ? 'cursor-pointer active:scale-98 transition-transform' : ''}`}
+                >
+                  <span className="font-medium text-[11px] text-gray-500 truncate">{store}</span>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="font-bold text-sm tabular-nums">
+                      {hasData ? qty : '—'}
+                    </span>
+                    {daysLeft !== null && hasData && (
+                      <span className="text-[10px] font-medium opacity-80">
+                        {daysLeft < 1 ? '<1d' : `~${Math.round(daysLeft)}d`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         <table className="text-sm" style={{ minWidth: `${220 + filteredStores.length * 110}px` }}>
           <thead>
             <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">

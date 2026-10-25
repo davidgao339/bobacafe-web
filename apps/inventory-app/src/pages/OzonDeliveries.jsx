@@ -212,18 +212,21 @@ export default function OzonDeliveries() {
           
           <div className="space-y-2 mb-4">
             {lines.map((l, i) => (
-              <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm bg-gray-50 p-2 rounded">
-                <div className="flex-1 min-w-0" title={l.rawName}>
-                  <div className="truncate font-medium text-gray-800">
-                    {l.rawName || 'Unknown Item'}
-                    {l.date && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">{l.date}</span>}
+              <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2.5 text-sm bg-white sm:bg-gray-50 p-3 sm:p-2 rounded-xl sm:rounded border sm:border-0 border-gray-200 shadow-xs sm:shadow-none">
+                <div className="flex items-start justify-between sm:block flex-1 min-w-0" title={l.rawName}>
+                  <div>
+                    <div className="font-semibold sm:font-medium text-gray-800 text-sm">
+                      {l.rawName || 'Unknown Item'}
+                      {l.date && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">{l.date}</span>}
+                    </div>
+                    {pdfFile && l.pageNum && (
+                      <button onClick={() => setPreviewItem({ pageNum: l.pageNum, y: l.y })} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium mt-1 inline-flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                        Preview in PDF
+                      </button>
+                    )}
                   </div>
-                  {pdfFile && l.pageNum && (
-                    <button onClick={() => setPreviewItem({ pageNum: l.pageNum, y: l.y })} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium mt-1 inline-flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                      Preview in PDF
-                    </button>
-                  )}
+                  <button onClick={() => setLines(lines.filter((_, idx) => idx !== i))} className="sm:hidden text-gray-400 hover:text-red-500 p-1">✕</button>
                 </div>
                 
                 <div className="w-full sm:w-64 shrink-0">
@@ -240,22 +243,24 @@ export default function OzonDeliveries() {
                       n[i].ingredientId = match ? match.id : ''
                       setLines(n)
                     }}
-                    className="border border-gray-300 rounded px-2 py-1 w-full"
+                    className="border border-gray-300 rounded-lg sm:rounded px-2.5 py-1.5 sm:py-1 text-xs sm:text-sm w-full bg-white"
                   />
                 </div>
-                <div className="flex items-center border border-gray-300 rounded overflow-hidden shrink-0">
-                  <input type="number" title="Ozon Qty" value={l.qty} onChange={e => {
-                    const n = [...lines]; n[i].qty = e.target.value; setLines(n)
-                  }} className="px-2 py-1 w-16 text-center focus:outline-none border-r border-gray-200" min="0" step="any" />
-                  <span className="text-gray-400 text-sm px-2 bg-gray-50">×</span>
-                  <input type="number" title="Base units per Ozon item" value={l.multiplier || 1} onChange={e => {
-                    const n = [...lines]; n[i].multiplier = e.target.value; setLines(n)
-                  }} className="px-2 py-1 w-20 text-center focus:outline-none border-l border-gray-200" min="0" step="any" />
+                <div className="flex items-center justify-between sm:justify-start gap-2">
+                  <div className="flex items-center border border-gray-300 rounded-lg sm:rounded overflow-hidden shrink-0 bg-white">
+                    <input type="number" inputMode="decimal" title="Ozon Qty" value={l.qty} onChange={e => {
+                      const n = [...lines]; n[i].qty = e.target.value; setLines(n)
+                    }} className="px-2 py-1.5 sm:py-1 w-16 text-center focus:outline-none border-r border-gray-200 text-sm" min="0" step="any" />
+                    <span className="text-gray-400 text-sm px-2 bg-gray-50">×</span>
+                    <input type="number" inputMode="decimal" title="Base units per Ozon item" value={l.multiplier || 1} onChange={e => {
+                      const n = [...lines]; n[i].multiplier = e.target.value; setLines(n)
+                    }} className="px-2 py-1.5 sm:py-1 w-20 text-center focus:outline-none border-l border-gray-200 text-sm" min="0" step="any" />
+                  </div>
+                  <div className="w-auto sm:w-24 shrink-0 text-right text-xs sm:text-sm text-gray-700 font-medium whitespace-nowrap">
+                    = <span className="font-bold text-gray-900">{Math.round((l.qty || 0) * (l.multiplier || 1))}</span> {l.ingredientId ? (config.ingredients.find(ing => ing.id === Number(l.ingredientId))?.unit || '') : ''}
+                  </div>
+                  <button onClick={() => setLines(lines.filter((_, idx) => idx !== i))} className="hidden sm:inline-block text-red-500 px-2 shrink-0">✕</button>
                 </div>
-                <div className="w-24 shrink-0 text-right text-sm text-gray-600 font-medium whitespace-nowrap">
-                  = {Math.round((l.qty || 0) * (l.multiplier || 1))} {l.ingredientId ? (config.ingredients.find(ing => ing.id === Number(l.ingredientId))?.unit || '') : ''}
-                </div>
-                <button onClick={() => setLines(lines.filter((_, idx) => idx !== i))} className="text-red-500 px-2 shrink-0">✕</button>
               </div>
             ))}
           </div>
@@ -289,33 +294,35 @@ export default function OzonDeliveries() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
         {pos.length === 0 && <p className="p-4 text-sm text-gray-500 text-center">No Ozon deliveries yet.</p>}
         {pos.map(po => (
-          <div key={po.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
+          <div key={po.id} className="p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 hover:bg-gray-50">
             <div>
               <div className="font-medium text-sm text-gray-900">{po.id} <span className="text-gray-400 text-xs ml-2">{po.store}</span></div>
-              <div className="text-xs text-gray-500 mt-1">{po.receivedDate} • {po.lines.length} items</div>
+              <div className="text-xs text-gray-500 mt-0.5">{po.receivedDate} • {po.lines.length} items</div>
             </div>
-            <div className="flex gap-4 items-center">
-              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Received</span>
-              <button onClick={() => {
-                if (confirm('Load this delivery back into the editor? This will delete the saved record so you can remap/re-save it.')) {
-                  deletePurchaseOrder(po.id)
-                  const restoredLines = po.lines.map(pl => ({
-                    rawName: pl.rawName || 'Restored Item',
-                    qty: pl.received || pl.ordered,
-                    ingredientId: pl.ingredientId,
-                    ingredientName: config.ingredients.find(i => i.id == pl.ingredientId)?.name || '',
-                    date: po.receivedDate
-                  }))
-                  setLines(prev => [...prev, ...restoredLines])
-                  setStore(po.store)
-                  window.scrollTo({ top: 0, behavior: 'smooth' })
-                }
-              }} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
-              <button onClick={() => {
-                if (confirm('Delete this Ozon delivery? This cannot be undone.')) {
-                  deletePurchaseOrder(po.id)
-                }
-              }} className="text-sm text-red-600 hover:text-red-800 font-medium">Delete</button>
+            <div className="flex gap-3 items-center justify-between sm:justify-end mt-1 sm:mt-0">
+              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Received</span>
+              <div className="flex gap-3">
+                <button onClick={() => {
+                  if (confirm('Load this delivery back into the editor? This will delete the saved record so you can remap/re-save it.')) {
+                    deletePurchaseOrder(po.id)
+                    const restoredLines = po.lines.map(pl => ({
+                      rawName: pl.rawName || 'Restored Item',
+                      qty: pl.received || pl.ordered,
+                      ingredientId: pl.ingredientId,
+                      ingredientName: config.ingredients.find(i => i.id == pl.ingredientId)?.name || '',
+                      date: po.receivedDate
+                    }))
+                    setLines(prev => [...prev, ...restoredLines])
+                    setStore(po.store)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }
+                }} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
+                <button onClick={() => {
+                  if (confirm('Delete this Ozon delivery? This cannot be undone.')) {
+                    deletePurchaseOrder(po.id)
+                  }
+                }} className="text-sm text-red-600 hover:text-red-800 font-medium">Delete</button>
+              </div>
             </div>
           </div>
         ))}

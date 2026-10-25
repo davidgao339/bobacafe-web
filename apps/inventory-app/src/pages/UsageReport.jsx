@@ -254,10 +254,12 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
       </div>
 
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden px-4 md:px-8 pb-4 md:pb-8 gap-5 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden px-3 md:px-8 pb-3 md:pb-8 gap-4 md:gap-5 min-h-0">
 
         {/* Ingredient list */}
-        <div className="w-full md:w-60 flex-shrink-0 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-48 md:h-auto">
+        <div className={`w-full md:w-60 flex-shrink-0 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden ${
+          selectedId != null ? 'hidden md:flex' : 'flex-1 min-h-[460px] md:min-h-0'
+        }`}>
           <div className="p-2.5 border-b border-gray-100">
             <div className="relative">
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none"
@@ -281,13 +283,13 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
             {listItems.map(ing => (
               <button key={ing.id}
                 onClick={() => { setSelectedId(ing.id); setExpandedDate(null) }}
-                className={`w-full flex items-center justify-between px-3 py-2 border-b border-gray-50 last:border-0 transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 border-b border-gray-50 last:border-0 transition-colors min-h-[44px] ${
                   selectedId === ing.id ? 'bg-blue-50' : 'hover:bg-gray-50'
                 }`}>
                 <span className={`text-left font-medium truncate flex-1 mr-2 text-xs ${selectedId === ing.id ? 'text-blue-700' : 'text-gray-700'}`}>
                   {ing.name}
                 </span>
-                <span className={`tabular-nums text-xs flex-shrink-0 ${selectedId === ing.id ? 'text-blue-500' : 'text-gray-400'}`}>
+                <span className={`tabular-nums text-xs flex-shrink-0 ${selectedId === ing.id ? 'text-blue-500 font-semibold' : 'text-gray-400'}`}>
                   {ing.estimate !== 0 ? `${ing.estimate} ${ing.unit}` : '—'}
                 </span>
               </button>
@@ -296,7 +298,7 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
         </div>
 
         {/* Daily ledger */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div className={`flex-1 overflow-y-auto min-w-0 ${selectedId == null ? 'hidden md:block' : 'block'}`}>
           {selectedId == null ? (
             <div className="h-full flex items-center justify-center">
               <p className="text-sm text-gray-400">{t('usage.selectIngredient')}</p>
@@ -310,13 +312,25 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
             </div>
           ) : !auditInfo ? (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
-              {t('ledger.noAudit')}
+              <button
+                onClick={() => setSelectedId(null)}
+                className="md:hidden mb-4 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white border border-blue-200 px-2.5 py-1.5 rounded-lg shadow-xs"
+              >
+                ← {t('common.back') || 'Back'}
+              </button>
+              <p>{t('ledger.noAudit')}</p>
             </div>
           ) : (
             <>
-              <div className="flex items-baseline gap-3 mb-3">
-                <h2 className="text-lg font-semibold text-gray-900">{selectedIng?.name}</h2>
-                <span className="text-sm text-gray-400">{selectedIng?.unit}</span>
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 flex-wrap">
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="md:hidden flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 px-2.5 py-1.5 rounded-lg shadow-xs min-h-[32px]"
+                >
+                  ← {t('common.back') || 'Back'}
+                </button>
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900">{selectedIng?.name}</h2>
+                <span className="text-xs sm:text-sm text-gray-400">{selectedIng?.unit}</span>
                 <span className="text-xs text-gray-400 ml-auto">
                   {t('ledger.auditBase', { date: auditInfo.date, base: auditInfo.base })}
                 </span>
@@ -327,157 +341,249 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
                   {t('ledger.noActivity')}
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
-                        <th className="px-5 py-3 font-medium">{t('common.date')}</th>
-                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colUsage')}</th>
-                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colTransferOut')}</th>
-                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colReceived')}</th>
-                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colAuditAdj')}</th>
-                        <th className="px-4 py-3 font-medium text-right">{t('ledger.colEnding')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ledgerRows.map((row, i) => (
-                        <Fragment key={row.date}>
-                          <tr
-                            onClick={() => row.details.length > 0 && setExpandedDate(d => d === row.date ? null : row.date)}
-                            className={`border-b border-gray-50 transition-colors select-none ${
-                              row.details.length > 0 ? 'cursor-pointer' : ''
-                            } ${
-                              expandedDate === row.date ? 'bg-blue-50' :
-                              row.auditAdj !== null    ? 'bg-purple-50/40' :
-                              row.date === today       ? 'bg-amber-50/50' :
-                                                        'hover:bg-gray-50'
-                            }`}>
-                            <td className="px-5 py-3 font-medium text-gray-900">
-                              <div className="flex items-center gap-2">
-                                {row.details.length > 0 && (
-                                  <svg className={`w-3 h-3 text-gray-400 transition-transform flex-shrink-0 ${expandedDate === row.date ? 'rotate-90' : ''}`}
-                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-                                  </svg>
-                                )}
-                                <span className={row.date === today ? 'text-amber-700 font-semibold' : ''}>
-                                  {row.date}
-                                </span>
-                                {row.date === today && (
-                                  <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded font-medium">
-                                    {t('ledger.today')}
-                                  </span>
-                                )}
-                                {row.auditAdj !== null && (
-                                  <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium">
-                                    {t('ledger.auditTag')}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-red-600">
-                              {row.usage > 0
-                                ? <span>−{row.usage} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-orange-600">
-                              {row.transferOut > 0
-                                ? <span>−{row.transferOut} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums">
-                              {row.received > 0
-                                ? <span className="text-green-600">+{row.received} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
-                                : row.received < 0
-                                ? <span className="text-red-600">−{Math.abs(row.received)} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums">
-                              {row.auditAdj !== null
-                                ? <span className={row.auditAdj >= 0 ? 'text-green-600' : 'text-red-500'}>
-                                    {row.auditAdj >= 0 ? '+' : ''}{row.auditAdj}{' '}
-                                    <span className="text-gray-400 text-xs">{selectedIng?.unit}</span>
-                                  </span>
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className={`px-4 py-3 text-right tabular-nums font-semibold ${
-                              i === 0 ? 'text-blue-700' : 'text-gray-800'
-                            }`}>
-                              {row.ending} <span className="text-gray-400 text-xs font-normal">{selectedIng?.unit}</span>
-                            </td>
-                          </tr>
+                <>
+                  {/* Mobile Activity Timeline (md:hidden) */}
+                  <div className="md:hidden space-y-2.5 mb-4">
+                    {ledgerRows.map((row) => (
+                      <div
+                        key={row.date}
+                        className={`bg-white rounded-xl border p-3.5 shadow-xs transition-colors ${
+                          row.auditAdj !== null ? 'border-purple-200 bg-purple-50/20' :
+                          row.date === today ? 'border-amber-200 bg-amber-50/20' :
+                          'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-semibold ${row.date === today ? 'text-amber-700' : 'text-gray-900'}`}>
+                              {row.date}
+                            </span>
+                            {row.date === today && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded">
+                                {t('ledger.today')}
+                              </span>
+                            )}
+                            {row.auditAdj !== null && (
+                              <span className="text-[10px] bg-purple-100 text-purple-700 font-semibold px-1.5 py-0.5 rounded">
+                                {t('ledger.auditTag')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 block uppercase font-medium">{t('ledger.colEnding')}</span>
+                            <span className="text-sm font-bold text-gray-900 tabular-nums">
+                              {row.ending} <span className="text-xs font-normal text-gray-500">{selectedIng?.unit}</span>
+                            </span>
+                          </div>
+                        </div>
 
-                          {expandedDate === row.date && (
-                            <tr className="bg-blue-50/60 border-b border-blue-100">
-                              <td colSpan={6} className="px-8 py-3">
-                                <div className="space-y-1.5">
-                                  {row.details.map((d, j) => (
-                                    <div key={j} className="flex items-center gap-3 text-xs">
-                                      <span className={`px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
-                                        d.kind === 'sale'         ? 'bg-blue-100 text-blue-700' :
-                                        d.kind === 'waste'        ? 'bg-amber-100 text-amber-700' :
-                                        d.kind === 'po'           ? 'bg-green-100 text-green-700' :
-                                        d.kind === 'adjustment'   ? 'bg-purple-100 text-purple-700' :
-                                        d.kind === 'production-yield' ? 'bg-green-100 text-green-700' :
-                                        d.kind === 'production-usage' ? 'bg-amber-100 text-amber-700' :
-                                        d.kind === 'audit'        ? 'bg-purple-100 text-purple-700' :
-                                        d.kind === 'transfer-out' ? 'bg-orange-100 text-orange-700' :
-                                        d.kind === 'transfer-in'  ? 'bg-teal-100 text-teal-700' :
-                                                                    'bg-gray-100 text-gray-600'
-                                      }`}>
-                                        {d.kind === 'sale'         ? t('ledger.kindSale') :
-                                         d.kind === 'waste'        ? t('ledger.kindWaste') :
-                                         d.kind === 'po'           ? `PO-${d.poId}` :
-                                         d.kind === 'production-yield' ? `YIELD (${d.prodId})` :
-                                         d.kind === 'production-usage' ? `USAGE (${d.prodId})` :
-                                         d.kind === 'adjustment'   ? (d.adjId ? `ADJ (${d.adjId})` : t('ledger.kindAdj')) :
-                                         d.kind === 'audit'        ? t('ledger.kindAudit') :
-                                         d.kind === 'transfer-out' ? t('ledger.kindTransferOut') :
-                                         d.kind === 'transfer-in'  ? t('ledger.kindTransferIn') :
-                                                                     d.kind}
-                                      </span>
-                                      {d.product && (
-                                        <span className="font-medium text-gray-800 flex-1 truncate">{d.product}</span>
-                                      )}
-                                      {d.soldQty != null && (
-                                        <span className="text-gray-400 flex-shrink-0">×{d.soldQty}</span>
-                                      )}
-                                      {d.kind === 'audit'
-                                        ? <span className="text-purple-700 font-semibold flex-shrink-0">
-                                            {t('ledger.auditCounted', { count: d.count, unit: selectedIng?.unit })}
-                                            {d.adj !== 0 && (
-                                              <span className={`ml-1.5 ${d.adj > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                                ({d.adj > 0 ? '+' : ''}{d.adj})
-                                              </span>
-                                            )}
-                                          </span>
-                                        : (() => {
-                                            const isPositive = d.kind === 'po' || d.kind === 'transfer-in'
-                                              || (d.kind === 'adjustment' && d.qty >= 0)
-                                            return (
-                                              <span className={`font-semibold flex-shrink-0 ${
-                                                d.kind === 'transfer-out'                          ? 'text-orange-600' :
-                                                d.kind === 'transfer-in'                           ? 'text-teal-700' :
-                                                d.kind === 'adjustment' && d.qty < 0              ? 'text-red-600' :
-                                                isPositive                                         ? 'text-green-700' :
-                                                                                                    'text-red-600'
-                                              }`}>
-                                                {isPositive ? '+' : '−'}
-                                                {d.kind === 'adjustment' ? Math.abs(d.qty) : (d.consumed ?? d.qty)} {selectedIng?.unit}
-                                              </span>
-                                            )
-                                          })()}
-                                    </div>
-                                  ))}
+                        <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
+                          {row.usage > 0 && (
+                            <div className="bg-red-50 text-red-700 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+                              <span className="text-gray-500">{t('ledger.colUsage')}:</span>
+                              <span className="font-semibold tabular-nums">−{row.usage}</span>
+                            </div>
+                          )}
+                          {row.transferOut > 0 && (
+                            <div className="bg-orange-50 text-orange-800 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+                              <span className="text-gray-500">{t('ledger.colTransferOut')}:</span>
+                              <span className="font-semibold tabular-nums">−{row.transferOut}</span>
+                            </div>
+                          )}
+                          {row.received > 0 && (
+                            <div className="bg-green-50 text-green-700 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+                              <span className="text-gray-500">{t('ledger.colReceived')}:</span>
+                              <span className="font-semibold tabular-nums">+{row.received}</span>
+                            </div>
+                          )}
+                          {row.auditAdj !== null && (
+                            <div className="bg-purple-50 text-purple-700 px-2.5 py-1.5 rounded-lg flex items-center justify-between col-span-2">
+                              <span className="text-gray-500">{t('ledger.colAuditAdj')}:</span>
+                              <span className="font-semibold tabular-nums">{row.auditAdj >= 0 ? `+${row.auditAdj}` : row.auditAdj}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {row.details.length > 0 && (
+                          <div className="mt-2.5 pt-2 border-t border-gray-100">
+                            <button
+                              onClick={() => setExpandedDate(d => d === row.date ? null : row.date)}
+                              className="w-full flex items-center justify-between text-xs text-blue-600 font-medium py-1"
+                            >
+                              <span>{row.details.length} операций</span>
+                              <span>{expandedDate === row.date ? 'Скрыть ▲' : 'Подробнее ▼'}</span>
+                            </button>
+                            {expandedDate === row.date && (
+                              <div className="mt-2 space-y-1.5 bg-gray-50 p-2.5 rounded-lg">
+                                {row.details.map((d, idx) => (
+                                  <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-gray-200/60 last:border-0">
+                                    <span className="text-gray-700 truncate mr-2">{d.product || d.kind}</span>
+                                    <span className="font-semibold tabular-nums shrink-0">
+                                      {d.consumed ? `−${d.consumed}` : d.qty ? `${d.qty > 0 ? '+' : ''}${d.qty}` : ''} {selectedIng?.unit}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table (hidden md:block) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
+                          <th className="px-5 py-3 font-medium">{t('common.date')}</th>
+                          <th className="px-4 py-3 font-medium text-right">{t('ledger.colUsage')}</th>
+                          <th className="px-4 py-3 font-medium text-right">{t('ledger.colTransferOut')}</th>
+                          <th className="px-4 py-3 font-medium text-right">{t('ledger.colReceived')}</th>
+                          <th className="px-4 py-3 font-medium text-right">{t('ledger.colAuditAdj')}</th>
+                          <th className="px-4 py-3 font-medium text-right">{t('ledger.colEnding')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ledgerRows.map((row, i) => (
+                          <Fragment key={row.date}>
+                            <tr
+                              onClick={() => row.details.length > 0 && setExpandedDate(d => d === row.date ? null : row.date)}
+                              className={`border-b border-gray-50 transition-colors select-none ${
+                                row.details.length > 0 ? 'cursor-pointer' : ''
+                              } ${
+                                expandedDate === row.date ? 'bg-blue-50' :
+                                row.auditAdj !== null    ? 'bg-purple-50/40' :
+                                row.date === today       ? 'bg-amber-50/50' :
+                                                          'hover:bg-gray-50'
+                              }`}>
+                              <td className="px-5 py-3 font-medium text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  {row.details.length > 0 && (
+                                    <svg className={`w-3 h-3 text-gray-400 transition-transform flex-shrink-0 ${expandedDate === row.date ? 'rotate-90' : ''}`}
+                                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                  )}
+                                  <span className={row.date === today ? 'text-amber-700 font-semibold' : ''}>
+                                    {row.date}
+                                  </span>
+                                  {row.date === today && (
+                                    <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded font-medium">
+                                      {t('ledger.today')}
+                                    </span>
+                                  )}
+                                  {row.auditAdj !== null && (
+                                    <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium">
+                                      {t('ledger.auditTag')}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-red-600">
+                                {row.usage > 0
+                                  ? <span>−{row.usage} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-orange-600">
+                                {row.transferOut > 0
+                                  ? <span>−{row.transferOut} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums">
+                                {row.received > 0
+                                  ? <span className="text-green-600">+{row.received} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                  : row.received < 0
+                                  ? <span className="text-red-600">−{Math.abs(row.received)} <span className="text-gray-400 text-xs">{selectedIng?.unit}</span></span>
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums">
+                                {row.auditAdj !== null
+                                  ? <span className={row.auditAdj >= 0 ? 'text-green-600' : 'text-red-500'}>
+                                      {row.auditAdj >= 0 ? '+' : ''}{row.auditAdj}{' '}
+                                      <span className="text-gray-400 text-xs">{selectedIng?.unit}</span>
+                                    </span>
+                                  : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className={`px-4 py-3 text-right tabular-nums font-semibold ${
+                                i === 0 ? 'text-blue-700' : 'text-gray-800'
+                              }`}>
+                                {row.ending} <span className="text-gray-400 text-xs font-normal">{selectedIng?.unit}</span>
+                              </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+
+                            {expandedDate === row.date && (
+                              <tr className="bg-blue-50/60 border-b border-blue-100">
+                                <td colSpan={6} className="px-8 py-3">
+                                  <div className="space-y-1.5">
+                                    {row.details.map((d, j) => (
+                                      <div key={j} className="flex items-center gap-3 text-xs">
+                                        <span className={`px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${
+                                          d.kind === 'sale'         ? 'bg-blue-100 text-blue-700' :
+                                          d.kind === 'waste'        ? 'bg-amber-100 text-amber-700' :
+                                          d.kind === 'po'           ? 'bg-green-100 text-green-700' :
+                                          d.kind === 'adjustment'   ? 'bg-purple-100 text-purple-700' :
+                                          d.kind === 'production-yield' ? 'bg-green-100 text-green-700' :
+                                          d.kind === 'production-usage' ? 'bg-amber-100 text-amber-700' :
+                                          d.kind === 'audit'        ? 'bg-purple-100 text-purple-700' :
+                                          d.kind === 'transfer-out' ? 'bg-orange-100 text-orange-700' :
+                                          d.kind === 'transfer-in'  ? 'bg-teal-100 text-teal-700' :
+                                                                      'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          {d.kind === 'sale'         ? t('ledger.kindSale') :
+                                           d.kind === 'waste'        ? t('ledger.kindWaste') :
+                                           d.kind === 'po'           ? `PO-${d.poId}` :
+                                           d.kind === 'production-yield' ? `YIELD (${d.prodId})` :
+                                           d.kind === 'production-usage' ? `USAGE (${d.prodId})` :
+                                           d.kind === 'adjustment'   ? (d.adjId ? `ADJ (${d.adjId})` : t('ledger.kindAdj')) :
+                                           d.kind === 'audit'        ? t('ledger.kindAudit') :
+                                           d.kind === 'transfer-out' ? t('ledger.kindTransferOut') :
+                                           d.kind === 'transfer-in'  ? t('ledger.kindTransferIn') :
+                                                                       d.kind}
+                                        </span>
+                                        {d.product && (
+                                          <span className="font-medium text-gray-800 flex-1 truncate">{d.product}</span>
+                                        )}
+                                        {d.soldQty != null && (
+                                          <span className="text-gray-400 flex-shrink-0">×{d.soldQty}</span>
+                                        )}
+                                        {d.kind === 'audit'
+                                          ? <span className="text-purple-700 font-semibold flex-shrink-0">
+                                              {t('ledger.auditCounted', { count: d.count, unit: selectedIng?.unit })}
+                                              {d.adj !== 0 && (
+                                                <span className={`ml-1.5 ${d.adj > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                  ({d.adj > 0 ? '+' : ''}{d.adj})
+                                                </span>
+                                              )}
+                                            </span>
+                                          : (() => {
+                                              const isPositive = d.kind === 'po' || d.kind === 'transfer-in'
+                                                || (d.kind === 'adjustment' && d.qty >= 0)
+                                              return (
+                                                <span className={`font-semibold flex-shrink-0 ${
+                                                  d.kind === 'transfer-out'                          ? 'text-orange-600' :
+                                                  d.kind === 'transfer-in'                           ? 'text-teal-700' :
+                                                  d.kind === 'adjustment' && d.qty < 0              ? 'text-red-600' :
+                                                  isPositive                                         ? 'text-green-700' :
+                                                                                                      'text-red-600'
+                                                }`}>
+                                                  {isPositive ? '+' : '−'}
+                                                  {d.kind === 'adjustment' ? Math.abs(d.qty) : (d.consumed ?? d.qty)} {selectedIng?.unit}
+                                                </span>
+                                              )
+                                            })()}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </>
           )}

@@ -284,7 +284,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
               )}
               <div className="flex items-center justify-between gap-3 w-full md:w-auto mt-2 md:mt-0">
                 <div className="relative flex-1 md:flex-none">
-                  <input type="number" min="0" step="0.1" placeholder="0" value={val}
+                  <input type="number" min="0" step="0.1" inputMode="decimal" placeholder="0" value={val}
                     onChange={e => handleChange(product.id, e.target.value)}
                     className={`w-full md:w-32 border-2 ${val === '' ? 'border-blue-100 bg-blue-50/30' : 'border-gray-200 bg-gray-50'} rounded-xl pl-4 md:pl-3 pr-10 py-3 md:py-2 text-lg md:text-sm font-semibold text-gray-900 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white tabular-nums transition-all`} />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm md:text-xs font-medium text-gray-400 pointer-events-none select-none">
@@ -311,9 +311,9 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
       <div className="h-24"></div>
 
-      <div className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 py-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-50">
-        <div className="max-w-4xl mx-auto flex items-center justify-between w-full px-4 md:px-8">
-          <div className="flex items-center gap-6">
+      <div className={`fixed ${hideHeader ? 'bottom-0' : 'bottom-14 md:bottom-0'} left-0 right-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 py-3 md:py-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-40`}>
+        <div className="max-w-4xl mx-auto flex items-center justify-between w-full px-3 md:px-8 gap-2">
+          <div className="flex items-center gap-4 sm:gap-6">
             <button onClick={() => {
               const msg = hideHeader
                 ? "Вы уверены, что хотите очистить все введенные данные? Это действие нельзя отменить."
@@ -323,7 +323,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
                 setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
               }
             }}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              className="text-xs sm:text-sm text-gray-500 hover:text-gray-700 transition-colors">
               {t('audit.clearAll')}
             </button>
             
@@ -337,7 +337,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {saved && (
               <span className="text-sm text-green-600 font-medium flex items-center gap-1.5 hidden sm:flex">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
@@ -345,16 +345,16 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
               </span>
             )}
             <button onClick={handleSaveProgress} disabled={filledCount === 0}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 filledCount > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
               }`}>
-              {hideHeader ? 'Сохранить прогресс' : 'Save Progress'}
+              {hideHeader ? 'Сохранить' : 'Save'}
             </button>
             <button onClick={handleSave} disabled={filledCount === 0}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm ${
+              className={`px-3.5 sm:px-6 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors shadow-sm ${
                 filledCount > 0 ? (isFlagged ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700') : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}>
-              {isFlagged ? (hideHeader ? 'Завершить (Требует проверки)' : 'Complete (Needs Review)') : (hideHeader ? 'Завершить инвент.' : 'Complete Audit')}
+              {isFlagged ? (hideHeader ? 'Завершить (!)' : 'Review') : (hideHeader ? 'Завершить' : 'Complete')}
             </button>
           </div>
         </div>
@@ -445,8 +445,183 @@ function HistoryTab() {
           {t('audit.noAuditsYet')}{historyStore !== 'All' ? ` for ${historyStore}` : ''}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-3">
+            {audits.map(audit => {
+              const isExpanded = expanded === audit.id
+              const isPending  = pendingDelete === audit.id
+              const isEditing  = editingId === audit.id
+              const counted    = Object.keys(audit.counts).length
+
+              return (
+                <div key={audit.id} className={`bg-white rounded-xl border shadow-xs overflow-hidden transition-all ${
+                  isExpanded || isEditing ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200'
+                }`}>
+                  <div
+                    onClick={() => { if (!isPending && !isEditing) setExpanded(prev => prev === audit.id ? null : audit.id) }}
+                    className="p-4 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900 text-sm">{audit.store}</span>
+                        <span className="font-mono text-xs text-gray-400">#{audit.id}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        audit.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                        audit.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {audit.status}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                      <span className="font-medium text-gray-700">{audit.date}</span>
+                      <span className="tabular-nums">
+                        {isEditing ? <span className="text-blue-600 font-semibold">{Object.keys(editCounts).length}</span> : counted} / {storeIngredients.length} {t('audit.colCounted').toLowerCase()}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setExpanded(prev => prev === audit.id ? null : audit.id)}
+                        className="text-xs text-blue-600 font-medium py-1 flex items-center gap-1"
+                      >
+                        {isExpanded ? (t('audit.hideDetails') || 'Скрыть') : (t('audit.details') || 'Подробнее')}
+                        <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {isPending ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-red-600 font-medium">{t('audit.deleteThisAudit')}</span>
+                            <button onClick={() => { deleteAudit(audit.id); setPendingDelete(null); if (expanded === audit.id) setExpanded(null) }}
+                              className="text-xs px-2.5 py-1 bg-red-600 text-white rounded-md font-medium">{t('common.yes')}</button>
+                            <button onClick={() => setPendingDelete(null)}
+                              className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md">{t('common.no')}</button>
+                          </div>
+                        ) : isEditing ? (
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => saveEdit(audit.id)}
+                              className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md font-medium">{t('common.save')}</button>
+                            <button onClick={cancelEdit}
+                              className="text-xs px-2 py-1 text-gray-500 border border-gray-200 rounded-md">{t('common.cancel')}</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); startEdit(audit); setExpanded(audit.id) }}
+                              className="text-xs px-2.5 py-1 text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-md transition-colors">{t('common.edit')}</button>
+                            <button onClick={() => setPendingDelete(audit.id)}
+                              className="text-xs px-2.5 py-1 text-red-600 hover:bg-red-50 border border-red-200 rounded-md transition-colors">{t('common.delete')}</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {(isExpanded || isEditing) && (
+                    <div className={`p-4 border-t ${isEditing ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50/70 border-gray-100'}`}>
+                      {audit.status === 'pending' && !isEditing && (() => {
+                        const prevAudit = [...data.audits]
+                          .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date)
+                          .sort((a, b) => b.date.localeCompare(a.date))[0]
+                        let hasAnyVariance = false
+                        for (const [id, val] of Object.entries(audit.counts)) {
+                          const prev = prevAudit?.counts[id]
+                          if (val != null && prev != null) {
+                            if (prev === 0 && val > 10) hasAnyVariance = true
+                            else if (prev > 0 && Math.abs(val - prev) / prev > 0.5 && Math.abs(val - prev) > 5) hasAnyVariance = true
+                          }
+                        }
+                        return (
+                          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-xs font-semibold text-amber-800">Manager Review Required</p>
+                            <p className="text-xs text-amber-700 mt-0.5 mb-2.5">
+                              {hasAnyVariance 
+                                ? "Suspiciously high variance detected." 
+                                : "Completed suspiciously fast."}
+                            </p>
+                            <div className="flex gap-2">
+                              <button onClick={() => updateAuditStatus(audit.id, 'approved')} className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-md">Approve</button>
+                              <button onClick={() => updateAuditStatus(audit.id, 'rejected')} className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded-md">Reject</button>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      {isEditing ? (
+                        <>
+                          <p className="text-xs text-blue-700 font-medium mb-2.5">
+                            {t('audit.editCountsHint')}
+                          </p>
+                          <div className="relative mb-2.5">
+                            <input type="text" placeholder={t('audit.filterPlaceholder')} value={editSearch}
+                              onChange={e => setEditSearch(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              ...storeIngredients.filter(ing => audit.counts[ing.id] != null),
+                              ...storeIngredients.filter(ing => audit.counts[ing.id] == null),
+                            ]
+                              .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
+                              .map(ing => {
+                                const inDraft = ing.id in editCounts
+                                return (
+                                  <div key={ing.id} className={`bg-white rounded-lg p-2 text-xs ${
+                                    inDraft ? 'border border-blue-200 shadow-xs' : 'border border-dashed border-gray-200 opacity-60'
+                                  }`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className={`truncate text-xs ${inDraft ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{ing.name}</p>
+                                      {inDraft && (
+                                        <button onClick={() => removeIng(ing.id)} className="text-gray-300 hover:text-red-400 ml-1">✕</button>
+                                      )}
+                                    </div>
+                                    <input type="number" min="0" step="0.1" inputMode="decimal" placeholder={inDraft ? undefined : '—'}
+                                      value={editCounts[ing.id] ?? ''}
+                                      onChange={e => setIngVal(ing.id, e.target.value)}
+                                      className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
+                                    <span className="text-[10px] text-gray-400 mt-0.5 block">{ing.unit}</span>
+                                  </div>
+                                )
+                              })
+                            }
+                          </div>
+                        </>
+                      ) : counted === 0 ? (
+                        <p className="text-xs text-gray-400">{t('audit.noCountsRecorded')}</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {storeIngredients
+                            .filter(ing => audit.counts[ing.id] != null)
+                            .map(ing => {
+                              const val = audit.counts[ing.id]
+                              return (
+                                <div key={ing.id} className="bg-white rounded-lg p-2 border border-gray-200/80 text-xs">
+                                  <p className="truncate text-gray-500 text-[11px]">{ing.name}</p>
+                                  <p className="font-semibold text-gray-900 tabular-nums mt-0.5 text-xs">
+                                    {val} <span className="font-normal text-gray-400 text-[10px]">{ing.unit}</span>
+                                  </p>
+                                </div>
+                              )
+                            })
+                          }
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
                 <th className="px-6 py-3 font-medium">{t('audit.colId')}</th>
@@ -636,6 +811,7 @@ function HistoryTab() {
             </tbody>
           </table>
         </div>
+      </>
       )}
     </>
   )

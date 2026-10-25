@@ -55,6 +55,7 @@ function NavItem({ id, labelKey, icon: Icon, children, currentPage, currentTab, 
   return (
     <div>
       <button
+        data-testid={`nav-${id}`}
         onClick={() => onNavigate(id)}
         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
           isActive ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
