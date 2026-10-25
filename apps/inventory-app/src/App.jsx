@@ -33,7 +33,12 @@ function LoginScreen({ pins, onLogin }) {
 
   const submit = () => {
     if (pins.admin      && pin === pins.admin)      { onLogin('admin');      return }
-    if (pins.logistics  && pin === pins.logistics)  { onLogin('logistics');  return }
+    if ((pins.logistics && pin === pins.logistics) || (pins.manager && pin === pins.manager)) { onLogin('logistics'); return }
+    if (pins.boba       && pin === pins.boba) {
+      sessionStorage.setItem('initialTab', 'tapioca')
+      onLogin('logistics')
+      return
+    }
     if (pins.quickCount && pin === pins.quickCount) { onLogin('quickCount'); return }
     setError(true)
     setPin('')
@@ -69,6 +74,8 @@ const _P = window.BC_PINS || {};
 const PINS = {
   admin:      _P.inv_admin     || '7530',
   logistics:  _P.inv_logistics || '9876',
+  manager:    _P.inv_manager   || _P.inv_logistics || '9876',
+  boba:       _P.boba          || '1023',
   quickCount: _P.quick_count   || '1234',
 }
 const ADMIN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
@@ -118,7 +125,15 @@ const DEFAULT_TABS = {
 function LogisticsView({ onLogout }) {
   const { config } = useConfig()
   const { t } = useLanguage()
-  const [activeTab, setActiveTab] = useState('levels') // 'levels' | 'ledger'
+  const location = useLocation()
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = sessionStorage.getItem('initialTab')
+    if (saved) {
+      sessionStorage.removeItem('initialTab')
+      return saved
+    }
+    return location.pathname === '/tapioca' ? 'tapioca' : 'levels'
+  })
   const [ledgerStore, setLedgerStore] = useState(null)
   const [ledgerIngredientId, setLedgerIngredientId] = useState(null)
 
@@ -165,6 +180,16 @@ function LogisticsView({ onLogout }) {
             >
               {t('nav.usage')}
             </button>
+            <button
+              onClick={() => setActiveTab('tapioca')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                activeTab === 'tapioca'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {t('nav.tapioca')}
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -183,12 +208,14 @@ function LogisticsView({ onLogout }) {
       <div className="flex-1 overflow-auto">
         {activeTab === 'levels' ? (
           <InventoryLevels onNavigate={handleNavigateFromLevels} />
-        ) : (
+        ) : activeTab === 'ledger' ? (
           <UsageReport
             key={`${ledgerStore ?? 'all'}-${ledgerIngredientId ?? 'none'}`}
             initialStore={ledgerStore}
             initialIngredientId={ledgerIngredientId}
           />
+        ) : (
+          <TapiocaCookingPlan />
         )}
       </div>
     </div>

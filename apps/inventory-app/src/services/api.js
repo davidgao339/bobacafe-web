@@ -8,13 +8,18 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
   if (!fromDate || !toDate) return []
 
   const statement = `
-    SELECT CAST(date AS STRING) AS date, store_name AS store, product,
-           transaction_type, is_topping, CAST(SUM(qty) AS DOUBLE) AS qty
+    SELECT CAST(date AS STRING) AS date,
+           COALESCE(CAST(datetime AS STRING), '') AS datetime,
+           store_name AS store,
+           product,
+           transaction_type,
+           is_topping,
+           CAST(SUM(qty) AS DOUBLE) AS qty
     FROM ${SALES_TABLE}
     WHERE date >= '${fromDate}' AND date <= '${toDate}'
       AND is_return = false
-    GROUP BY date, store_name, product, transaction_type, is_topping
-    ORDER BY date DESC
+    GROUP BY date, datetime, store_name, product, transaction_type, is_topping
+    ORDER BY date DESC, datetime DESC
   `
 
   const cleanStatement = statement.replace(/\s+/g, ' ').trim()
@@ -32,7 +37,7 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
         body: JSON.stringify({ 
           statement: cleanStatement, 
           warehouse_id: warehouseId, 
-          wait_timeout: '30s' 
+          wait_timeout: '50s' 
         }),
       })
 

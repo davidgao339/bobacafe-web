@@ -570,6 +570,15 @@
                 <div class="app-desc" data-ru="Центральный склад, поставки и логирование производства.">Central warehouse stock, supplier deliveries, and ingredient production logging.</div>
                 <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
             </div>
+            <div class="app-card" data-app="tapioca">
+                <div class="card-top">
+                    <div class="app-icon">🧋</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="План варки тапиоки">Tapioca Cooking Plan</div>
+                <div class="app-desc" data-ru="Рекомендации по варке тапиоки на основе темпа продаж.">Dynamic tapioca cooking batches based on sales velocity.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
         </div>
     </div>
 
@@ -684,6 +693,14 @@
             labelRu: 'Быстрая инвентаризация',
             icon:   '⏱️',
         },
+        'tapioca': {
+            url:    '/internal/inventory/tapioca',
+            pin:    _P.boba || '1023',
+            pins:   [_P.boba || '1023', _P.inv_logistics || '9876', _P.inv_manager || '9876', _P.inv_admin || '7530', MASTER_PIN],
+            label:  'Tapioca Cooking Plan',
+            labelRu: 'План варки тапиоки',
+            icon:   '🧋',
+        },
     };
 
     const SESSION_PREFIX = 'bc_pin_';
@@ -743,6 +760,13 @@
                     localStorage.setItem('whRole', 'warehouse');
                 } else {
                     localStorage.setItem('whRole', 'admin');
+                }
+            } else if (activeApp === 'tapioca') {
+                if (pin === (_P.inv_admin || '7530') || pin === MASTER_PIN) {
+                    localStorage.setItem('invRole', JSON.stringify({ role: 'admin', expires: Date.now() + 30 * 86400000 }));
+                } else {
+                    sessionStorage.setItem('invRole', 'logistics');
+                    sessionStorage.setItem('initialTab', 'tapioca');
                 }
             }
             closeModal();

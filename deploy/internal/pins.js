@@ -9,6 +9,8 @@ window.BC_PINS = {
   payroll:       '2372',  // payroll app manager password (master also works)
   inv_admin:     '7530',  // inventory app — admin role (30-day session)
   inv_logistics: '9876',  // inventory app — logistics role (tab session)
-  warehouse:     '8888',  // warehouse & production app
+  inv_manager:   '9876',  // inventory app — manager role (tab session)
+  warehouse:     '8888',  // warehouse & production app — warehouse manager
+  cook:          '3344',  // warehouse & production app — cook role
 };
 

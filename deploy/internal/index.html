@@ -552,6 +552,15 @@
                 <div class="app-desc" data-ru="Инвентаризация, расход ингредиентов, заявки на закупку.">Real-time ingredient tracking, stock audits, and purchase order generation.</div>
                 <div class="card-link" data-ru="Открыть →">Open App →</div>
             </a>
+            <div class="app-card" data-app="quick-count">
+                <div class="card-top">
+                    <div class="app-icon">⏱️</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Быстрая инвентаризация">Quick Count</div>
+                <div class="app-desc" data-ru="Быстрый ввод остатков для филиалов без полного доступа.">Fast inventory counting interface for branches without full access.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
             <div class="app-card" data-app="warehouse">
                 <div class="card-top">
                     <div class="app-icon">📦</div>
@@ -559,6 +568,15 @@
                 </div>
                 <div class="app-name" data-ru="Склад и производство">Warehouse & Production</div>
                 <div class="app-desc" data-ru="Центральный склад, поставки и логирование производства.">Central warehouse stock, supplier deliveries, and ingredient production logging.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
+            <div class="app-card" data-app="tapioca">
+                <div class="card-top">
+                    <div class="app-icon">🧋</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="План варки тапиоки">Tapioca Cooking Plan</div>
+                <div class="app-desc" data-ru="Рекомендации по варке тапиоки на основе темпа продаж.">Dynamic tapioca cooking batches based on sales velocity.</div>
                 <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
             </div>
         </div>
@@ -663,9 +681,25 @@
         'warehouse': {
             url:    '/internal/warehouse/',
             pin:    _P.warehouse || '8888',
+            pins:   [_P.warehouse || '8888', _P.cook || '3344'],
             label:  'Warehouse & Production',
             labelRu: 'Склад и производство',
             icon:   '📦',
+        },
+        'quick-count': {
+            url:    '/internal/inventory/quick-count',
+            pin:    _P.quick_count || '1234',
+            label:  'Quick Count',
+            labelRu: 'Быстрая инвентаризация',
+            icon:   '⏱️',
+        },
+        'tapioca': {
+            url:    '/internal/inventory/tapioca',
+            pin:    _P.boba || '1023',
+            pins:   [_P.boba || '1023', _P.inv_logistics || '9876', _P.inv_manager || '9876', _P.inv_admin || '7530', MASTER_PIN],
+            label:  'Tapioca Cooking Plan',
+            labelRu: 'План варки тапиоки',
+            icon:   '🧋',
         },
     };
 
@@ -716,8 +750,25 @@
 
     function attempt() {
         const app = APPS[activeApp];
-        if (pin === app.pin || pin === MASTER_PIN) {
+        const allowed = app.pins ? [...app.pins, MASTER_PIN] : [app.pin, MASTER_PIN];
+        if (allowed.includes(pin)) {
             sessionStorage.setItem(SESSION_PREFIX + activeApp, '1');
+            if (activeApp === 'warehouse') {
+                if (pin === (_P.cook || '3344')) {
+                    localStorage.setItem('whRole', 'cook');
+                } else if (pin === (_P.warehouse || '8888')) {
+                    localStorage.setItem('whRole', 'warehouse');
+                } else {
+                    localStorage.setItem('whRole', 'admin');
+                }
+            } else if (activeApp === 'tapioca') {
+                if (pin === (_P.inv_admin || '7530') || pin === MASTER_PIN) {
+                    localStorage.setItem('invRole', JSON.stringify({ role: 'admin', expires: Date.now() + 30 * 86400000 }));
+                } else {
+                    sessionStorage.setItem('invRole', 'logistics');
+                    sessionStorage.setItem('initialTab', 'tapioca');
+                }
+            }
             closeModal();
             navigate(app);
         } else {

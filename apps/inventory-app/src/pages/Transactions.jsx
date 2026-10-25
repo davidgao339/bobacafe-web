@@ -140,6 +140,7 @@ function SalesTab({ customFrom, customTo }) {
             <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); resetView() }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+
           <span className="text-sm text-gray-500 pb-2">{t('tx.rows', { count: filtered.length })}</span>
           <div className="flex-1" />
           <div className="flex items-center gap-2 pb-0.5">
@@ -238,6 +239,11 @@ function SalesTab({ customFrom, customTo }) {
                       <div className="flex items-center justify-between mb-0.5">
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                           <span className="font-mono">{s.date}</span>
+                          {s.time && (
+                            <span className="font-mono text-gray-600 bg-gray-100 px-1 rounded text-[11px]">
+                              {s.time.slice(0, 5)}
+                            </span>
+                          )}
                           <span>·</span>
                           <span>{s.store}</span>
                         </div>
@@ -280,7 +286,8 @@ function SalesTab({ customFrom, customTo }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-3 font-medium">{t('tx.date')}</th>
+                <th className="px-5 py-3 font-medium">{t('tx.date')}</th>
+                <th className="px-3 py-3 font-medium">{t('tx.time')}</th>
                 <th className="px-4 py-3 font-medium">{t('common.store')}</th>
                 <th className="px-4 py-3 font-medium">{t('common.name')}</th>
                 <th className="px-4 py-3 font-medium text-right">{t('tx.qtySold')}</th>
@@ -291,7 +298,8 @@ function SalesTab({ customFrom, customTo }) {
               {refreshing ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50 animate-pulse">
-                    <td className="px-6 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-5 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-14"></div></td>
                     <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
                     <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"></div></td>
@@ -304,7 +312,7 @@ function SalesTab({ customFrom, customTo }) {
                   </tr>
                 ))
               ) : filtered.length === 0
-                ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
+                ? <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
                 : pageRows.map(s => {
                     const impact = getSaleIngredientImpact(s.product, s.quantity)
                     const isOpen = expanded === s.id
@@ -312,10 +320,19 @@ function SalesTab({ customFrom, customTo }) {
                       <Fragment key={s.id}>
                         <tr onClick={() => toggle(s.id)}
                           className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer">
-                          <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{s.date}</td>
+                          <td className="px-5 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">{s.date}</td>
+                          <td className="px-3 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">
+                            {s.time ? (
+                              <span className="inline-block px-1.5 py-0.5 bg-gray-100 rounded text-gray-700 font-mono text-[11px] font-medium">
+                                {s.time.slice(0, 5)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 text-gray-800">{s.store}</td>
                           <td className="px-4 py-2.5 text-gray-800 text-xs">{s.product}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
                             {s.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
                           </td>
                           <td className="px-4 py-2.5">
@@ -330,7 +347,7 @@ function SalesTab({ customFrom, customTo }) {
                         </tr>
                         {isOpen && (
                           <tr className="bg-blue-50 border-b border-blue-100">
-                            <td colSpan={5} className="px-6 py-3">
+                            <td colSpan={6} className="px-6 py-3">
                               <p className="text-xs font-semibold text-blue-700 mb-2">
                                 {t('tx.recipeBreakdown', { qty: s.quantity, product: s.product })}
                               </p>
@@ -499,6 +516,11 @@ function WasteTab({ customFrom, customTo }) {
                       <div className="flex items-center justify-between mb-0.5">
                         <div className="flex items-center gap-2 text-xs text-gray-400">
                           <span className="font-mono">{r.date}</span>
+                          {r.time && (
+                            <span className="font-mono text-gray-600 bg-orange-100/70 px-1 rounded text-[11px]">
+                              {r.time.slice(0, 5)}
+                            </span>
+                          )}
                           <span>·</span>
                           <span>{r.store}</span>
                         </div>
@@ -542,13 +564,14 @@ function WasteTab({ customFrom, customTo }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-3 font-medium">
+                <th className="px-5 py-3 font-medium">
                   <button onClick={() => { setSortAsc(v => !v); resetView() }}
                     className="flex items-center gap-1 hover:text-gray-800 transition-colors">
                     {t('tx.date')}
                     <span className="text-gray-300">{sortAsc ? '↑' : '↓'}</span>
                   </button>
                 </th>
+                <th className="px-3 py-3 font-medium">{t('tx.time')}</th>
                 <th className="px-4 py-3 font-medium">{t('common.store')}</th>
                 <th className="px-4 py-3 font-medium">{t('tx.itemWrittenOff')}</th>
                 <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
@@ -557,7 +580,7 @@ function WasteTab({ customFrom, customTo }) {
             </thead>
             <tbody>
               {filtered.length === 0
-                ? <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-400 text-sm">
+                ? <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400 text-sm">
                     {posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}
                   </td></tr>
                 : pageRows.map(r => {
@@ -567,10 +590,19 @@ function WasteTab({ customFrom, customTo }) {
                       <Fragment key={r.id}>
                         <tr onClick={() => toggle(r.id)}
                           className="border-b border-gray-50 hover:bg-orange-50 cursor-pointer">
-                          <td className="px-6 py-2.5 text-gray-500 font-mono text-xs">{r.date}</td>
+                          <td className="px-5 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">{r.date}</td>
+                          <td className="px-3 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">
+                            {r.time ? (
+                              <span className="inline-block px-1.5 py-0.5 bg-orange-50 border border-orange-100 rounded text-orange-800 font-mono text-[11px] font-medium">
+                                {r.time.slice(0, 5)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5 text-gray-800">{r.store}</td>
                           <td className="px-4 py-2.5 text-gray-800 text-xs">{r.product}</td>
-                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800">
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
                             {r.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
                           </td>
                           <td className="px-4 py-2.5">
@@ -586,7 +618,7 @@ function WasteTab({ customFrom, customTo }) {
                         </tr>
                         {isOpen && impact.length > 0 && (
                           <tr className="bg-orange-50 border-b border-orange-100">
-                            <td colSpan={5} className="px-6 py-3">
+                            <td colSpan={6} className="px-6 py-3">
                               <p className="text-xs font-semibold text-orange-700 mb-2">
                                 {t('tx.ingredientLoss', { qty: r.quantity, product: r.product })}
                               </p>

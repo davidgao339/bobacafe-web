@@ -26,15 +26,41 @@ export const DEFAULT_DATA = {
 
 // ─── Sales row normaliser ─────────────────────────────────────────────────────
 
+function extractTime(dtStr) {
+  if (!dtStr) return ''
+  const m = String(dtStr).match(/(\d{1,2}:\d{2}(?::\d{2})?)/)
+  return m ? m[1] : ''
+}
+
+function extractHour(dtStr) {
+  if (!dtStr) return null
+  const m = String(dtStr).match(/(?:[T\s]|^)(\d{1,2}):/)
+  return m ? parseInt(m[1], 10) : null
+}
+
 function rowsToSales(rows) {
   return rows
     .map(r => ({ ...r, store: r.store ?? r.store_name }))
     .filter(r => STORES.includes(r.store))
-    .map((r, i) => ({
-      id: i + 1, store: r.store, product: r.product, date: r.date,
-      quantity: Math.round(parseFloat(r.qty ?? r.quantity ?? 0)),
-    }))
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((r, i) => {
+      const timeStr = r.time || extractTime(r.datetime)
+      const hourVal = r.hour != null ? Number(r.hour) : extractHour(r.datetime || timeStr)
+      return {
+        id: i + 1,
+        store: r.store,
+        product: r.product,
+        date: r.date,
+        datetime: r.datetime || null,
+        time: timeStr || null,
+        hour: hourVal,
+        quantity: Math.round(parseFloat(r.qty ?? r.quantity ?? 0)),
+      }
+    })
+    .sort((a, b) => {
+      if (b.date !== a.date) return b.date.localeCompare(a.date)
+      if (b.time && a.time) return b.time.localeCompare(a.time)
+      return 0
+    })
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -520,7 +546,7 @@ export function ConfigProvider({ children }) {
       })
     }
 
-    const keyOf = r => `${r.date}|${r.store}|${r.product}|${r.transaction_type}|${r.is_topping}`
+    const keyOf = r => `${r.date}|${r.hour ?? ''}|${r.store}|${r.product}|${r.transaction_type}|${r.is_topping}`
     const map = new Map(currentRows.map(r => [keyOf(r), r]))
     newRows.forEach(r => map.set(keyOf(r), r))
     const merged = [...map.values()].sort((a, b) => (b.date > a.date ? 1 : -1))

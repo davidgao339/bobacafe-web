@@ -1,17 +1,33 @@
 /**
+ * Tapioca Cooking Plan Calculations & Slot Aggregation
+ */
+
+export const SLOT_ORDER = ['9:30 AM', '2:00 PM', '6:00 PM']
+
+export const DEFAULT_SLOT_DISTRIBUTION = {
+  '9:30 AM': 0.45,
+  '2:00 PM': 0.40,
+  '6:00 PM': 0.15,
+}
+
+/**
  * Filter sales to only tapioca products
  */
 export function filterTapiocaSales(sales) {
-  return sales.filter(s =>
-    s.product?.toLowerCase().includes('tapioca') ||
-    s.product?.toLowerCase().includes('тапиока')
-  )
+  return (sales || []).filter(s => {
+    const p = (s.product || '').toLowerCase()
+    return p.includes('tapioca') || p.includes('тапиока')
+  })
 }
 
 /**
  * Assign transaction hour to cooking slot
+ *  - 20:00 to 02:00 (or evening) -> 6:00 PM
+ *  - 02:00 to 16:00 (morning/early afternoon) -> 9:30 AM
+ *  - 16:00 to 20:00 (afternoon rush) -> 2:00 PM
  */
 export function assignSlot(hour) {
+  if (hour == null || isNaN(hour)) return '9:30 AM'
   if (hour < 2 || hour >= 20) return '6:00 PM'
   if (hour < 16) return '9:30 AM'
   return '2:00 PM'
@@ -19,65 +35,93 @@ export function assignSlot(hour) {
 
 /**
  * Group sales by store, date, day_type, and slot
+ * Gracefully handles transaction data with exact hours OR daily totals.
  */
 export function dailyBySlot(tapiocaSales) {
   const map = new Map()
 
   tapiocaSales.forEach(sale => {
-    // Parse time if available (for now, assume it's in the sale data somehow)
-    // For now, we'll use date and distribute evenly
-    const dateObj = new Date(sale.date)
-    const dayOfWeek = dateObj.getDay() // 0 = Sunday … 6 = Saturday
-    const dayType = (dayOfWeek === 0 || dayOfWeek === 6) ? 'Weekend' : 'Weekday'
+    const store = sale.store || sale.store_name
+    if (!store) return
 
-    // Since we don't have hour data in the filtered sales, we'll aggregate by day
-    // (In a real scenario, you'd need to expand the data structure)
-    const key = `${sale.store}|${sale.date}|${dayType}`
-    if (!map.has(key)) {
-      map.set(key, { store: sale.store, date: sale.date, dayType, quantity: 0 })
+    const dateStr = sale.date || (sale.datetime ? String(sale.datetime).slice(0, 10) : '')
+    if (!dateStr) return
+
+    const dateObj = new Date(dateStr)
+    const dayOfWeek = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay()
+    const dayType = (dayOfWeek === 0 || dayOfWeek === 6) ? 'Weekend' : 'Weekday'
+    const qty = Number(sale.quantity ?? sale.qty ?? 0)
+    if (qty <= 0) return
+
+    // Extract hour if present on transaction
+    let hour = null
+    if (sale.hour != null && !isNaN(Number(sale.hour))) {
+      hour = Number(sale.hour)
+    } else if (sale.datetime) {
+      const dt = new Date(sale.datetime)
+      if (!isNaN(dt.getTime())) hour = dt.getHours()
+    } else if (typeof sale.time === 'string') {
+      const m = sale.time.match(/(\d{1,2}):/)
+      if (m) hour = parseInt(m[1], 10)
     }
-    const entry = map.get(key)
-    entry.quantity += sale.quantity
+
+    if (hour !== null) {
+      // Precise transaction hour available
+      const slot = assignSlot(hour)
+      const key = `${store}|${dateStr}|${dayType}|${slot}`
+      if (!map.has(key)) {
+        map.set(key, { store, date: dateStr, dayType, slot, quantity: 0 })
+      }
+      map.get(key).quantity += qty
+    } else {
+      // Aggregated daily sales: distribute into slots using historical ratio
+      SLOT_ORDER.forEach(slot => {
+        const ratio = DEFAULT_SLOT_DISTRIBUTION[slot] || 0.333
+        const key = `${store}|${dateStr}|${dayType}|${slot}`
+        if (!map.has(key)) {
+          map.set(key, { store, date: dateStr, dayType, slot, quantity: 0 })
+        }
+        map.get(key).quantity += qty * ratio
+      })
+    }
   })
 
   return Array.from(map.values())
 }
 
 /**
- * Compute rolling window stats for percentiles
+ * Compute rolling window stats for percentiles per store, dayType, and slot
  */
 export function computeRecommendations(dailyData, rollingDays) {
-  if (dailyData.length === 0) return {}
+  if (!dailyData || dailyData.length === 0) return {}
 
   const today = new Date()
   const cutoffDate = new Date(today.getTime() - rollingDays * 86400000)
     .toISOString()
     .split('T')[0]
 
-  // Filter to rolling window
   const windowed = dailyData.filter(d => d.date >= cutoffDate)
-
   if (windowed.length === 0) return {}
 
-  // Group by store + dayType (simplified: no slots for now)
-  const byStoreDay = new Map()
+  // Group quantities by store + dayType + slot
+  const byStoreDaySlot = new Map()
   windowed.forEach(d => {
-    const key = `${d.store}|${d.dayType}`
-    if (!byStoreDay.has(key)) {
-      byStoreDay.set(key, [])
+    const key = `${d.store}|${d.dayType}|${d.slot}`
+    if (!byStoreDaySlot.has(key)) {
+      byStoreDaySlot.set(key, [])
     }
-    byStoreDay.get(key).push(d.quantity)
+    byStoreDaySlot.get(key).push(d.quantity)
   })
 
-  // Compute percentiles
+  // Compute percentile stats for each slot
   const stats = {}
-  byStoreDay.forEach((quantities, key) => {
+  byStoreDaySlot.forEach((quantities, key) => {
     const sorted = [...quantities].sort((a, b) => a - b)
     const avg = quantities.reduce((a, b) => a + b, 0) / quantities.length
-    const p75 = sorted[Math.ceil(sorted.length * 0.75) - 1]
-    const p90 = sorted[Math.ceil(sorted.length * 0.90) - 1]
-    const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1]
-    const max = sorted[sorted.length - 1]
+    const p75 = sorted[Math.ceil(sorted.length * 0.75) - 1] ?? 0
+    const p90 = sorted[Math.ceil(sorted.length * 0.90) - 1] ?? 0
+    const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0
+    const max = sorted[sorted.length - 1] ?? 0
 
     stats[key] = {
       avg: Math.ceil(avg),
@@ -93,23 +137,23 @@ export function computeRecommendations(dailyData, rollingDays) {
 }
 
 /**
- * Compute backtest: how often did each percentile fall short?
+ * Compute backtest: how often did recommendation fall short per slot?
  */
 export function computeBacktest(dailyData, recommendations) {
-  if (Object.keys(recommendations).length === 0) return {}
+  if (!dailyData || Object.keys(recommendations).length === 0) return {}
 
   const results = {}
-  const byStoreDay = new Map()
+  const byStoreDaySlot = new Map()
 
   dailyData.forEach(d => {
-    const key = `${d.store}|${d.dayType}`
-    if (!byStoreDay.has(key)) {
-      byStoreDay.set(key, [])
+    const key = `${d.store}|${d.dayType}|${d.slot}`
+    if (!byStoreDaySlot.has(key)) {
+      byStoreDaySlot.set(key, [])
     }
-    byStoreDay.get(key).push(d.quantity)
+    byStoreDaySlot.get(key).push(d.quantity)
   })
 
-  byStoreDay.forEach((quantities, key) => {
+  byStoreDaySlot.forEach((quantities, key) => {
     const stats = recommendations[key]
     if (!stats) return
 
@@ -124,9 +168,9 @@ export function computeBacktest(dailyData, recommendations) {
         recommended: rec,
         totalDays: quantities.length,
         daysShort: shortDays.length,
-        pctShort: Math.round((shortDays.length / quantities.length) * 1000) / 10,
+        pctShort: quantities.length > 0 ? Math.round((shortDays.length / quantities.length) * 1000) / 10 : 0,
         avgShortfall: shortages.length > 0 ? Math.ceil(shortages.reduce((a, b) => a + b) / shortages.length) : 0,
-        maxShortfall: shortages.length > 0 ? Math.max(...shortages) : 0,
+        maxShortfall: shortages.length > 0 ? Math.ceil(Math.max(...shortages)) : 0,
       }
     })
 
