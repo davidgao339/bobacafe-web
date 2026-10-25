@@ -4,12 +4,14 @@ window.BC_PINS = {
   master:        '7530',  // opens any PIN-gated app; also used for /internal/admin.html
   reports:       '2244',  // weekly/monthly reports
   bank:          '9999',  // bank statement Streamlit app
+  cash:          '7777',  // cash reconciliation Streamlit app
   boba:          '1023',  // tapioca cooking plan
   schedule:      '2233',  // schedule app (master also works)
   payroll:       '2372',  // payroll app manager password (master also works)
   inv_admin:     '7530',  // inventory app — admin role (30-day session)
   inv_logistics: '9876',  // inventory app — logistics role (tab session)
   inv_manager:   '9876',  // inventory app — manager role (tab session)
+  quick_count:   '1234',  // inventory app — quick count (branch baristas)
   warehouse:     '8888',  // warehouse & production app — warehouse manager
   cook:          '3344',  // warehouse & production app — cook role
 };

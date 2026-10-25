@@ -289,6 +289,16 @@
                     <button class="eye-btn" data-target="v_boba">👁</button>
                 </div>
             </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">💸 <span data-ru="Сверка наличных">Cash Reconciliation</span></div>
+                    <div class="config-hint" data-ru="Сверка выручки SBIS с наличными в конвертах">SBIS cash vs envelope physical cash reconciliation</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_cash"></span>
+                    <button class="eye-btn" data-target="v_cash">👁</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -340,12 +350,48 @@
             </div>
             <div class="config-row">
                 <div>
-                    <div class="config-label">📦 <span data-ru="Логистика">Logistics</span></div>
-                    <div class="config-hint" data-ru="Ограниченный доступ; до закрытия вкладки">Limited access; session ends on close</div>
+                    <div class="config-label">📦 <span data-ru="Менеджер / Логистика">Manager / Logistics</span></div>
+                    <div class="config-hint" data-ru="Остатки, расход ингредиентов и план варки тапиоки">Stock levels, usage ledger & tapioca plan</div>
                 </div>
                 <div class="pin-display">
                     <span class="pin-value" id="v_inv_logistics"></span>
                     <button class="eye-btn" data-target="v_inv_logistics">👁</button>
+                </div>
+            </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">⏱️ <span data-ru="Быстрая инвентаризация">Quick Count</span></div>
+                    <div class="config-hint" data-ru="Быстрый ввод остатков для бариста филиалов">Quick stock counting for branch baristas</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_quick_count"></span>
+                    <button class="eye-btn" data-target="v_quick_count">👁</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-label" data-ru="Склад и производство">Warehouse & Production</div>
+        <div class="config-card">
+            <div class="config-row">
+                <div>
+                    <div class="config-label">🏭 <span data-ru="Склад / Менеджер">Warehouse Manager</span></div>
+                    <div class="config-hint" data-ru="Полный доступ к складу, перемещениям и производству">Full access to warehouse, transfers & production</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_warehouse"></span>
+                    <button class="eye-btn" data-target="v_warehouse">👁</button>
+                </div>
+            </div>
+            <div class="config-row">
+                <div>
+                    <div class="config-label">👨‍🍳 <span data-ru="Повар">Cook</span></div>
+                    <div class="config-hint" data-ru="Журнал варки и списания ингредиентов">Cooking log & ingredient logging interface</div>
+                </div>
+                <div class="pin-display">
+                    <span class="pin-value" id="v_cook"></span>
+                    <button class="eye-btn" data-target="v_cook">👁</button>
                 </div>
             </div>
         </div>
@@ -431,10 +477,14 @@
             v_reports:       P.reports       || '2244',
             v_bank:          P.bank          || '9999',
             v_boba:          P.boba          || '1023',
+            v_cash:          P.cash          || '7777',
             v_schedule:      P.schedule      || '2233',
             v_payroll:       P.payroll       || '2372',
             v_inv_admin:     P.inv_admin     || '7530',
-            v_inv_logistics: P.inv_logistics || '9876',
+            v_inv_logistics: P.inv_manager   || P.inv_logistics || '9876',
+            v_quick_count:   P.quick_count   || '1234',
+            v_warehouse:     P.warehouse     || '8888',
+            v_cook:          P.cook          || '3344',
         };
         Object.entries(MAP).forEach(([id, val]) => {
             document.getElementById(id).textContent = val;
