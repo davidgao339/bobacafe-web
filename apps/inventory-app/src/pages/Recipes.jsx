@@ -823,7 +823,7 @@ function RecipesTab() {
 
       {/* Right: recipe viewer / editor */}
       {selected ? (
-        <div className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white min-h-[460px] md:min-h-0">
+        <div className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white min-h-[460px] md:min-h-0 animate-slide-in-right">
           <div className={`px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 ${editing ? 'bg-blue-50' : 'bg-gray-50'}`}>
             <div className="flex items-center gap-2.5">
               <button

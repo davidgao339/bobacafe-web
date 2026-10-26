@@ -218,39 +218,42 @@ function LogisticsView({ onLogout }) {
           <TapiocaCookingPlan />
         )}
       </div>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 px-2 py-1 flex items-center justify-around shadow-lg no-print">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md bg-white/95 border-t border-gray-200/80 px-2 py-1 flex items-center justify-around shadow-[0_-4px_16px_rgba(0,0,0,0.06)] no-print pb-[env(safe-area-inset-bottom,0px)]">
         <button
           onClick={() => setActiveTab('levels')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+          className={`relative flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] active:scale-90 transition-transform duration-150 select-none ${
             activeTab === 'levels' ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <svg className={`w-5 h-5 ${activeTab === 'levels' ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-5 h-5 transition-transform duration-200 ${activeTab === 'levels' ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
           </svg>
           <span className="text-[10px] mt-0.5 leading-tight">{t('nav.inventory')}</span>
+          {activeTab === 'levels' && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-blue-600" />}
         </button>
         <button
           onClick={() => setActiveTab('ledger')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+          className={`relative flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] active:scale-90 transition-transform duration-150 select-none ${
             activeTab === 'ledger' ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <svg className={`w-5 h-5 ${activeTab === 'ledger' ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          <svg className={`w-5 h-5 transition-transform duration-200 ${activeTab === 'ledger' ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
           </svg>
           <span className="text-[10px] mt-0.5 leading-tight">{t('nav.usage')}</span>
+          {activeTab === 'ledger' && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-blue-600" />}
         </button>
         <button
           onClick={() => setActiveTab('tapioca')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+          className={`relative flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] active:scale-90 transition-transform duration-150 select-none ${
             activeTab === 'tapioca' ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <svg className={`w-5 h-5 ${activeTab === 'tapioca' ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-5 h-5 transition-transform duration-200 ${activeTab === 'tapioca' ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
           </svg>
           <span className="text-[10px] mt-0.5 leading-tight">{t('nav.tapioca')}</span>
+          {activeTab === 'tapioca' && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-blue-600" />}
         </button>
       </nav>
     </div>
@@ -269,68 +272,71 @@ function MobileBottomNav({ onOpenMenu }) {
       path: '/inventory',
       label: t('nav.inventory'),
       icon: (active) => (
-        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-5 h-5 transition-transform duration-200 ${active ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      )
-    },
-    {
-      id: 'audit',
-      path: '/audit',
-      label: t('nav.countStock'),
-      icon: (active) => (
-        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3"/>
-        </svg>
-      )
-    },
-    {
-      id: 'tapioca',
-      path: '/tapioca',
-      label: t('nav.tapioca'),
-      icon: (active) => (
-        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
         </svg>
       )
     },
     {
       id: 'purchases',
       path: '/purchases',
-      label: t('nav.purchases'),
+      label: t('nav.po') || 'PO',
       icon: (active) => (
-        <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-5 h-5 transition-transform duration-200 ${active ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      )
+    },
+    {
+      id: 'transactions',
+      path: '/transactions',
+      label: t('nav.transactions'),
+      icon: (active) => (
+        <svg className={`w-5 h-5 transition-transform duration-200 ${active ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+      )
+    },
+    {
+      id: 'usage',
+      path: '/usage',
+      label: t('nav.usage'),
+      icon: (active) => (
+        <svg className={`w-5 h-5 transition-transform duration-200 ${active ? 'scale-110 text-blue-600' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
         </svg>
       )
     },
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 px-1 py-1 flex items-center justify-around shadow-lg no-print">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md bg-white/95 border-t border-gray-200/80 px-1 py-1 flex items-center justify-around shadow-[0_-4px_16px_rgba(0,0,0,0.06)] no-print pb-[env(safe-area-inset-bottom,0px)]">
       {items.map(item => {
         const active = current === item.id
         return (
           <button
             key={item.id}
+            data-testid={`mobile-nav-${item.id}`}
             onClick={() => navigate(item.path)}
-            className={`flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] transition-colors ${
+            className={`relative flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] active:scale-90 transition-transform duration-150 select-none ${
               active ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
             {item.icon(active)}
-            <span className="text-[10px] mt-0.5 truncate max-w-[68px] leading-tight text-center">{item.label}</span>
+            <span className="text-[10px] mt-0.5 truncate max-w-[64px] leading-tight text-center">{item.label}</span>
+            {active && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-blue-600 transition-all duration-300" />}
           </button>
         )
       })}
       <button
+        data-testid="mobile-nav-more"
         onClick={onOpenMenu}
-        className="flex flex-col items-center justify-center flex-1 py-1 min-h-[44px] text-gray-500 hover:text-gray-900 transition-colors"
+        className="relative flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] text-gray-500 hover:text-gray-900 active:scale-90 transition-transform duration-150 select-none"
       >
-        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5 text-gray-500 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
-        <span className="text-[10px] mt-0.5 leading-tight">{t('nav.more')}</span>
+        <span className="text-[10px] mt-0.5 leading-tight text-center">{t('nav.more')}</span>
       </button>
     </nav>
   )
@@ -389,7 +395,7 @@ function AppContent({ role, onLogout }) {
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-auto bg-gray-50 pb-16 md:pb-0">
+        <div key={location.pathname.split('/')[1] || 'inventory'} className="flex-1 overflow-auto bg-gray-50 pb-16 md:pb-0 animate-page-enter">
           <Routes>
             <Route path="/" element={<Navigate to="/inventory" replace />} />
             <Route path="/quick-count" element={<StandaloneCount />} />

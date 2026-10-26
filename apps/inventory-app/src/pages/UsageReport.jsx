@@ -298,7 +298,7 @@ export default function DailyLedger({ initialStore, initialIngredientId }) {
         </div>
 
         {/* Daily ledger */}
-        <div className={`flex-1 overflow-y-auto min-w-0 ${selectedId == null ? 'hidden md:block' : 'block'}`}>
+        <div className={`flex-1 overflow-y-auto min-w-0 ${selectedId == null ? 'hidden md:block' : 'block animate-slide-in-right'}`}>
           {selectedId == null ? (
             <div className="h-full flex items-center justify-center">
               <p className="text-sm text-gray-400">{t('usage.selectIngredient')}</p>

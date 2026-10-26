@@ -117,21 +117,31 @@ export default function Sidebar({ mobileOpen, onMobileClose, onLogout, role }) {
   const [storesOpen, setStoresOpen] = useState(false)
   return (
     <>
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={onMobileClose}
-        />
-      )}
-    <aside className={`w-56 bg-slate-800 flex flex-col h-full flex-shrink-0 ${
-      mobileOpen
-        ? 'fixed inset-y-0 left-0 z-50'
-        : 'hidden md:flex'
-    }`}>
-      <div className="px-6 py-5 border-b border-slate-700">
-        <p className="text-white font-semibold text-sm tracking-wide">BOBA</p>
-        <p className="text-slate-400 text-xs mt-0.5">Inventory Manager</p>
-      </div>
+      {/* Mobile backdrop with smooth fade */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] md:hidden transition-opacity duration-300 ease-out ${
+          mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={onMobileClose}
+      />
+      <aside className={`w-64 bg-slate-800 flex flex-col h-full flex-shrink-0 z-50 fixed inset-y-0 left-0 md:static md:translate-x-0 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+      }`}>
+        <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+          <div>
+            <p className="text-white font-semibold text-sm tracking-wide">BOBA</p>
+            <p className="text-slate-400 text-xs mt-0.5">Inventory Manager</p>
+          </div>
+          <button
+            onClick={onMobileClose}
+            className="md:hidden p-1.5 -mr-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors"
+            aria-label="Close menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
 
       {/* Data freshness — every estimate depends on the last sales sync */}
       {(() => {

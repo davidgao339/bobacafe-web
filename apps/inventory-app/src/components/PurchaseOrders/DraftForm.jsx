@@ -246,7 +246,7 @@ export default function DraftForm({ title, initialLines, initialCustomLines, ing
   )
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6 animate-slide-in-right">
       {/* Form Header */}
       <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50">
         <div className="flex items-center justify-between flex-wrap gap-2">
