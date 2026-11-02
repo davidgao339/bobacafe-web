@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Fragment } from 'react'
+import { useState, useRef, useEffect, Fragment, useMemo } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 
@@ -7,7 +7,6 @@ import { useLanguage } from '../context/LanguageContext'
 
 export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const { config, data, addAudit, stores } = useConfig()
-  const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
 
   const [counts,  setCounts]  = useState({})
@@ -23,9 +22,34 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   }
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
-  const lastAudit     = getLastAudit(store)
-  const lastAuditDate = lastAudit?.date ?? null
-  const existingAudit = data.audits.find(a => a.store === store && a.date === date)
+  const existingAudit = (data.audits || []).find(a => a.store === store && a.date === date)
+
+  const lastItemAudits = useMemo(() => {
+    const storeAudits = (data.audits || [])
+      .filter(a => {
+        if (a.store !== store) return false
+        if (a.status === 'rejected') return false
+        if (existingAudit && a.id === existingAudit.id) return false
+        if (a.date > date) return false
+        if (existingAudit && a.date === date) {
+          if (existingAudit.timestamp && a.timestamp && a.timestamp >= existingAudit.timestamp) return false
+        }
+        return true
+      })
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.timestamp || '').localeCompare(a.timestamp || ''))
+
+    const map = {}
+    for (const audit of storeAudits) {
+      if (!audit.counts) continue
+      for (const [ingIdStr, qty] of Object.entries(audit.counts)) {
+        const id = Number(ingIdStr)
+        if (qty != null && qty !== '' && !isNaN(Number(qty)) && map[id] === undefined) {
+          map[id] = { count: Number(qty), date: audit.date, auditId: audit.id }
+        }
+      }
+    }
+    return map
+  }, [data.audits, store, existingAudit, date])
   
   useEffect(() => {
     // 1. Try to load unsaved draft from local storage
@@ -54,9 +78,12 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
   const startTime = useRef(Date.now())
   
   const lastCount = (productId) => {
-    if (!lastAudit) return '—'
-    const v = lastAudit.counts[productId]
-    return v != null ? v : '—'
+    const item = lastItemAudits[productId]
+    return item != null ? item.count : '—'
+  }
+
+  const lastCountDate = (productId) => {
+    return lastItemAudits[productId]?.date ?? null
   }
 
   const handleChange = (productId, val) => {
@@ -223,10 +250,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
           </span>
           {!hideHeader && (
             <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
-              {t('audit.prevCount')}{si('prev')}{' '}
-              <span className="font-normal normal-case text-gray-400">
-                {lastAuditDate ? `(${lastAuditDate})` : '(none)'}
-              </span>
+              {t('audit.prevCount')}{si('prev')}
             </span>
           )}
           <span>{t('audit.newCount')}</span>
@@ -248,16 +272,17 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
             if (sortKey === 'name')     cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
             if (sortKey === 'supplier') cmp = suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' })
             if (sortKey === 'prev') {
-              const pa = lastAudit?.counts[a.id] ?? -1, pb = lastAudit?.counts[b.id] ?? -1
+              const pa = lastItemAudits[a.id]?.count ?? -1, pb = lastItemAudits[b.id]?.count ?? -1
               cmp = pa - pb
             }
             return sortDir === 'asc' ? cmp : -cmp
           }) : [...filtered].sort((a, b) => suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' }))
           return sorted
         })().map((product, i) => {
-          const prev  = lastCount(product.id)
-          const val   = getValue(product.id)
-          const delta = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null
+          const prev      = lastCount(product.id)
+          const prevDate  = lastCountDate(product.id)
+          const val       = getValue(product.id)
+          const delta     = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null
 
           return (
             <div key={product.id}
@@ -277,8 +302,15 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
               {!hideHeader && (
                 <div className="text-sm text-gray-700 tabular-nums flex justify-between items-center md:block bg-gray-50 md:bg-transparent rounded-lg p-2 md:p-0 border border-gray-100 md:border-none">
                   <span className="md:hidden text-xs font-medium text-gray-400 uppercase tracking-wider">{t('audit.prevCount')}</span>
-                  <div className="font-medium">
-                    {prev} <span className="text-gray-400 text-xs font-normal">{prev !== '—' ? product.unit : ''}</span>
+                  <div className="text-right md:text-left">
+                    <div className="font-medium text-gray-900">
+                      {prev} <span className="text-gray-400 text-xs font-normal">{prev !== '—' ? product.unit : ''}</span>
+                    </div>
+                    {prevDate && (
+                      <div className="text-[11px] text-gray-400 font-normal">
+                        {prevDate}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -527,11 +559,11 @@ function HistoryTab() {
                   {(isExpanded || isEditing) && (
                     <div className={`p-4 border-t ${isEditing ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50/70 border-gray-100'}`}>
                       {audit.status === 'pending' && !isEditing && (() => {
-                        const prevAudit = [...data.audits]
-                          .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date)
-                          .sort((a, b) => b.date.localeCompare(a.date))[0]
                         let hasAnyVariance = false
                         for (const [id, val] of Object.entries(audit.counts)) {
+                          const prevAudit = (data.audits || [])
+                            .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date && a.counts?.[id] != null)
+                            .sort((a, b) => b.date.localeCompare(a.date))[0]
                           const prev = prevAudit?.counts[id]
                           if (val != null && prev != null) {
                             if (prev === 0 && val > 10) hasAnyVariance = true
@@ -693,11 +725,11 @@ function HistoryTab() {
                       <tr className={`border-b ${isEditing ? 'bg-blue-50 border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
                         <td colSpan={6} className="px-6 py-4">
                           {audit.status === 'pending' && !isEditing && (() => {
-                            const prevAudit = [...data.audits]
-                              .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date)
-                              .sort((a, b) => b.date.localeCompare(a.date))[0]
                             let hasAnyVariance = false
                             for (const [id, val] of Object.entries(audit.counts)) {
+                              const prevAudit = (data.audits || [])
+                                .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date && a.counts?.[id] != null)
+                                .sort((a, b) => b.date.localeCompare(a.date))[0]
                               const prev = prevAudit?.counts[id]
                               if (val != null && prev != null) {
                                 if (prev === 0 && val > 10) hasAnyVariance = true
@@ -775,8 +807,8 @@ function HistoryTab() {
                                 .filter(ing => audit.counts[ing.id] != null)
                                 .map(ing => {
                                   const val = audit.counts[ing.id]
-                                  const prevAudit = [...data.audits]
-                                    .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date)
+                                  const prevAudit = (data.audits || [])
+                                    .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date && a.counts?.[ing.id] != null)
                                     .sort((a, b) => b.date.localeCompare(a.date))[0]
                                   const prev = prevAudit?.counts[ing.id]
                                   

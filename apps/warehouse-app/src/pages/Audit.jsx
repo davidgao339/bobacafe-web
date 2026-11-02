@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment } from 'react'
+import { useState, useRef, Fragment, useMemo } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { getProductType } from '@inventory/utils/productTypes'
@@ -6,7 +6,6 @@ import { getProductType } from '@inventory/utils/productTypes'
 
 function CountTab({ store, date, setDate }) {
   const { config, data, addAudit } = useConfig()
-  const { getLastAudit } = useCalcs()
   const { t } = useLanguage()
 
   const [counts,  setCounts]  = useState({})
@@ -21,14 +20,42 @@ function CountTab({ store, date, setDate }) {
   }
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
-  const lastAudit     = getLastAudit(store)
-  const lastAuditDate = lastAudit?.date ?? null
-  const existingAudit = data.audits.find(a => a.store === store && a.date === date)
+  const existingAudit = (data.audits || []).find(a => a.store === store && a.date === date)
+
+  const lastItemAudits = useMemo(() => {
+    const storeAudits = (data.audits || [])
+      .filter(a => {
+        if (a.store !== store) return false
+        if (a.status === 'rejected') return false
+        if (existingAudit && a.id === existingAudit.id) return false
+        if (a.date > date) return false
+        if (existingAudit && a.date === date) {
+          if (existingAudit.timestamp && a.timestamp && a.timestamp >= existingAudit.timestamp) return false
+        }
+        return true
+      })
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.timestamp || '').localeCompare(a.timestamp || ''))
+
+    const map = {}
+    for (const audit of storeAudits) {
+      if (!audit.counts) continue
+      for (const [ingIdStr, qty] of Object.entries(audit.counts)) {
+        const id = Number(ingIdStr)
+        if (qty != null && qty !== '' && !isNaN(Number(qty)) && map[id] === undefined) {
+          map[id] = { count: Number(qty), date: audit.date, auditId: audit.id }
+        }
+      }
+    }
+    return map
+  }, [data.audits, store, existingAudit, date])
 
   const lastCount = (productId) => {
-    if (!lastAudit) return '—'
-    const v = lastAudit.counts[productId]
-    return v != null ? v : '—'
+    const item = lastItemAudits[productId]
+    return item != null ? item.count : '—'
+  }
+
+  const lastCountDate = (productId) => {
+    return lastItemAudits[productId]?.date ?? null
   }
 
   const handleChange = (productId, val) => {
@@ -37,10 +64,9 @@ function CountTab({ store, date, setDate }) {
   }
 
   const handleFillFromLast = () => {
-    if (!lastAudit) return
     const filled = {}
     for (const p of config.ingredients) {
-      const v = lastAudit.counts[p.id]
+      const v = lastItemAudits[p.id]?.count
       if (v != null) filled[`${store}-${p.id}`] = String(v)
     }
     setCounts(prev => ({ ...prev, ...filled }))
@@ -116,7 +142,7 @@ function CountTab({ store, date, setDate }) {
             if (sortKey === 'name')     cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
             if (sortKey === 'supplier') cmp = suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' })
             if (sortKey === 'prev') {
-              const pa = lastAudit?.counts[a.id] ?? -1, pb = lastAudit?.counts[b.id] ?? -1
+              const pa = lastItemAudits[a.id]?.count ?? -1, pb = lastItemAudits[b.id]?.count ?? -1
               cmp = pa - pb
             }
             return sortDir === 'asc' ? cmp : -cmp
@@ -139,9 +165,10 @@ function CountTab({ store, date, setDate }) {
               </div>
               <div className="divide-y divide-gray-100">
                 {items.map((product) => {
-                  const prev  = lastCount(product.id)
-                  const val   = getValue(product.id)
-                  const delta = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null
+                  const prev     = lastCount(product.id)
+                  const prevDate = lastCountDate(product.id)
+                  const val      = getValue(product.id)
+                  const delta    = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null
 
                   return (
                     <div key={product.id} className="p-4 bg-white hover:bg-gray-50/50 flex flex-col gap-2">
@@ -151,7 +178,10 @@ function CountTab({ store, date, setDate }) {
                           <p className="text-xs text-gray-400 mt-0.5">{suppName(product) || '—'}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-500">Prev: <span className="font-medium text-gray-800">{prev}</span></p>
+                          <p className="text-xs text-gray-500">
+                            Prev: <span className="font-medium text-gray-800">{prev}</span>
+                            {prevDate && <span className="text-[10px] text-gray-400 font-normal ml-1">({prevDate})</span>}
+                          </p>
                           {delta !== null && (
                             <p className={`text-[10px] font-bold ${delta < 0 ? 'text-red-500' : delta > 0 ? 'text-green-500' : 'text-gray-400'}`}>
                               {delta > 0 ? '+' : ''}{Math.round(delta * 10) / 10}
@@ -180,7 +210,7 @@ function CountTab({ store, date, setDate }) {
             className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
             {t('audit.clearAll')}
           </button>
-          {lastAudit && (
+          {Object.keys(lastItemAudits).length > 0 && (
             <button onClick={handleFillFromLast}
               className="text-sm text-blue-600 hover:text-blue-700 transition-colors">
               {t('audit.fillFromLast')}
