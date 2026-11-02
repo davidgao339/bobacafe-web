@@ -311,7 +311,7 @@ export function CountTab({ store, setStore, date, setDate, hideHeader }) {
 
       <div className="h-24"></div>
 
-      <div className={`fixed ${hideHeader ? 'bottom-0' : 'bottom-14 md:bottom-0'} left-0 right-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 py-3 md:py-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-40`}>
+      <div className={`fixed ${hideHeader ? 'bottom-0 left-0' : 'bottom-14 md:bottom-0 left-0 md:left-64'} right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 py-3 md:py-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-40`}>
         <div className="max-w-4xl mx-auto flex items-center justify-between w-full px-3 md:px-8 gap-2">
           <div className="flex items-center gap-4 sm:gap-6">
             <button onClick={() => {
