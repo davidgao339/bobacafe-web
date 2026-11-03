@@ -1,27 +1,26 @@
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const path = url.pathname;
+    let response = await env.ASSETS.fetch(request);
+    if (response.status === 404) {
+      const url = new URL(request.url);
+      const path = url.pathname;
 
-    const apps = [
-      { prefix: "/internal/audit/",     index: "/internal/audit/index.html" },
-      { prefix: "/internal/inventory/", index: "/internal/inventory/index.html" },
-      { prefix: "/internal/warehouse/", index: "/internal/warehouse/index.html" },
-      { prefix: "/internal/schedule/",  index: "/internal/schedule/index.html" },
-    ];
+      const apps = [
+        { prefix: "/internal/audit/",     index: "/internal/audit/index.html" },
+        { prefix: "/internal/inventory/", index: "/internal/inventory/index.html" },
+        { prefix: "/internal/warehouse/", index: "/internal/warehouse/index.html" },
+        { prefix: "/internal/schedule/",  index: "/internal/schedule/index.html" },
+      ];
 
-    for (const app of apps) {
-      if (path.startsWith(app.prefix)) {
-        const lastSegment = path.split("/").pop();
-        if (lastSegment && lastSegment.includes(".")) {
-          return env.ASSETS.fetch(request);
+      for (const app of apps) {
+        if (path.startsWith(app.prefix)) {
+          const rewritten = new URL(request.url);
+          rewritten.pathname = app.index;
+          return env.ASSETS.fetch(new Request(rewritten, request));
         }
-        const rewritten = new URL(request.url);
-        rewritten.pathname = app.index;
-        return env.ASSETS.fetch(new Request(rewritten, request));
       }
     }
 
-    return env.ASSETS.fetch(request);
+    return response;
   }
 };
