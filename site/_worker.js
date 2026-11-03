@@ -4,6 +4,7 @@ export default {
     const path = url.pathname;
 
     const apps = [
+      { prefix: "/internal/audit/",     index: "/internal/audit/index.html" },
       { prefix: "/internal/inventory/", index: "/internal/inventory/index.html" },
       { prefix: "/internal/warehouse/", index: "/internal/warehouse/index.html" },
       { prefix: "/internal/schedule/",  index: "/internal/schedule/index.html" },

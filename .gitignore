@@ -8,3 +8,6 @@
 .streamlit/
 credentials.json
 scratch_pw/
+
+scratch/
+serve_local.js

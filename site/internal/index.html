@@ -550,6 +550,21 @@
     </div>
 
     <div class="section">
+        <div class="section-label" data-ru="Инвентаризация">Inventory</div>
+        <div class="app-grid">
+            <div class="app-card" data-app="audit">
+                <div class="card-top">
+                    <div class="app-icon">📝</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Инвентаризация филиалов">Store Audit & Quick Count</div>
+                <div class="app-desc" data-ru="Единое приложение для быстрого пересчёта остатков в кафе (бариста) и проверки истории ревизий (менеджер).">Unified fast stock count for cafe baristas and historical audit verification for managers.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
         <div class="section-label" data-ru="Склад и запасы">Inventory Management</div>
         <div class="app-grid">
             <a href="/internal/inventory/" class="app-card">
@@ -710,6 +725,13 @@
             labelRu: 'Склад и производство',
             icon:   '📦',
         },
+        'audit': {
+            url:    '/internal/audit/',
+            pins:   [_P.quick_count || '1234', _P.inv_admin || '7530', MASTER_PIN],
+            label:  'Store Audit & Quick Count',
+            labelRu: 'Инвентаризация филиалов',
+            icon:   '📝',
+        },
         'quick-count': {
             url:    '/internal/inventory/quick-count',
             pin:    _P.quick_count || '1234',
@@ -784,6 +806,13 @@
                     localStorage.setItem('whRole', 'warehouse');
                 } else {
                     localStorage.setItem('whRole', 'admin');
+                }
+            } else if (activeApp === 'audit') {
+                if (pin === (_P.quick_count || '1234')) {
+                    sessionStorage.setItem('audit_role', 'quick_count');
+                } else {
+                    localStorage.setItem('audit_role_info', JSON.stringify({ role: 'manager', expires: Date.now() + 30 * 86400000 }));
+                    sessionStorage.setItem('audit_role', 'manager');
                 }
             } else if (activeApp === 'tapioca') {
                 if (pin === (_P.inv_admin || '7530') || pin === MASTER_PIN) {

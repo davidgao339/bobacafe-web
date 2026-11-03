@@ -4,9 +4,10 @@ export default {
     const path = url.pathname;
 
     const apps = [
-      { prefix: "/internal/inventory/" },
-      { prefix: "/internal/warehouse/" },
-      { prefix: "/internal/schedule/" },
+      { prefix: "/internal/audit/",     index: "/internal/audit/index.html" },
+      { prefix: "/internal/inventory/", index: "/internal/inventory/index.html" },
+      { prefix: "/internal/warehouse/", index: "/internal/warehouse/index.html" },
+      { prefix: "/internal/schedule/",  index: "/internal/schedule/index.html" },
     ];
 
     for (const app of apps) {
@@ -16,7 +17,7 @@ export default {
           return env.ASSETS.fetch(request);
         }
         const rewritten = new URL(request.url);
-        rewritten.pathname = app.prefix;
+        rewritten.pathname = app.index;
         return env.ASSETS.fetch(new Request(rewritten, request));
       }
     }
