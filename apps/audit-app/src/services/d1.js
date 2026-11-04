@@ -135,7 +135,9 @@ export async function saveAudit({ auditId, storeId, storeCode, storeName, auditD
     }));
 
   if (activeEntries.length > 0) {
-    const BATCH = 50;
+    // Cloudflare D1 hard limit is 100 host variables (?) per SQL statement.
+    // Each item uses 6 parameters, so BATCH = 10 (60 variables) is completely safe.
+    const BATCH = 10;
     for (let i = 0; i < activeEntries.length; i += BATCH) {
       const chunk = activeEntries.slice(i, i + BATCH);
       const valuesPlaceholders = chunk.map(() => "(?, ?, ?, ?, (SELECT ingredient_name FROM dim_ingredients WHERE ingredient_id = ?), ?)").join(", ");
