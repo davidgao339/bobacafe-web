@@ -419,7 +419,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       {/* ── Top App Bar (Mobile-first, Uncrammed) ────────────────────────── */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 h-13 sm:h-14 flex items-center justify-between gap-2">
+        <div className="max-w-xl mx-auto px-3 sm:px-4 h-13 sm:h-14 flex items-center justify-between gap-2">
           {/* Left: Brand & Store Title */}
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-xl sm:text-2xl shrink-0">📝</span>
@@ -496,7 +496,7 @@ export default function App() {
       </header>
 
       {/* ── Main View Container ─────────────────────────────────────────── */}
-      <main className="max-w-5xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex-1">
+      <main className="max-w-xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex-1">
         {loadingInitial ? (
           <div className="flex items-center justify-center py-20 text-slate-400">
             <span className="animate-spin text-2xl mr-2">⏳</span> Loading catalog...
@@ -807,7 +807,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 justify-end">
                           {/* Status Badge */}
                           <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
                             audit.status === 'approved' 
@@ -840,7 +840,7 @@ export default function App() {
                           {/* Edit / Update Button */}
                           <button
                             onClick={() => handleStartEdit(audit)}
-                            className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 font-bold px-2.5 py-1.5 rounded-lg transition-colors ml-2 flex items-center gap-1 shadow-2xs"
+                            className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 font-bold px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
                             title={t('updateCount')}
                           >
                             <span>✏️</span>
@@ -850,7 +850,7 @@ export default function App() {
                           {/* Details Toggle */}
                           <button
                             onClick={() => toggleExpandAudit(audit.audit_id)}
-                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition-colors ml-2"
+                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition-colors"
                           >
                             {isExpanded ? t('hideDetails') : t('viewDetails')}
                           </button>
