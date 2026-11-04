@@ -61,9 +61,9 @@ export default function App() {
   const [ingredients, setIngredients] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
 
-  // Selected Store & Date
+  // Selected Store & Date (uses local device calendar date YYYY-MM-DD)
   const [selectedStoreId, setSelectedStoreId] = useState(null);
-  const [auditDate, setAuditDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [auditDate, setAuditDate] = useState(() => new Date().toLocaleDateString('en-CA'));
 
   // Current Counts & Baseline
   const [counts, setCounts] = useState({});
@@ -77,6 +77,16 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const inputRefs = useRef({});
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 350);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // History State
   const [historyList, setHistoryList] = useState([]);
@@ -84,6 +94,26 @@ export default function App() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedAuditId, setExpandedAuditId] = useState(null);
   const [auditDetailsMap, setAuditDetailsMap] = useState({});
+
+  // Network Connectivity State (Safe Cold/Offline Counting)
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('🟢 Интернет восстановлен (Internet connected)', 'success');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('📶 Нет связи. Подсчет надежно сохраняется на телефоне.', 'warning');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // ─── LOGIN HANDLER ──────────────────────────────────────────────────────────
 
@@ -226,6 +256,11 @@ export default function App() {
     const selectedStore = stores.find(s => s.store_id === selectedStoreId);
     if (!selectedStore) return;
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      showToast('📶 Нет подключения к интернету. Данные в безопасности на телефоне. Подключитесь к Wi-Fi и нажмите "Отправить".', 'warning');
+      return;
+    }
+
     const filled = ingredients.filter(i => counts[i.ingredient_id] !== undefined && counts[i.ingredient_id] !== '');
     if (filled.length < ingredients.length) {
       if (!confirm(t('incompleteWarning'))) return;
@@ -258,7 +293,13 @@ export default function App() {
         loadHistory();
       }
     } catch (err) {
-      showToast('Error saving audit: ' + err.message, 'error');
+      const isNetErr = (typeof navigator !== 'undefined' && !navigator.onLine) || 
+                       (err.message && (err.message.includes('fetch') || err.message.includes('Network') || err.message.includes('Failed')));
+      if (isNetErr) {
+        showToast('📶 Связь прервалась: ваши цифры сохранены на этом телефоне. Подойдите к зоне Wi-Fi и повторите отправку.', 'warning');
+      } else {
+        showToast('Error saving audit: ' + err.message, 'error');
+      }
     } finally {
       setSaving(false);
     }
@@ -393,15 +434,69 @@ export default function App() {
     ];
   }, [ingredients, lang, t]);
 
-  const filteredIngredients = useMemo(() => {
+  const groupedIngredients = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return ingredients.filter(i => {
-      const cat = i.supplier_name || 'other';
-      const matchCat = selectedCategory === 'all' || cat === selectedCategory;
-      const matchSearch = !q || i.ingredient_name.toLowerCase().includes(q);
-      return matchCat && matchSearch;
+    const groups = [];
+    const catMap = new Map();
+
+    categoryList.forEach(c => {
+      if (c.key !== 'all') {
+        catMap.set(c.key, { ...c, items: [] });
+      }
     });
-  }, [ingredients, search, selectedCategory]);
+
+    ingredients.forEach(ing => {
+      const catKey = ing.supplier_name || 'other';
+      const matchCat = selectedCategory === 'all' || catKey === selectedCategory;
+      const matchSearch = !q || ing.ingredient_name.toLowerCase().includes(q);
+
+      if (matchCat && matchSearch) {
+        if (!catMap.has(catKey)) {
+          catMap.set(catKey, {
+            key: catKey,
+            label: catKey,
+            icon: '📦',
+            count: 0,
+            items: []
+          });
+        }
+        catMap.get(catKey).items.push(ing);
+      }
+    });
+
+    catMap.forEach(group => {
+      if (group.items.length > 0) {
+        groups.push(group);
+      }
+    });
+
+    return groups;
+  }, [categoryList, ingredients, search, selectedCategory]);
+
+  const visibleIngredientIds = useMemo(() => {
+    const ids = [];
+    groupedIngredients.forEach(g => {
+      g.items.forEach(i => ids.push(i.ingredient_id));
+    });
+    return ids;
+  }, [groupedIngredients]);
+
+  const handleInputKeyDown = (e, ingId) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const currentIndex = visibleIngredientIds.indexOf(ingId);
+      if (currentIndex !== -1 && currentIndex < visibleIngredientIds.length - 1) {
+        const nextId = visibleIngredientIds[currentIndex + 1];
+        const nextInput = inputRefs.current[nextId];
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } else {
+        e.target.blur();
+      }
+    }
+  };
 
   const filledCount = useMemo(() => {
     return ingredients.filter(i => counts[i.ingredient_id] !== undefined && counts[i.ingredient_id] !== '').length;
@@ -419,7 +514,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       {/* ── Top App Bar (Mobile-first, Uncrammed) ────────────────────────── */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-xl mx-auto px-3 sm:px-4 h-13 sm:h-14 flex items-center justify-between gap-2">
+        <div className="max-w-xl mx-auto px-4 h-13 sm:h-14 flex items-center justify-between gap-2">
           {/* Left: Brand & Store Title */}
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-xl sm:text-2xl shrink-0">📝</span>
@@ -493,10 +588,51 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Count View: Sticky Category Selector + Search Bar (Always 1-Tap Accessible) */}
+        {activeTab === 'count' && !loadingInitial && (
+          <div className="bg-slate-50/95 border-t border-slate-200/80 px-3 sm:px-4 py-1.5 sm:py-2">
+            <div className="max-w-xl mx-auto flex items-center gap-2">
+              {/* Category Dropdown (Primary thumb control) */}
+              <div className="relative flex-1 min-w-0">
+                <select
+                  value={selectedCategory}
+                  onChange={e => {
+                    setSelectedCategory(e.target.value);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full bg-white border border-slate-200 text-slate-800 text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 pr-7 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs appearance-none cursor-pointer truncate"
+                >
+                  {categoryList.map(cat => (
+                    <option key={cat.key} value={cat.key}>
+                      {cat.icon} {cat.label} ({cat.count})
+                    </option>
+                  ))}
+                </select>
+                <span className="absolute right-2.5 top-2 sm:top-2.5 text-slate-400 pointer-events-none text-xs">▼</span>
+              </div>
+
+              {/* Search Bar (Compact on mobile) */}
+              <div className="relative w-32 sm:w-44 shrink-0">
+                <input
+                  type="text"
+                  placeholder={t('searchPlaceholder')}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 sm:py-2 pl-7 pr-6 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
+                />
+                <span className="absolute left-2 top-2 sm:top-2.5 text-slate-400 text-xs">🔍</span>
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-2 top-1.5 sm:top-2 text-slate-400 text-xs font-bold">✕</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ── Main View Container ─────────────────────────────────────────── */}
-      <main className="max-w-xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex-1">
+      <main className="max-w-xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex-1 pb-24">
         {loadingInitial ? (
           <div className="flex items-center justify-center py-20 text-slate-400">
             <span className="animate-spin text-2xl mr-2">⏳</span> Loading catalog...
@@ -504,6 +640,17 @@ export default function App() {
         ) : activeTab === 'count' ? (
           /* ── COUNT VIEW ────────────────────────────────────────────────── */
           <div className="space-y-3 sm:space-y-4">
+            {/* Offline Notice Banner */}
+            {!isOnline && (
+              <div className="bg-amber-500 text-white px-3.5 py-2.5 rounded-2xl flex items-center justify-between text-xs font-bold shadow-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">📶</span>
+                  <span>Режим офлайн: ваши данные надежно сохраняются на телефоне</span>
+                </div>
+                <span className="text-[10px] bg-amber-600 px-2 py-0.5 rounded-full font-mono uppercase tracking-wide">Offline</span>
+              </div>
+            )}
+
             {/* Editing Notice Banner */}
             {editingAuditId && (
               <div className="bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2.5 rounded-2xl flex items-center justify-between text-xs font-medium shadow-xs">
@@ -590,142 +737,142 @@ export default function App() {
               </div>
             </div>
 
-            {/* Filter Bar (Search + Categories) */}
-            <div className="space-y-2">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder={t('searchPlaceholder')}
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 pl-9 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
-                />
-                <span className="absolute left-3 top-2 text-slate-400 text-sm">🔍</span>
-                {search && (
-                  <button onClick={() => setSearch('')} className="absolute right-3 top-2 text-slate-400 text-xs font-bold">✕</button>
-                )}
-              </div>
+            {/* ── Ingredients List Grouped by Vertical Sections ("Walk the Store" Flow) ── */}
+            <div className="space-y-4">
+              {groupedIngredients.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs sm:text-sm">
+                  🔍 {lang === 'ru' ? 'Ингредиенты не найдены' : 'No matching ingredients found'}
+                </div>
+              ) : (
+                groupedIngredients.map(group => {
+                  const catFilled = group.items.filter(i => counts[i.ingredient_id] !== undefined && counts[i.ingredient_id] !== '').length;
+                  const isComplete = catFilled === group.items.length && group.items.length > 0;
 
-              {/* Category Pills (With real names & icons) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-                {categoryList.map(cat => (
-                  <button
-                    key={cat.key}
-                    onClick={() => setSelectedCategory(cat.key)}
-                    className={`text-xs px-2.5 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-                      selectedCategory === cat.key
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-white border border-slate-200/90 text-slate-600 hover:bg-slate-100 shadow-2xs'
-                    }`}
-                  >
-                    <span>{cat.icon}</span>
-                    <span>{cat.label}</span>
-                    <span className={`text-[10px] px-1 rounded-full font-mono ${
-                      selectedCategory === cat.key ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {cat.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Ingredients List (Ergonomic & Satisfying) ────────────────── */}
-            <div className="space-y-2">
-              {filteredIngredients.map(ing => {
-                const currentVal = counts[ing.ingredient_id] ?? '';
-                const lastVal = lastAuditBaseline.counts[ing.ingredient_id];
-                const hasLast = lastVal !== undefined && lastVal !== null;
-                const isFilled = currentVal !== '' && currentVal !== null && currentVal !== undefined;
-                
-                // Flag large variance (>40% difference) - STRICTLY for Manager review
-                let isVarianceFlagged = false;
-                let variancePercent = 0;
-                if (role === 'manager' && isFilled && hasLast) {
-                  const curr = parseFloat(currentVal);
-                  const prev = parseFloat(lastVal);
-                  if (prev === 0 && curr > 5) {
-                    isVarianceFlagged = true;
-                    variancePercent = '+100';
-                  } else if (prev > 0) {
-                    const diff = curr - prev;
-                    const pct = Math.round((diff / prev) * 100);
-                    if (Math.abs(pct) >= 40 && Math.abs(diff) >= 5) {
-                      isVarianceFlagged = true;
-                      variancePercent = pct > 0 ? `+${pct}` : `${pct}`;
-                    }
-                  }
-                }
-
-                return (
-                  <div 
-                    key={ing.ingredient_id}
-                    className={`rounded-2xl border p-3 flex items-center justify-between gap-3 transition-all ${
-                      isVarianceFlagged 
-                        ? 'border-amber-300 bg-amber-50/40 shadow-xs' 
-                        : isFilled 
-                          ? 'border-blue-300 bg-blue-50/20 shadow-xs ring-1 ring-blue-500/10' 
-                          : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
-                    }`}
-                  >
-                    {/* Item Information */}
-                    <div className="flex-1 min-w-0 pr-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900 text-sm tracking-tight leading-snug">
-                          {ing.ingredient_name}
-                        </span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60 uppercase shrink-0">
-                          {ing.unit}
-                        </span>
-                        {isFilled && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 shrink-0 flex items-center gap-0.5">
-                            ✓
+                  return (
+                    <div key={group.key} className="space-y-2">
+                      {/* Category Section Header */}
+                      <div className="bg-slate-100/90 py-2 px-3 rounded-xl flex items-center justify-between border border-slate-200/80 shadow-2xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-base shrink-0">{group.icon}</span>
+                          <span className="font-extrabold text-xs sm:text-sm text-slate-800 tracking-tight truncate">
+                            {group.label}
                           </span>
-                        )}
-                        {isVarianceFlagged && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 shrink-0">
-                            ⚠️ {variancePercent}%
-                          </span>
-                        )}
+                        </div>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
+                          isComplete 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                            : 'bg-white text-slate-600 border border-slate-200'
+                        }`}>
+                          {isComplete && <span>✓</span>}
+                          <span>{catFilled} / {group.items.length}</span>
+                        </span>
                       </div>
 
-                      {/* Baseline previous count - STRICTLY for Manager (Blind Count for Baristas) */}
-                      {role === 'manager' && (
-                        <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                          {hasLast ? (
-                            <span>
-                              {t('previousCount')}: <strong className="text-slate-600 font-semibold">{formatNumber(lastVal)}</strong> {ing.unit}
-                            </span>
-                          ) : (
-                            <span className="italic text-slate-300">{t('previousCount')}: —</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                      {/* Items in this Category */}
+                      <div className="space-y-2">
+                        {group.items.map(ing => {
+                          const currentVal = counts[ing.ingredient_id] ?? '';
+                          const lastVal = lastAuditBaseline.counts[ing.ingredient_id];
+                          const hasLast = lastVal !== undefined && lastVal !== null;
+                          const isFilled = currentVal !== '' && currentVal !== null && currentVal !== undefined;
+                          
+                          // Flag large variance (>40% difference) - STRICTLY for Manager review
+                          let isVarianceFlagged = false;
+                          let variancePercent = 0;
+                          if (role === 'manager' && isFilled && hasLast) {
+                            const curr = parseFloat(currentVal);
+                            const prev = parseFloat(lastVal);
+                            if (prev === 0 && curr > 5) {
+                              isVarianceFlagged = true;
+                              variancePercent = '+100';
+                            } else if (prev > 0) {
+                              const diff = curr - prev;
+                              const pct = Math.round((diff / prev) * 100);
+                              if (Math.abs(pct) >= 40 && Math.abs(diff) >= 5) {
+                                isVarianceFlagged = true;
+                                variancePercent = pct > 0 ? `+${pct}` : `${pct}`;
+                              }
+                            }
+                          }
 
-                    {/* Numeric Input */}
-                    <div className="shrink-0 flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        pattern="[0-9]*[.,]?[0-9]*"
-                        placeholder="—"
-                        value={currentVal}
-                        onChange={e => handleCountChange(ing.ingredient_id, e.target.value)}
-                        className={`w-24 sm:w-28 py-2 px-2.5 text-right font-extrabold text-base sm:text-lg rounded-xl border focus:outline-none transition-all ${
-                          isFilled
-                            ? 'bg-blue-50/70 border-blue-400 text-blue-950 focus:ring-2 focus:ring-blue-500 focus:bg-white'
-                            : 'bg-slate-50/80 border-slate-200 text-slate-800 placeholder:text-slate-300 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500'
-                        }`}
-                      />
+                          return (
+                            <div 
+                              key={ing.ingredient_id}
+                              onClick={() => inputRefs.current[ing.ingredient_id]?.focus()}
+                              className={`rounded-2xl border p-3 flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                                isVarianceFlagged 
+                                  ? 'border-amber-300 bg-amber-50/40 shadow-xs' 
+                                  : isFilled 
+                                    ? 'border-blue-300 bg-blue-50/20 shadow-xs ring-1 ring-blue-500/10' 
+                                    : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
+                              }`}
+                            >
+                              {/* Item Information */}
+                              <div className="flex-1 min-w-0 pr-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-900 text-sm tracking-tight leading-snug">
+                                    {ing.ingredient_name}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60 uppercase shrink-0">
+                                    {ing.unit}
+                                  </span>
+                                  {isFilled && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 shrink-0 flex items-center gap-0.5">
+                                      ✓
+                                    </span>
+                                  )}
+                                  {isVarianceFlagged && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 shrink-0">
+                                      ⚠️ {variancePercent}%
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Baseline previous count - STRICTLY for Manager (Blind Count for Baristas) */}
+                                {role === 'manager' && (
+                                  <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                                    {hasLast ? (
+                                      <span>
+                                        {t('previousCount')}: <strong className="text-slate-600 font-semibold">{formatNumber(lastVal)}</strong> {ing.unit}
+                                      </span>
+                                    ) : (
+                                      <span className="italic text-slate-300">{t('previousCount')}: —</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Numeric Input */}
+                              <div className="shrink-0 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                <input
+                                  ref={el => inputRefs.current[ing.ingredient_id] = el}
+                                  type="text"
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  placeholder="—"
+                                  value={currentVal}
+                                  onFocus={e => e.target.select()}
+                                  onKeyDown={e => handleInputKeyDown(e, ing.ingredient_id)}
+                                  onChange={e => handleCountChange(ing.ingredient_id, e.target.value)}
+                                  className={`w-24 sm:w-28 py-2 px-2.5 text-right font-extrabold text-base sm:text-lg rounded-xl border focus:outline-none transition-all ${
+                                    isFilled
+                                      ? 'bg-blue-50/70 border-blue-400 text-blue-950 focus:ring-2 focus:ring-blue-500 focus:bg-white'
+                                      : 'bg-slate-50/80 border-slate-200 text-slate-800 placeholder:text-slate-300 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             {/* Bottom Submit Sticky Bar */}
-            <div className="sticky bottom-4 pt-2">
+            <div className="sticky bottom-3 sm:bottom-4 pt-2 z-20 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
               <button
                 onClick={handleSubmitAudit}
                 disabled={saving}
@@ -760,7 +907,7 @@ export default function App() {
                   onChange={e => setHistoryFilterStore(e.target.value)}
                   className="bg-slate-50 border border-slate-200 text-slate-800 text-sm font-medium rounded-xl px-3 py-1.5 focus:outline-none"
                 >
-                  <option value="all">All Stores</option>
+                  <option value="all">{lang === 'ru' ? 'Все филиалы' : 'All Stores'}</option>
                   {stores.map(s => (
                     <option key={s.store_id} value={s.store_id}>{s.store_name} ({s.store_code})</option>
                   ))}
@@ -771,7 +918,7 @@ export default function App() {
                 onClick={loadHistory}
                 className="text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors font-medium"
               >
-                ↻ Refresh
+                ↻ {lang === 'ru' ? 'Обновить' : 'Refresh'}
               </button>
             </div>
 
@@ -790,26 +937,23 @@ export default function App() {
 
                   return (
                     <div key={audit.audit_id} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                      <div className="p-4 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-xs px-2 py-1 rounded-md bg-slate-100 text-slate-600 font-bold">
-                            {audit.audit_id}
-                          </span>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900 text-sm">{audit.store_name}</span>
-                              <span className="text-xs text-slate-400">({audit.store_code})</span>
-                            </div>
-                            <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
-                              <span>📅 {audit.audit_date}</span>
-                              <span>• {audit.items_counted} items ({audit.total_units} units)</span>
+                      <div className="p-3.5 sm:p-4 space-y-2.5">
+                        {/* Top Summary Row */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-extrabold shrink-0">
+                              {audit.audit_id}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-900 text-sm truncate block">{audit.store_name}</span>
+                              <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate">
+                                <span>📅 {audit.audit_date}</span>
+                                <span>• {audit.items_counted} {lang === 'ru' ? 'поз.' : 'items'}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex flex-wrap items-center gap-1.5 justify-end">
-                          {/* Status Badge */}
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                          <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold shrink-0 ${
                             audit.status === 'approved' 
                               ? 'bg-emerald-100 text-emerald-800' 
                               : audit.status === 'rejected'
@@ -818,51 +962,52 @@ export default function App() {
                           }`}>
                             {audit.status === 'approved' ? t('statusApproved') : audit.status === 'rejected' ? t('statusRejected') : t('statusPending')}
                           </span>
+                        </div>
 
-                          {/* Approval Actions */}
-                          {audit.status !== 'approved' && (
+                        {/* Action Bar (Clean, uncluttered on mobile) */}
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            {audit.status !== 'approved' && (
+                              <button
+                                onClick={() => handleStatusChange(audit.audit_id, 'approved')}
+                                className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-md transition-colors"
+                              >
+                                ✓ {t('approve')}
+                              </button>
+                            )}
+                            {audit.status !== 'rejected' && (
+                              <button
+                                onClick={() => handleStatusChange(audit.audit_id, 'rejected')}
+                                className="text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-2 py-1 rounded-md transition-colors"
+                              >
+                                ✕ {t('reject')}
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleStatusChange(audit.audit_id, 'approved')}
-                              className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md transition-colors"
+                              onClick={() => handleStartEdit(audit)}
+                              className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 font-bold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                              title={t('updateCount')}
                             >
-                              ✓ {t('approve')}
+                              <span>✏️</span>
+                              <span>{t('updateCount')}</span>
                             </button>
-                          )}
-                          {audit.status !== 'rejected' && (
+                          </div>
+
+                          <div className="flex items-center gap-1 ml-auto">
                             <button
-                              onClick={() => handleStatusChange(audit.audit_id, 'rejected')}
-                              className="text-xs bg-red-50 hover:bg-red-100 text-red-700 px-2 py-1 rounded-md transition-colors"
+                              onClick={() => toggleExpandAudit(audit.audit_id)}
+                              className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1 rounded-lg transition-colors"
                             >
-                              ✕ {t('reject')}
+                              {isExpanded ? t('hideDetails') : t('viewDetails')}
                             </button>
-                          )}
-
-                          {/* Edit / Update Button */}
-                          <button
-                            onClick={() => handleStartEdit(audit)}
-                            className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 font-bold px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
-                            title={t('updateCount')}
-                          >
-                            <span>✏️</span>
-                            <span>{t('updateCount')}</span>
-                          </button>
-
-                          {/* Details Toggle */}
-                          <button
-                            onClick={() => toggleExpandAudit(audit.audit_id)}
-                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition-colors"
-                          >
-                            {isExpanded ? t('hideDetails') : t('viewDetails')}
-                          </button>
-
-                          {/* Delete */}
-                          <button
-                            onClick={() => handleDeleteAudit(audit.audit_id)}
-                            className="text-xs text-slate-400 hover:text-red-600 p-1 rounded transition-colors"
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
+                            <button
+                              onClick={() => handleDeleteAudit(audit.audit_id)}
+                              className="text-xs text-slate-400 hover:text-red-600 p-1 rounded transition-colors"
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -912,6 +1057,18 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* ── Floating Scroll-to-Top Button ──────────────────────────────── */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-24 right-4 z-40 bg-white/95 text-slate-700 hover:text-slate-900 border border-slate-300/80 w-11 h-11 rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center justify-center backdrop-blur-xs font-black text-lg"
+          title="Наверх"
+          aria-label="Scroll to top"
+        >
+          ↑
+        </button>
+      )}
 
       {/* ── Toast Notification ──────────────────────────────────────────── */}
       {toast && (

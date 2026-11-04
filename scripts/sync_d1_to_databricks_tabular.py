@@ -624,6 +624,38 @@ def main():
         tx_rows
     )
 
+    # ─── TABLE 10: fact_inventory_balance ───────────────────────────────────
+    print("\n[Step 10/10] Syncing fact_inventory_balance...")
+    table_balance = f"{TARGET_SCHEMA}.fact_inventory_balance"
+    run_databricks_sql(f"""
+    CREATE OR REPLACE TABLE {table_balance} (
+        store_id INT,
+        ingredient_id INT,
+        current_quantity DOUBLE,
+        unit STRING,
+        last_audit_id STRING,
+        last_audit_date STRING,
+        last_updated_at TIMESTAMP
+    ) USING DELTA
+    """)
+    d1_balances = query_d1("SELECT store_id, ingredient_id, current_quantity, unit, last_audit_id, last_audit_date, last_updated_at FROM fact_inventory_balance")
+    balance_rows = []
+    for b in d1_balances:
+        balance_rows.append([
+            b["store_id"],
+            b["ingredient_id"],
+            b["current_quantity"],
+            b["unit"],
+            b["last_audit_id"],
+            b["last_audit_date"],
+            b["last_updated_at"]
+        ])
+    batch_insert(
+        table_balance,
+        ["store_id", "ingredient_id", "current_quantity", "unit", "last_audit_id", "last_audit_date", "last_updated_at"],
+        balance_rows
+    )
+
     # ─── FINAL AUDIT & RECONCILIATION SUMMARY ────────────────────────────────
     print("\n" + "=" * 70)
     print("MIGRATION COMPLETED! RUNNING RECONCILIATION VERIFICATION...")
@@ -639,6 +671,7 @@ def main():
         "fact_purchase_orders",
         "fact_purchase_order_lines",
         "fact_inventory_transactions",
+        "fact_inventory_balance",
     ]
 
     for tbl in tables_to_verify:
