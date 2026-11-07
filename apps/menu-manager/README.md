@@ -38,7 +38,7 @@ A production-grade Streamlit application running on **Streamlit Community Cloud*
    - **Repository:** `davidgao339/bobacafe-web`
    - **Branch:** `main`
    - **Main file path:** `apps/menu-manager/streamlit_app.py`
-   - **App URL:** e.g. `bobacafe-web-menu-manager.streamlit.app`
+   - **App URL:** `https://bobacafe-web-mpf5yjyja6qyl93zfy9pgg.streamlit.app/`
 
 3. In **Advanced Settings -> Secrets**, paste the following configuration:
 
