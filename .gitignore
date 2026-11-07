@@ -5,9 +5,14 @@
 **/*.xlsx
 **/*.txt
 !**/requirements.txt
-.streamlit/
+/.streamlit/
+**/.streamlit/secrets.toml
+!apps/menu-manager/.streamlit/
+!apps/menu-manager/.streamlit/secrets.toml.example
 credentials.json
 scratch_pw/
 
 scratch/
 serve_local.js
+__pycache__/
+*.pyc

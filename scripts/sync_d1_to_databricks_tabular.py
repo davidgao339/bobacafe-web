@@ -184,6 +184,16 @@ def run_databricks_sql(sql: str, retries: int = 3):
             columns = [c["name"] for c in schema.get("columns", [])]
             rows = data.get("result", {}).get("data_array", [])
             return [dict(zip(columns, r)) for r in rows]
+        except urllib.error.HTTPError as http_err:
+            body = ""
+            try:
+                body = http_err.read().decode("utf-8", errors="replace")
+            except Exception:
+                pass
+            print(f"  [ERROR] Databricks API HTTP {http_err.code} ({http_err.reason}) on attempt {attempt+1}/{retries}:\n{body}")
+            if attempt == retries - 1:
+                raise RuntimeError(f"Databricks API HTTP {http_err.code}: {body or http_err.reason}") from http_err
+            time.sleep(2)
         except Exception as e:
             if attempt == retries - 1:
                 raise
