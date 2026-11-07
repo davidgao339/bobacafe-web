@@ -509,7 +509,9 @@ def main():
         is_custom_item BOOLEAN,
         ordered_quantity DOUBLE,
         received_quantity DOUBLE,
-        unit STRING
+        unit STRING,
+        unit_cost DOUBLE,
+        total_cost DOUBLE
     ) USING DELTA
     """)
 
@@ -578,7 +580,9 @@ def main():
                     unit = it.get("unit") or ""
                     is_custom = False
 
-                po_lines_rows.append([po_id, ing_id, ing_name, is_custom, ordered, received, unit])
+                unit_cost = float(it.get("unitCost") or it.get("unit_cost") or it.get("cost") or it.get("price") or 0.0)
+                total_cost = round(received * unit_cost, 2)
+                po_lines_rows.append([po_id, ing_id, ing_name, is_custom, ordered, received, unit, unit_cost, total_cost])
             except Exception:
                 continue
 
@@ -589,7 +593,7 @@ def main():
     )
     batch_insert(
         table_po_lines,
-        ["po_id", "ingredient_id", "ingredient_name", "is_custom_item", "ordered_quantity", "received_quantity", "unit"],
+        ["po_id", "ingredient_id", "ingredient_name", "is_custom_item", "ordered_quantity", "received_quantity", "unit", "unit_cost", "total_cost"],
         po_lines_rows
     )
 
@@ -666,6 +670,96 @@ def main():
         balance_rows
     )
 
+    # ─── TABLE 11 & 12: REAL-TIME WAC & RECIPE COGS VIEWS ────────────────────
+    print("\n[Step 11/11] Ensuring real-time WAC & Recipe COGS views are active...")
+    view_wac = f"{TARGET_SCHEMA}.view_ingredient_wac_30d"
+    run_databricks_sql(f"""
+    CREATE OR REPLACE VIEW {view_wac} AS
+    WITH po_ranked AS (
+        SELECT 
+            l.ingredient_id,
+            l.received_quantity,
+            l.unit_cost,
+            h.received_date,
+            ROW_NUMBER() OVER (PARTITION BY l.ingredient_id ORDER BY h.received_date DESC) AS rn
+        FROM {table_po_lines} l
+        JOIN {table_pos} h ON l.po_id = h.po_id
+        WHERE h.status = 'received' 
+          AND l.received_quantity > 0 
+          AND l.unit_cost > 0
+    ),
+    wac_30d AS (
+        SELECT 
+            ingredient_id,
+            ROUND(SUM(received_quantity * unit_cost) / SUM(received_quantity), 4) AS wac_30d,
+            SUM(received_quantity) AS units_30d,
+            COUNT(*) AS po_count_30d
+        FROM po_ranked
+        WHERE received_date >= date_sub(current_date(), 30)
+        GROUP BY ingredient_id
+    ),
+    last_po AS (
+        SELECT 
+            ingredient_id,
+            unit_cost AS last_purchase_cost,
+            received_date AS last_purchase_date
+        FROM po_ranked
+        WHERE rn = 1
+    )
+    SELECT 
+        i.ingredient_id,
+        i.ingredient_name,
+        i.unit,
+        i.supplier_id,
+        i.supplier_name,
+        i.product_type,
+        i.is_warehouse_only,
+        i.is_hidden,
+        COALESCE(i.cost_per_unit, 0.0) AS manual_catalog_cost,
+        w.wac_30d,
+        w.units_30d,
+        w.po_count_30d,
+        lp.last_purchase_cost,
+        lp.last_purchase_date,
+        CASE 
+            WHEN w.wac_30d IS NOT NULL THEN '30d_wac'
+            WHEN lp.last_purchase_cost IS NOT NULL THEN 'last_purchase'
+            WHEN i.cost_per_unit > 0 THEN 'manual_catalog'
+            ELSE 'unpriced'
+        END AS cost_source,
+        COALESCE(w.wac_30d, lp.last_purchase_cost, i.cost_per_unit, 0.0) AS effective_unit_cost
+    FROM {table_ingredients} i
+    LEFT JOIN wac_30d w ON i.ingredient_id = w.ingredient_id
+    LEFT JOIN last_po lp ON i.ingredient_id = lp.ingredient_id
+    """)
+
+    view_cogs = f"{TARGET_SCHEMA}.view_product_recipe_cogs"
+    run_databricks_sql(f"""
+    CREATE OR REPLACE VIEW {view_cogs} AS
+    SELECT 
+        p.product_ru,
+        p.parent_product_id,
+        p.parent_product_en,
+        p.category,
+        p.variant,
+        p.is_active,
+        p.base_price,
+        ROUND(SUM(r.amount_per_serving * w.effective_unit_cost), 2) AS calculated_cogs,
+        ROUND(p.base_price - SUM(r.amount_per_serving * w.effective_unit_cost), 2) AS gross_profit,
+        ROUND(
+            (p.base_price - SUM(r.amount_per_serving * w.effective_unit_cost)) / NULLIF(p.base_price, 0) * 100, 
+            1
+        ) AS gross_margin_pct
+    FROM workspace.gold.dim_product p
+    JOIN {table_recipes} r 
+      ON LOWER(TRIM(p.product_ru)) = LOWER(TRIM(r.recipe_product_name))
+    JOIN {view_wac} w 
+      ON r.ingredient_id = w.ingredient_id
+    GROUP BY 
+        p.product_ru, p.parent_product_id, p.parent_product_en, 
+        p.category, p.variant, p.is_active, p.base_price
+    """)
+
     # ─── FINAL AUDIT & RECONCILIATION SUMMARY ────────────────────────────────
     print("\n" + "=" * 70)
     print("MIGRATION COMPLETED! RUNNING RECONCILIATION VERIFICATION...")
@@ -682,6 +776,8 @@ def main():
         "fact_purchase_order_lines",
         "fact_inventory_transactions",
         "fact_inventory_balance",
+        "view_ingredient_wac_30d",
+        "view_product_recipe_cogs",
     ]
 
     for tbl in tables_to_verify:

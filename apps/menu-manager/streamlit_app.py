@@ -365,28 +365,20 @@ if selected_module == "🧋 Products & Menu (dim_product)":
 
     def calculate_cogs_from_recipes():
         """
-        Computes product unit cost (COGS) from fact_recipe_ingredients and the 30-Day WAC dimension
-        COALESCE(dim_ingredients.wac_cost_30d, dim_ingredients.cost_per_unit, 0.0).
+        Computes product unit cost (COGS) directly from the real-time BOM recipe view
+        workspace.inventory_tabular.view_product_recipe_cogs (powered by view_ingredient_wac_30d).
         Updates workspace.gold.dim_product.cost.
         """
         calc_sql = """
             MERGE INTO workspace.gold.dim_product AS target
             USING (
-                SELECT 
-                    p.product_ru,
-                    ROUND(SUM(r.amount_per_serving * COALESCE(i.wac_cost_30d, i.cost_per_unit, 0.0)), 2) AS wac_recipe_cost
-                FROM workspace.inventory_tabular.fact_recipe_ingredients r
-                JOIN workspace.inventory_tabular.dim_ingredients i 
-                  ON r.ingredient_id = i.ingredient_id
-                JOIN workspace.gold.dim_product p
-                  ON LOWER(r.recipe_product_name) = LOWER(p.product_ru)
-                WHERE COALESCE(i.wac_cost_30d, i.cost_per_unit, 0.0) > 0
-                GROUP BY p.product_ru
-                HAVING wac_recipe_cost > 0
+                SELECT product_ru, calculated_cogs
+                FROM workspace.inventory_tabular.view_product_recipe_cogs
+                WHERE calculated_cogs > 0
             ) AS source
             ON target.product_ru = source.product_ru
             WHEN MATCHED THEN UPDATE SET
-                target.cost = source.wac_recipe_cost,
+                target.cost = source.calculated_cogs,
                 target.updated_at = current_timestamp()
         """
         execute_databricks_sql(calc_sql)
@@ -760,12 +752,13 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                 supplier_name,
                 COALESCE(is_warehouse_only, FALSE) AS is_warehouse_only,
                 COALESCE(is_hidden, FALSE) AS is_hidden,
-                COALESCE(cost_per_unit, 0.0) AS cost_per_unit,
+                COALESCE(manual_catalog_cost, 0.0) AS cost_per_unit,
+                COALESCE(effective_unit_cost, 0.0) AS effective_unit_cost,
                 COALESCE(wac_cost_30d, 0.0) AS wac_cost_30d,
                 COALESCE(last_purchase_cost, 0.0) AS last_purchase_cost,
                 last_purchase_date,
                 COALESCE(cost_source, 'unpriced') AS cost_source
-            FROM workspace.inventory_tabular.dim_ingredients
+            FROM workspace.inventory_tabular.view_ingredient_wac_30d
             ORDER BY 
                 is_hidden ASC,
                 supplier_name ASC,
@@ -777,6 +770,7 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
             df["is_warehouse_only"] = df["is_warehouse_only"].astype(str).str.lower().isin(["true", "1", "t"])
             df["is_hidden"] = df["is_hidden"].astype(str).str.lower().isin(["true", "1", "t"])
             df["cost_per_unit"] = pd.to_numeric(df["cost_per_unit"], errors="coerce").fillna(0.0)
+            df["effective_unit_cost"] = pd.to_numeric(df["effective_unit_cost"], errors="coerce").fillna(0.0)
             df["wac_cost_30d"] = pd.to_numeric(df["wac_cost_30d"], errors="coerce").fillna(0.0)
             df["last_purchase_cost"] = pd.to_numeric(df["last_purchase_cost"], errors="coerce").fillna(0.0)
             df["unit"] = df["unit"].replace({"Гр": "гр"}).fillna("шт")
@@ -784,70 +778,6 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
             df["product_type"] = df["product_type"].fillna("ingredient").replace({"None": "ingredient", "nan": "ingredient", "": "ingredient"})
             df["cost_source"] = df["cost_source"].fillna("unpriced")
         return df
-
-    def recalculate_wac_30d():
-        """
-        Calculates 30-day Weighted Average Cost (WAC) from purchase orders.
-        Falls back to last purchase price if older than 30 days.
-        Persists WAC dimension into workspace.inventory_tabular.dim_ingredients and Cloudflare D1.
-        """
-        recalc_wac_sql = """
-            MERGE INTO workspace.inventory_tabular.dim_ingredients AS target
-            USING (
-                WITH po_ranked AS (
-                    SELECT 
-                        l.ingredient_id,
-                        l.received_quantity,
-                        l.unit_cost,
-                        h.received_date,
-                        ROW_NUMBER() OVER (PARTITION BY l.ingredient_id ORDER BY h.received_date DESC) as rn
-                    FROM workspace.inventory_tabular.fact_purchase_order_lines l
-                    JOIN workspace.inventory_tabular.fact_purchase_orders h ON l.po_id = h.po_id
-                    WHERE h.status = 'received' 
-                      AND l.received_quantity > 0 
-                      AND l.unit_cost > 0
-                ),
-                wac_30d AS (
-                    SELECT 
-                        ingredient_id,
-                        ROUND(SUM(received_quantity * unit_cost) / SUM(received_quantity), 4) AS wac_30d,
-                        SUM(received_quantity) AS units_30d
-                    FROM po_ranked
-                    WHERE received_date >= date_sub(current_date(), 30)
-                    GROUP BY ingredient_id
-                ),
-                last_po AS (
-                    SELECT 
-                        ingredient_id,
-                        unit_cost AS last_purchase_cost,
-                        received_date AS last_purchase_date
-                    FROM po_ranked
-                    WHERE rn = 1
-                )
-                SELECT 
-                    i.ingredient_id,
-                    w.wac_30d,
-                    lp.last_purchase_cost,
-                    lp.last_purchase_date,
-                    CASE 
-                        WHEN w.wac_30d IS NOT NULL THEN '30d_wac'
-                        WHEN lp.last_purchase_cost IS NOT NULL THEN 'last_purchase'
-                        WHEN i.cost_per_unit > 0 THEN 'manual_catalog'
-                        ELSE 'unpriced'
-                    END AS cost_source,
-                    COALESCE(w.wac_30d, lp.last_purchase_cost, i.cost_per_unit, 0.0) AS effective_wac
-                FROM workspace.inventory_tabular.dim_ingredients i
-                LEFT JOIN wac_30d w ON i.ingredient_id = w.ingredient_id
-                LEFT JOIN last_po lp ON i.ingredient_id = lp.ingredient_id
-            ) AS source
-            ON target.ingredient_id = source.ingredient_id
-            WHEN MATCHED THEN UPDATE SET
-                target.wac_cost_30d = source.effective_wac,
-                target.last_purchase_cost = source.last_purchase_cost,
-                target.last_purchase_date = source.last_purchase_date,
-                target.cost_source = source.cost_source
-        """
-        execute_databricks_sql(recalc_wac_sql)
 
     tab_ing_edit, tab_ing_add, tab_ing_summary = st.tabs([
         "📋 Ingredients Catalog (Edit & Save)",
@@ -896,7 +826,7 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
 
         edited_ing_df = st.data_editor(
             f_ing,
-            disabled=["ingredient_id", "last_purchase_cost", "last_purchase_date", "cost_source"],
+            disabled=["ingredient_id", "effective_unit_cost", "wac_cost_30d", "last_purchase_cost", "last_purchase_date", "cost_source"],
             num_rows="fixed",
             column_config={
                 "ingredient_id": st.column_config.NumberColumn("ID", format="%d", width="small", help="Unique sequential ID"),
@@ -904,11 +834,12 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                 "unit": st.column_config.SelectboxColumn("Unit", options=all_units, required=True, width="small"),
                 "supplier_name": st.column_config.SelectboxColumn("Category / Supplier", options=all_suppliers, required=True, width="medium"),
                 "product_type": st.column_config.SelectboxColumn("Product Type", options=all_types, required=True, width="medium"),
-                "wac_cost_30d": st.column_config.NumberColumn("30d WAC (₽)", min_value=0.0, step=0.5, format="₽%.2f", width="small", help="Rolling 30-day weighted average cost from POs, or last purchase fallback"),
-                "cost_per_unit": st.column_config.NumberColumn("Baseline Cost (₽)", min_value=0.0, step=0.5, format="₽%.2f", width="small", help="Manual standard baseline catalog cost"),
-                "cost_source": st.column_config.TextColumn("Cost Source", width="small", help="30d_wac, last_purchase, manual_catalog, or unpriced"),
-                "last_purchase_cost": st.column_config.NumberColumn("Last PO (₽)", format="₽%.2f", width="small"),
-                "last_purchase_date": st.column_config.TextColumn("Last PO Date", width="small"),
+                "cost_per_unit": st.column_config.NumberColumn("Baseline Cost (₽)", min_value=0.0, step=0.5, format="₽%.2f", width="small", help="Manual standard catalog baseline cost"),
+                "effective_unit_cost": st.column_config.NumberColumn("Effective Cost (₽)", format="₽%.4f", width="small", help="Real-time 30-day WAC or fallback cost from view", disabled=True),
+                "wac_cost_30d": st.column_config.NumberColumn("30d WAC (₽)", format="₽%.4f", width="small", help="Rolling 30-day weighted average cost from POs", disabled=True),
+                "cost_source": st.column_config.TextColumn("Cost Source", width="small", help="30d_wac, last_purchase, manual_catalog, or unpriced", disabled=True),
+                "last_purchase_cost": st.column_config.NumberColumn("Last PO (₽)", format="₽%.2f", width="small", disabled=True),
+                "last_purchase_date": st.column_config.TextColumn("Last PO Date", width="small", disabled=True),
                 "is_warehouse_only": st.column_config.CheckboxColumn("Warehouse Only?", width="small"),
                 "is_hidden": st.column_config.CheckboxColumn("Hidden?", width="small", help="Check to hide from retail audit forms"),
                 "supplier_id": None, # Hide raw ID
@@ -927,7 +858,7 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
             if idx in f_ing.index:
                 orig = f_ing.loc[idx]
                 changed = False
-                for col in ["ingredient_name", "unit", "supplier_name", "product_type", "cost_per_unit", "wac_cost_30d", "is_warehouse_only", "is_hidden"]:
+                for col in ["ingredient_name", "unit", "supplier_name", "product_type", "cost_per_unit", "is_warehouse_only", "is_hidden"]:
                     v_orig = orig.get(col)
                     v_new = row.get(col)
                     if pd.isna(v_orig) and pd.isna(v_new):
@@ -946,28 +877,23 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                 if changed:
                     mod_ing_rows.append(row)
 
-        c_save_ing, c_wac_ing, c_info_ing = st.columns([1.5, 2.0, 3.5])
+        c_save_ing, c_refresh_ing, c_info_ing = st.columns([1.5, 1.8, 3.5])
         with c_save_ing:
             save_ing_btn = st.button("💾 Save Ingredients", type="primary", use_container_width=True)
-        with c_wac_ing:
-            recalc_wac_btn = st.button("⚡ Recalculate 30-Day WAC", help="Recomputes 30-day rolling WAC from received POs (or last purchase if >30 days)", use_container_width=True)
+        with c_refresh_ing:
+            refresh_ing_btn = st.button("🔄 Refresh View Costs", help="Refreshes live 30-day rolling WAC and recipe costs directly from Databricks SQL view", use_container_width=True)
         with c_info_ing:
             if mod_ing_rows:
                 st.info(f"✏️ **{len(mod_ing_rows)}** unsaved change(s) detected. Click Save to commit.")
             else:
-                st.caption("ℹ️ Click inside table cells to edit. Press Enter before saving.")
+                st.caption("ℹ️ Real-Time 30-Day WAC View is active. Click cells to edit. Press Enter before saving.")
 
-        if recalc_wac_btn:
-            with st.spinner("Calculating 30-day WAC from received POs..."):
-                try:
-                    recalculate_wac_30d()
-                    st.cache_data.clear()
-                    if "ingredient_catalog_editor" in st.session_state:
-                        del st.session_state["ingredient_catalog_editor"]
-                    st.session_state["ing_save_msg"] = "✅ Successfully recalculated 30-Day WAC across all ingredients!"
-                    st.rerun()
-                except Exception as err:
-                    st.error(f"❌ Failed to calculate WAC: {err}")
+        if refresh_ing_btn:
+            st.cache_data.clear()
+            if "ingredient_catalog_editor" in st.session_state:
+                del st.session_state["ingredient_catalog_editor"]
+            st.session_state["ing_save_msg"] = "🔄 Refreshed live WAC and recipe costs from view!"
+            st.rerun()
 
         if save_ing_btn:
             if not mod_ing_rows:
@@ -984,7 +910,6 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                             i_wh = bool(row.get("is_warehouse_only")) if pd.notnull(row.get("is_warehouse_only")) else False
                             i_hid = bool(row.get("is_hidden")) if pd.notnull(row.get("is_hidden")) else False
                             i_cost = float(row.get("cost_per_unit", 0.0)) if pd.notnull(row.get("cost_per_unit")) else 0.0
-                            i_wac = float(row.get("wac_cost_30d", 0.0)) if pd.notnull(row.get("wac_cost_30d")) else 0.0
 
                             # 1. Delta Lake MERGE
                             merge_ing_sql = f"""
@@ -998,13 +923,12 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                                     supplier_name = '{i_sname}',
                                     is_warehouse_only = {i_wh},
                                     is_hidden = {i_hid},
-                                    cost_per_unit = {i_cost},
-                                    wac_cost_30d = {i_wac}
+                                    cost_per_unit = {i_cost}
                                 WHEN NOT MATCHED THEN INSERT (
                                     ingredient_id, ingredient_name, unit, product_type, supplier_id, supplier_name,
-                                    is_warehouse_only, is_hidden, cost_per_unit, wac_cost_30d
+                                    is_warehouse_only, is_hidden, cost_per_unit
                                 ) VALUES (
-                                    {i_id}, '{i_name}', '{i_unit}', '{i_ptype}', NULL, '{i_sname}', {i_wh}, {i_hid}, {i_cost}, {i_wac}
+                                    {i_id}, '{i_name}', '{i_unit}', '{i_ptype}', NULL, '{i_sname}', {i_wh}, {i_hid}, {i_cost}
                                 )
                             """
                             execute_databricks_sql(merge_ing_sql)
@@ -1013,10 +937,10 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                             execute_d1_query(
                                 """
                                 INSERT OR REPLACE INTO dim_ingredients (
-                                    ingredient_id, ingredient_name, unit, product_type, supplier_name, is_warehouse_only, is_hidden, cost_per_unit, wac_cost_30d
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ingredient_id, ingredient_name, unit, product_type, supplier_name, is_warehouse_only, is_hidden, cost_per_unit
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                                 """,
-                                [i_id, i_name, i_unit, i_ptype, i_sname, 1 if i_wh else 0, 1 if i_hid else 0, i_cost, i_wac]
+                                [i_id, i_name, i_unit, i_ptype, i_sname, 1 if i_wh else 0, 1 if i_hid else 0, i_cost]
                             )
 
                         st.cache_data.clear()
@@ -1064,10 +988,10 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                             ins_sql = f"""
                                 INSERT INTO workspace.inventory_tabular.dim_ingredients (
                                     ingredient_id, ingredient_name, unit, product_type, supplier_id, supplier_name,
-                                    is_warehouse_only, is_hidden, cost_per_unit, wac_cost_30d
+                                    is_warehouse_only, is_hidden, cost_per_unit
                                 ) VALUES (
                                     {next_id}, '{clean_name}', '{new_unit}', '{new_ptype}', NULL, '{new_supplier}',
-                                    {new_wh}, {new_hid}, {new_cost}, {new_cost}
+                                    {new_wh}, {new_hid}, {new_cost}
                                 )
                             """
                             execute_databricks_sql(ins_sql)
@@ -1076,10 +1000,10 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                             execute_d1_query(
                                 """
                                 INSERT INTO dim_ingredients (
-                                    ingredient_id, ingredient_name, unit, product_type, supplier_name, is_warehouse_only, is_hidden, cost_per_unit, wac_cost_30d
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ingredient_id, ingredient_name, unit, product_type, supplier_name, is_warehouse_only, is_hidden, cost_per_unit
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                                 """,
-                                [next_id, clean_name, new_unit, new_ptype, new_supplier, 1 if new_wh else 0, 1 if new_hid else 0, new_cost, new_cost]
+                                [next_id, clean_name, new_unit, new_ptype, new_supplier, 1 if new_wh else 0, 1 if new_hid else 0, new_cost]
                             )
 
                             st.cache_data.clear()
@@ -1092,30 +1016,32 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
         st.subheader("Category Distribution & Cost Completeness")
 
         if not df_ing.empty:
-            missing_cost_count = len(df_ing[(df_ing["wac_cost_30d"] <= 0) & (df_ing["cost_per_unit"] <= 0)])
+            missing_cost_count = len(df_ing[df_ing["effective_unit_cost"] <= 0])
             if missing_cost_count > 0:
-                st.warning(f"⚠️ **{missing_cost_count}** ingredients have no 30-day WAC or catalog baseline cost.")
+                st.warning(f"⚠️ **{missing_cost_count}** ingredients have no 30-day WAC, PO history, or catalog baseline cost.")
 
             ing_sum = df_ing.groupby("supplier_name").agg(
                 total_items=("ingredient_id", "count"),
+                with_effective=("effective_unit_cost", lambda s: (s > 0).sum()),
                 with_wac=("wac_cost_30d", lambda s: (s > 0).sum()),
                 with_base=("cost_per_unit", lambda s: (s > 0).sum()),
-                avg_wac=("wac_cost_30d", "mean"),
+                avg_effective_cost=("effective_unit_cost", "mean"),
                 warehouse_only=("is_warehouse_only", "sum"),
                 hidden_items=("is_hidden", "sum")
             ).reset_index()
 
-            ing_sum["wac_coverage_pct"] = (ing_sum["with_wac"] / ing_sum["total_items"] * 100).fillna(0.0)
+            ing_sum["cost_coverage_pct"] = (ing_sum["with_effective"] / ing_sum["total_items"] * 100).fillna(0.0)
 
             st.dataframe(
                 ing_sum,
                 column_config={
                     "supplier_name": "Category / Supplier",
                     "total_items": st.column_config.NumberColumn("Total Ingredients"),
+                    "with_effective": st.column_config.NumberColumn("Priced Items"),
+                    "cost_coverage_pct": st.column_config.NumberColumn("Cost Coverage", format="%.0f%%"),
+                    "avg_effective_cost": st.column_config.NumberColumn("Avg Cost (₽)", format="₽%.2f"),
                     "with_wac": st.column_config.NumberColumn("With 30d WAC"),
-                    "with_base": st.column_config.NumberColumn("With Base Cost"),
-                    "wac_coverage_pct": st.column_config.NumberColumn("WAC Coverage", format="%.0f%%"),
-                    "avg_wac": st.column_config.NumberColumn("Avg 30d WAC", format="₽%.2f"),
+                    "with_base": st.column_config.NumberColumn("With Baseline"),
                     "warehouse_only": st.column_config.NumberColumn("Warehouse Only"),
                     "hidden_items": st.column_config.NumberColumn("Hidden Items"),
                 },

@@ -8,14 +8,14 @@ A production-grade Streamlit application running on **Streamlit Community Cloud*
 
 1. **Menu & Product Master (`workspace.gold.dim_product`)**:
    - In-line editable grid for product names, Russian/English canonical rollup, `parent_product_id`, categories, subcategories, variants, active/inactive statuses, base prices, and unit costs.
-   - **Parent Product ID Recalculation**: 1-click unification of `parent_product_id` across items grouped under the same English canonical parent name, ensuring split variants (e.g. standard vs cocktail) cleanly share the same parent ID.
-   - **BOM Recipe COGS Calculation**: 1-click auto-computation of menu product unit costs from unrolled recipe ingredients (`fact_recipe_ingredients`) and the 30-day Rolling WAC ingredient dimension.
+   - **Parent Product ID Recalculation**: 1-click unification of `parent_product_id` across items grouped under the same English canonical parent name, ensuring split variants cleanly share the same parent ID.
+   - **Live BOM Recipe COGS View (`view_product_recipe_cogs`)**: Dynamically computes recipe COGS and gross margins from unrolled recipe ingredients (`fact_recipe_ingredients`) and the real-time 30-day Rolling WAC view.
    - Unmapped POS items detector: automatically captures new items from transactions and provides one-click bulk import into the catalog.
    - Profitability & Gross Margin breakdown dashboard.
 
-2. **Ingredient & Inventory Master (`workspace.inventory_tabular.dim_ingredients` + Cloudflare D1)**:
-   - Full master catalog editor for all 142+ ingredients: name, unit (`мл`, `гр`, `шт`, `уп`, `порц`, `кг`, `л`), supplier/category, product type, 30-Day WAC (`wac_cost_30d`), baseline cost (`cost_per_unit`), warehouse-only flag, and hidden flag.
-   - **30-Day Rolling WAC Engine**: Calculates weighted average cost across purchase orders in the last 30 days (`SUM(qty * unit_cost) / SUM(qty)`), automatically falling back to the most recent purchase price if older than 30 days.
+2. **Ingredient & Inventory Master (`dim_ingredients` + `view_ingredient_wac_30d`)**:
+   - Full master catalog editor for all 142+ ingredients: name, unit (`мл`, `гр`, `шт`, `уп`, `порц`, `кг`, `л`), supplier/category, product type, baseline cost (`cost_per_unit`), warehouse-only flag, and hidden flag.
+   - **Real-Time 30-Day Rolling WAC View (`view_ingredient_wac_30d`)**: Evaluates dynamically on query across purchase orders in the last 30 days (`SUM(qty * unit_cost) / SUM(qty)`), automatically falling back to the most recent purchase price if older than 30 days, or baseline catalog cost. Zero maintenance, zero stale batch jobs.
    - Add New Ingredient wizard with automatic sequential ID calculation.
    - **Real-Time Dual-Write**: Updates Databricks Delta Lake AND Cloudflare D1 simultaneously so store audit and inventory apps see changes immediately.
    - Supplier completeness and cost coverage health metrics.
