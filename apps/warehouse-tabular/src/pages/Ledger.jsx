@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { getProductType } from '@inventory/utils/productTypes'
+import { fetchLedgerEvents } from '../services/databricks'
 const r1 = n => Math.round(n * 10) / 10
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
 export default function DailyLedger({ initialIngredientId }) {
-  const { config, sales, posWaste, data, reportFrom, reportTo } = useConfig()
+  const { config, sales, posWaste, data, reportFrom, reportTo, settings } = useConfig()
   const calcs = useCalcs()
   const { t } = useLanguage()
   const { recipes } = config
@@ -27,6 +28,18 @@ export default function DailyLedger({ initialIngredientId }) {
   })
   const [search,        setSearch]        = useState('')
   const [expandedDate,  setExpandedDate]  = useState(null)
+
+  // ── Lakehouse events (single source of truth) ─────────────────────────────
+  // null = not fetched yet → the legacy local computation below still runs as fallback.
+  const [lhEvents, setLhEvents] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    if (!settings?.token || !settings?.warehouseId) return
+    fetchLedgerEvents(settings.token, settings.warehouseId, 'WHS')
+      .then(rows => { if (!cancelled) setLhEvents(rows) })
+      .catch(err => console.error('Lakehouse events fetch failed; using local ledger', err))
+    return () => { cancelled = true }
+  }, [settings?.token, settings?.warehouseId])
 
   // Sync state to URL
   useEffect(() => {
@@ -66,6 +79,109 @@ export default function DailyLedger({ initialIngredientId }) {
   // ── Daily ledger rows (single store only) ─────────────────────────────────
   const { auditInfo, ledgerRows } = useMemo(() => {
     if (!selectedId) return { auditInfo: null, ledgerRows: [] }
+
+    // ── Lakehouse path (authoritative): events since this pair's latest audit ──
+    if (lhEvents) {
+      const events = lhEvents.filter(e => String(e.ingredient_id) === String(selectedId))
+      if (events.length === 0) return { auditInfo: null, ledgerRows: [] }
+      const sorted = [...events].sort((a, b) => String(a.event_ts).localeCompare(String(b.event_ts)))
+      const anchor = sorted.find(e => e.source === 'audit')
+      const base = anchor ? (Number(anchor.audit_count) || 0) : 0
+      const startDate = anchor
+        ? String(anchor.event_ts).slice(0, 10)
+        : (sorted[0] ? String(sorted[0].event_ts).slice(0, 10) : from)
+      const anchorTime = anchor ? String(anchor.event_ts) : '0000-00-00T00:00:00'
+
+      const byDate = {}
+      const ensure = d => { if (!byDate[d]) byDate[d] = { details: [] } }
+
+      sorted.forEach(e => {
+        const time = String(e.event_ts)
+        const d = time.slice(0, 10)
+        if (time <= anchorTime) return
+        const qty = Number(e.qty_change) || 0
+        if (e.source === 'pos_sale') {
+          const consumed = r1(-qty)
+          if (!consumed) return
+          ensure(d)
+          byDate[d].details.push({ kind: 'sale', product: e.product, soldQty: Number(e.qty_units) || 0, consumed, time })
+        } else if (e.source === 'po_receipt') {
+          ensure(d)
+          byDate[d].details.push({ kind: 'po', poId: e.po_id, qty, time })
+        } else if (e.source === 'transfer_in') {
+          ensure(d)
+          byDate[d].details.push({ kind: 'transfer-in', poId: e.po_id, qty, time })
+        } else if (e.source === 'transfer_out') {
+          ensure(d)
+          byDate[d].details.push({ kind: 'transfer-out', poId: e.po_id, qty: -qty, time })
+        } else if (e.source === 'inventory_tx') {
+          ensure(d)
+          if (e.transaction_type === 'production') {
+            if (qty > 0) byDate[d].details.push({ kind: 'production-yield', qty, prodId: e.po_id, time })
+            else byDate[d].details.push({ kind: 'production-usage', qty: -qty, prodId: e.po_id, time })
+          } else {
+            byDate[d].details.push({ kind: 'adjustment', qty, adjId: e.po_id, time })
+          }
+        }
+      })
+
+      if (anchor) {
+        const ad = String(anchor.event_ts).slice(0, 10)
+        ensure(ad)
+        byDate[ad].details.push({ kind: 'audit', count: base, time: String(anchor.event_ts) })
+      }
+
+      const allDates = [...new Set([startDate, ...Object.keys(byDate), today])].sort()
+
+      let running = 0
+      const allRows = []
+
+      for (const d of allDates) {
+        if (d < startDate) continue
+        const details = [...(byDate[d]?.details ?? [])]
+        details.sort((a, b) => String(a.time).localeCompare(String(b.time)))
+
+        let dayUsage = 0, dayReceived = 0, dayTransferOut = 0, dayAuditAdj = null
+
+        for (const ev of details) {
+          if (ev.kind === 'audit') {
+            const adj = r1(ev.count - running)
+            ev.adj = adj
+            dayAuditAdj = dayAuditAdj === null ? adj : r1(dayAuditAdj + adj)
+            running = ev.count
+          } else if (ev.kind === 'po' || ev.kind === 'transfer-in') {
+            running = r1(running + ev.qty)
+            dayReceived = r1(dayReceived + ev.qty)
+          } else if (ev.kind === 'transfer-out') {
+            running = r1(running - ev.qty)
+            dayTransferOut = r1(dayTransferOut + ev.qty)
+          } else if (ev.kind === 'sale' || ev.kind === 'waste' || ev.kind === 'production-usage') {
+            running = r1(running - (ev.consumed ?? ev.qty))
+            dayUsage = r1(dayUsage + (ev.consumed ?? ev.qty))
+          } else if (ev.kind === 'adjustment' || ev.kind === 'production-yield') {
+            running = r1(running + ev.qty)
+            dayReceived = r1(dayReceived + ev.qty)
+          } else {
+            running = r1(running - ev.qty)
+            dayUsage = r1(dayUsage + ev.qty)
+          }
+        }
+
+        allRows.push({ date: d, usage: dayUsage, received: dayReceived, transferOut: dayTransferOut, auditAdj: dayAuditAdj, ending: running, details })
+      }
+
+      const displayRows = allRows
+        .filter(r =>
+          r.date >= from && r.date <= to &&
+          (r.usage > 0 || r.received !== 0 || r.transferOut > 0 || r.auditAdj !== null || r.date === today)
+        )
+        .reverse()
+
+      return {
+        auditInfo: { date: startDate, base, isAssumed: !anchor },
+        ledgerRows: displayRows,
+      }
+    }
 
     // All audits for this ingredient at this store, oldest first
     const storeAudits = [...data.audits]
@@ -250,7 +366,7 @@ export default function DailyLedger({ initialIngredientId }) {
       auditInfo: { date: startDate, base, isAssumed: !baseAudit },
       ledgerRows: displayRows,
     }
-  }, [selectedId, selectedStore, data, sales, posWaste, recipes, from, to, today])
+  }, [selectedId, selectedStore, data, sales, posWaste, recipes, from, to, today, lhEvents])
 
   const selectedIng = config.ingredients.find(i => i.id === selectedId)
 
