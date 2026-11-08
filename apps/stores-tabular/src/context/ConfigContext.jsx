@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '@inventory/data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
-import { fetchCurrentInventory } from '../services/databricks'
+import { fetchCurrentInventory, fetchLh } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '@inventory/components/SyncErrorToast'
 
@@ -37,6 +37,23 @@ function rowsToSales(rows) {
       quantity: Math.round(parseFloat(r.qty ?? r.quantity ?? 0)),
     }))
     .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// Statement API returns every value as a string; coerce numerics/booleans so
+// lakehouse rows match what queryD1 (Cloudflare worker) would have returned.
+const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d'])
+const _BOOL = new Set(['is_active', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
+function coerceLhRows(rows) {
+  return (rows || []).map(r => {
+    const out = {}
+    for (const [k, v] of Object.entries(r)) {
+      if (v === null || v === undefined) { out[k] = v; continue }
+      if (_BOOL.has(k)) { out[k] = (v === true || v === 'true' || v === 1 || v === '1') ? 1 : 0; continue }
+      if (_NUM.has(k)) { const n = Number(v); out[k] = Number.isFinite(n) ? n : v; continue }
+      out[k] = v
+    }
+    return out
+  })
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -148,19 +165,39 @@ export function ConfigProvider({ children }) {
   useEffect(() => {
     async function loadFromD1() {
       try {
-        const [storesRes, aliasesRes, ingRes, recRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes] = await Promise.all([
-          queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
-          queryD1('SELECT * FROM dim_store_aliases'),
-          queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
-          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
-          queryD1('SELECT * FROM suppliers'),
-          queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
-          queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
-          queryD1('SELECT * FROM fact_purchase_order_lines ORDER BY po_id, line_index ASC'),
-          queryD1('SELECT audit_id AS id, store_id AS storeId, store_code AS storeCode, audit_date AS date, audit_timestamp AS timestamp, status FROM fact_audit_headers ORDER BY audit_date DESC, audit_timestamp DESC'),
-          queryD1('SELECT audit_id, ingredient_id, count_quantity FROM fact_audit_counts'),
-          queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
-        ])
+        // Swappable data source (settings.dataSource): 'lakehouse' reads all
+        // tabs directly from the lakehouse so D1 becomes an optional cache;
+        // 'd1' (default) keeps the local Cloudflare D1 path.
+        const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
+        const lh = qk => fetchLh(settings.token, settings.warehouseId, qk).then(coerceLhRows)
+
+        const [storesRes, aliasesRes, ingRes, recRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes] = useLh
+          ? await Promise.all([
+              lh('stores'),
+              Promise.resolve([]),
+              lh('ingredients'),
+              lh('recipes'),
+              Promise.resolve([]),
+              lh('transactions'),
+              lh('purchaseOrders'),
+              lh('poLines'),
+              lh('auditHeaders'),
+              lh('auditCounts'),
+              Promise.resolve([]),
+            ])
+          : await Promise.all([
+              queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
+              queryD1('SELECT * FROM dim_store_aliases'),
+              queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
+              queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+              queryD1('SELECT * FROM suppliers'),
+              queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
+              queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
+              queryD1('SELECT * FROM fact_purchase_order_lines ORDER BY po_id, line_index ASC'),
+              queryD1('SELECT audit_id AS id, store_id AS storeId, store_code AS storeCode, audit_date AS date, audit_timestamp AS timestamp, status FROM fact_audit_headers ORDER BY audit_date DESC, audit_timestamp DESC'),
+              queryD1('SELECT audit_id, ingredient_id, count_quantity FROM fact_audit_counts'),
+              queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
+            ])
 
         const CANONICAL_UI_STORE_NAMES = {
           1: 'НОВО КП',
@@ -1182,6 +1219,7 @@ export function ConfigProvider({ children }) {
       stores, visibleStores, suppressedStores, selectedStore, setSelectedStore, selectedStoreCode, toggleStoreVisibility: () => {},
       settings, saveSettings, updateOzonMapping, refreshSales,
       lhBalances, lhConnected: Boolean(settings?.token && settings?.warehouseId),
+      dataSource: settings?.dataSource || 'd1',
       reportFrom, reportTo,
       exportConfig, importConfig,
       addSupplier, updateSupplier, deleteSupplier,
