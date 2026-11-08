@@ -492,27 +492,34 @@ if selected_module == "🧋 Products & Menu (dim_product)":
     def import_unmapped_to_dim_product():
         insert_sql = """
             INSERT INTO workspace.gold.dim_product (
-                product_ru, parent_product_id, parent_product_en, parent_product_ru,
-                variant, category, subcategory, is_modifier, is_active, base_price, updated_at
+                product_id, parent_product_id, product_ru, parent_product_en, parent_product_ru,
+                variant, category, subcategory, is_modifier, is_active, base_price, cost, updated_at
             )
-            SELECT DISTINCT
-                t.product                                                    AS product_ru,
+            SELECT 
+                (SELECT COALESCE(MAX(product_id), 0) FROM workspace.gold.dim_product) 
+                + ROW_NUMBER() OVER (ORDER BY t.product)                    AS product_id,
                 (SELECT COALESCE(MAX(parent_product_id), 0) FROM workspace.gold.dim_product) 
                 + DENSE_RANK() OVER (ORDER BY t.product)                    AS parent_product_id,
+                t.product                                                    AS product_ru,
                 t.product                                                    AS parent_product_en,
                 t.product                                                    AS parent_product_ru,
                 'Standard'                                                   AS variant,
                 'Uncategorized'                                              AS category,
                 'New POS Item'                                               AS subcategory,
-                COALESCE(t.is_topping, FALSE)                                AS is_modifier,
+                COALESCE(t.is_modifier, FALSE)                               AS is_modifier,
                 TRUE                                                         AS is_active,
                 0.0                                                          AS base_price,
+                0.0                                                          AS cost,
                 current_timestamp()                                          AS updated_at
-            FROM workspace.default.transactions t
+            FROM (
+                SELECT product, COALESCE(MAX(is_topping), FALSE) AS is_modifier
+                FROM workspace.default.transactions
+                WHERE transaction_type != 'Non-Fiscal'
+                GROUP BY product
+            ) t
             LEFT JOIN workspace.gold.dim_product p
               ON t.product = p.product_ru
             WHERE p.product_ru IS NULL
-              AND t.transaction_type != 'Non-Fiscal'
         """
         execute_databricks_sql(insert_sql)
 
@@ -671,6 +678,7 @@ if selected_module == "🧋 Products & Menu (dim_product)":
 
                             parent_id_val = str(parent_id) if parent_id > 0 else "target.parent_product_id"
                             parent_id_insert = str(parent_id) if parent_id > 0 else "(SELECT COALESCE(MAX(parent_product_id), 0) + 1 FROM workspace.gold.dim_product)"
+                            product_id_insert = "(SELECT COALESCE(MAX(product_id), 0) + 1 FROM workspace.gold.dim_product)"
 
                             merge_sql = f"""
                                 MERGE INTO workspace.gold.dim_product AS target
@@ -687,11 +695,11 @@ if selected_module == "🧋 Products & Menu (dim_product)":
                                     base_price = {price},
                                     updated_at = current_timestamp()
                                 WHEN NOT MATCHED THEN INSERT (
-                                    product_ru, parent_product_id, parent_product_en, parent_product_ru,
-                                    variant, category, subcategory, is_modifier, is_active, base_price, updated_at
+                                    product_id, parent_product_id, product_ru, parent_product_en, parent_product_ru,
+                                    variant, category, subcategory, is_modifier, is_active, base_price, cost, updated_at
                                 ) VALUES (
-                                    '{p_ru}', {parent_id_insert}, '{p_en}', '{p_ru}',
-                                    '{var}', '{cat}', '{subcat}', {is_mod}, {is_act}, {price}, current_timestamp()
+                                    {product_id_insert}, {parent_id_insert}, '{p_ru}', '{p_en}', '{p_ru}',
+                                    '{var}', '{cat}', '{subcat}', {is_mod}, {is_act}, {price}, 0.0, current_timestamp()
                                 )
                             """
                             execute_databricks_sql(merge_sql)
