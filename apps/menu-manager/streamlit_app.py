@@ -42,32 +42,48 @@ def get_secret(key, default=None):
 
 def get_databricks_config():
     """Extract Databricks connection parameters from secrets or env."""
-    dbx_sec = {}
+    token = None
+    warehouse_id = None
+    host = None
+    http_path = None
+    d1_url = None
+
+    # Check 1: Nested [databricks] section in st.secrets
     try:
-        dbx_sec = dict(st.secrets.get("databricks", {}))
+        if hasattr(st, "secrets") and "databricks" in st.secrets:
+            sec = st.secrets["databricks"]
+            token = sec.get("token") or sec.get("DATABRICKS_TOKEN")
+            warehouse_id = sec.get("warehouse_id") or sec.get("DATABRICKS_SQL_WAREHOUSE_ID")
+            host = sec.get("host") or sec.get("server_hostname")
+            http_path = sec.get("http_path")
     except Exception:
         pass
 
-    host = (
-        dbx_sec.get("host") or 
-        dbx_sec.get("server_hostname") or
-        get_secret("DATABRICKS_HOST") or 
-        get_secret("DATABRICKS_SERVER_HOSTNAME") or 
-        "dbc-d5bd17fc-eaf4.cloud.databricks.com"
-    )
-    if host.startswith("https://"):
-        host = host.replace("https://", "")
-    host = host.rstrip("/")
+    # Check 2: Top-level keys in st.secrets
+    try:
+        if hasattr(st, "secrets"):
+            token = token or st.secrets.get("token") or st.secrets.get("DATABRICKS_TOKEN")
+            warehouse_id = warehouse_id or st.secrets.get("warehouse_id") or st.secrets.get("DATABRICKS_SQL_WAREHOUSE_ID")
+            host = host or st.secrets.get("host") or st.secrets.get("DATABRICKS_HOST") or st.secrets.get("server_hostname")
+            http_path = http_path or st.secrets.get("http_path") or st.secrets.get("DATABRICKS_HTTP_PATH")
+            d1_url = st.secrets.get("D1_PROXY_URL")
+    except Exception:
+        pass
 
-    token = dbx_sec.get("token") or get_secret("DATABRICKS_TOKEN")
-    warehouse_id = dbx_sec.get("warehouse_id") or get_secret("DATABRICKS_SQL_WAREHOUSE_ID") or "959d56e804ae9b36"
-    http_path = (
-        dbx_sec.get("http_path") or 
-        get_secret("DATABRICKS_HTTP_PATH") or 
-        f"/sql/1.0/endpoints/{warehouse_id}"
-    )
+    # Check 3: Environment variables
+    token = token or os.getenv("DATABRICKS_TOKEN") or os.getenv("token")
+    warehouse_id = warehouse_id or os.getenv("DATABRICKS_SQL_WAREHOUSE_ID") or os.getenv("warehouse_id") or "959d56e804ae9b36"
+    host = host or os.getenv("DATABRICKS_HOST") or os.getenv("DATABRICKS_SERVER_HOSTNAME") or "dbc-d5bd17fc-eaf4.cloud.databricks.com"
+    http_path = http_path or os.getenv("DATABRICKS_HTTP_PATH") or f"/sql/1.0/endpoints/{warehouse_id}"
+    d1_url = d1_url or os.getenv("D1_PROXY_URL") or "https://bobacafe-proxy.davidgao734.workers.dev/d1/execute"
 
-    d1_url = get_secret("D1_PROXY_URL", "https://bobacafe-proxy.davidgao734.workers.dev/d1/execute")
+    # Clean formatting
+    if host:
+        host = host.replace("https://", "").replace("http://", "").rstrip("/")
+    if token:
+        token = str(token).strip().strip('"').strip("'")
+    if warehouse_id:
+        warehouse_id = str(warehouse_id).strip().strip('"').strip("'")
 
     return {
         "host": host,
@@ -155,6 +171,25 @@ def execute_databricks_sql(sql_statement: str):
     Execute SQL against Databricks SQL Warehouse using the high-performance SQL Statements REST API.
     Stateless, fast (<2s), and 100% cloud-resilient (never hangs on Thrift socket handshakes).
     """
+    if not DB_CFG.get("token"):
+        st.error("""
+        ### 🔑 Databricks Token Missing
+        
+        The app cannot connect because the Databricks access token is not set in Streamlit Cloud secrets.
+        
+        **How to set it in Streamlit Cloud:**
+        1. Open your app settings at [share.streamlit.io](https://share.streamlit.io) (or click **Manage app** in the bottom-right).
+        2. Go to **Settings ⚙️ -> Secrets**.
+        3. Paste your secrets block:
+        ```toml
+        [databricks]
+        host = "dbc-d5bd17fc-eaf4.cloud.databricks.com"
+        token = "dapi..."
+        warehouse_id = "959d56e804ae9b36"
+        ```
+        4. Click **Save**. The app will reload and connect immediately.
+        """)
+        st.stop()
     url = f"https://{DB_CFG['host']}/api/2.0/sql/statements"
     payload = json.dumps({
         "statement": sql_statement,
