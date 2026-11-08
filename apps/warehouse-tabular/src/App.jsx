@@ -52,7 +52,7 @@ function LoginScreen({ onLogin }) {
         <div className="text-center">
           <Factory className="w-8 h-8 mx-auto text-blue-600 mb-2" />
           <p className="font-semibold text-gray-900 text-sm">Boba Кролик</p>
-          <p className="text-xs text-gray-400 mt-0.5">Warehouse System</p>
+          <p className="text-xs text-gray-400 mt-0.5">Warehouse &amp; Purchase Order</p>
         </div>
         <input
           type="password"
@@ -134,7 +134,7 @@ function AppContent({ role, onLogout }) {
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
         <div className="flex items-center gap-2">
           <Factory className="w-5 h-5 text-blue-600" />
-          <span className="font-semibold text-gray-900 text-sm">Warehouse</span>
+          <span className="font-semibold text-gray-900 text-sm">Warehouse &amp; Purchase Order</span>
         </div>
         <div className="flex items-center gap-2">
           {hasData && (

@@ -552,6 +552,15 @@
     <div class="section">
         <div class="section-label" data-ru="Инвентаризация">Inventory</div>
         <div class="app-grid">
+            <div class="app-card" data-app="warehouse-tabular">
+                <div class="card-top">
+                    <div class="app-icon">📦</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Склад и заказы">Warehouse & Purchase Order</div>
+                <div class="app-desc" data-ru="Управление складом, закупки у поставщиков, накладные расходы и интеграция с Ozon.">Central warehouse management, supplier purchase orders, overhead tracking, and Ozon receipts.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
             <div class="app-card" data-app="audit">
                 <div class="card-top">
                     <div class="app-icon">📝</div>
@@ -592,15 +601,6 @@
                 </div>
                 <div class="app-name" data-ru="Склад и производство">Warehouse & Production</div>
                 <div class="app-desc" data-ru="Центральный склад, поставки и логирование производства.">Central warehouse stock, supplier deliveries, and ingredient production logging.</div>
-                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
-            </div>
-            <div class="app-card" data-app="warehouse-tabular">
-                <div class="card-top">
-                    <div class="app-icon">📊</div>
-                    <span class="badge badge-locked">🔒 PIN</span>
-                </div>
-                <div class="app-name" data-ru="Склад (D1 Tabular)">Warehouse (Tabular)</div>
-                <div class="app-desc" data-ru="Реляционная версия склада на таблицах D1 SQL с контролем цен поставщиков.">Relational D1 SQL tabular warehouse with strict supplier cost validation.</div>
                 <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
             </div>
             <div class="app-card" data-app="tapioca">
@@ -738,9 +738,9 @@
             url:    '/internal/warehouse-tabular/',
             pin:    _P.warehouse || '8888',
             pins:   [_P.warehouse || '8888', _P.cook || '3344'],
-            label:  'Warehouse (Tabular)',
-            labelRu: 'Склад (D1 Tabular)',
-            icon:   '📊',
+            label:  'Warehouse & Purchase Order',
+            labelRu: 'Склад и заказы',
+            icon:   '📦',
         },
         'audit': {
             url:    '/internal/audit/',
