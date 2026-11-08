@@ -29,11 +29,23 @@ st.set_page_config(
 )
 
 # ─── SECRETS & CREDENTIALS RESOLVER ──────────────────────────────────────────
+def clean_credential_str(val):
+    """Thoroughly strip quotes, whitespace, newlines, and Bearer prefixes from secrets."""
+    if not val:
+        return ""
+    t = str(val).strip()
+    for _ in range(3):
+        t = t.strip('\'" \t\r\n')
+        if t.lower().startswith("bearer "):
+            t = t[7:].strip()
+    return "".join(t.split())
+
 def get_secret(key, default=None):
     """Retrieve secret from Streamlit secrets or environment variables."""
     val = None
     try:
-        val = st.secrets.get(key)
+        if hasattr(st, "secrets"):
+            val = st.secrets.get(key)
     except Exception:
         pass
     if val is None:
@@ -41,37 +53,75 @@ def get_secret(key, default=None):
     return val
 
 def get_databricks_config():
-    """Extract Databricks connection parameters from secrets or env."""
+    """Extract Databricks connection parameters from secrets or env with full case-insensitivity."""
     token = None
     warehouse_id = None
     host = None
     http_path = None
     d1_url = None
+    source_detected = "none"
 
-    # Check 1: Nested [databricks] section in st.secrets
-    try:
-        if hasattr(st, "secrets") and "databricks" in st.secrets:
-            sec = st.secrets["databricks"]
-            token = sec.get("token") or sec.get("DATABRICKS_TOKEN")
-            warehouse_id = sec.get("warehouse_id") or sec.get("DATABRICKS_SQL_WAREHOUSE_ID")
-            host = sec.get("host") or sec.get("server_hostname")
-            http_path = sec.get("http_path")
-    except Exception:
-        pass
+    def find_key(d, keys):
+        if not hasattr(d, "items"):
+            return None
+        lower_d = {str(k).lower(): v for k, v in d.items()}
+        for k in keys:
+            if k.lower() in lower_d:
+                return lower_d[k.lower()]
+        return None
 
-    # Check 2: Top-level keys in st.secrets
-    try:
-        if hasattr(st, "secrets"):
-            token = token or st.secrets.get("token") or st.secrets.get("DATABRICKS_TOKEN")
-            warehouse_id = warehouse_id or st.secrets.get("warehouse_id") or st.secrets.get("DATABRICKS_SQL_WAREHOUSE_ID")
-            host = host or st.secrets.get("host") or st.secrets.get("DATABRICKS_HOST") or st.secrets.get("server_hostname")
-            http_path = http_path or st.secrets.get("http_path") or st.secrets.get("DATABRICKS_HTTP_PATH")
-            d1_url = st.secrets.get("D1_PROXY_URL")
-    except Exception:
-        pass
+    # Check sections in st.secrets
+    if hasattr(st, "secrets"):
+        try:
+            # Check nested sections: [databricks], [DATABRICKS], [db], etc.
+            for sec_name in ["databricks", "db", "delta", "databrick", "workspace"]:
+                sec = find_key(st.secrets, [sec_name])
+                if isinstance(sec, dict) or hasattr(sec, "items"):
+                    t = find_key(sec, ["token", "databricks_token", "access_token", "api_key", "pat"])
+                    w = find_key(sec, ["warehouse_id", "databricks_sql_warehouse_id", "sql_warehouse_id", "warehouse", "endpoint_id"])
+                    h = find_key(sec, ["host", "server_hostname", "databricks_host", "hostname"])
+                    p = find_key(sec, ["http_path", "databricks_http_path", "path"])
+                    if t:
+                        token = t
+                        source_detected = f"st.secrets[{sec_name}]"
+                    if w:
+                        warehouse_id = w
+                    if h:
+                        host = h
+                    if p:
+                        http_path = p
+        except Exception:
+            pass
 
-    # Check 3: Environment variables
-    token = token or os.getenv("DATABRICKS_TOKEN") or os.getenv("token")
+        # Check top-level keys in st.secrets
+        try:
+            t = find_key(st.secrets, ["token", "databricks_token", "databricks_pat", "access_token"])
+            w = find_key(st.secrets, ["warehouse_id", "databricks_sql_warehouse_id", "sql_warehouse_id"])
+            h = find_key(st.secrets, ["host", "server_hostname", "databricks_host"])
+            p = find_key(st.secrets, ["http_path", "databricks_http_path"])
+            d1 = find_key(st.secrets, ["d1_proxy_url", "d1_url", "proxy_url"])
+            if t and not token:
+                token = t
+                source_detected = "st.secrets (top-level)"
+            if w and not warehouse_id:
+                warehouse_id = w
+            if h and not host:
+                host = h
+            if p and not http_path:
+                http_path = p
+            if d1 and not d1_url:
+                d1_url = d1
+        except Exception:
+            pass
+
+    # Fallback to Environment Variables
+    if not token:
+        for k in ["DATABRICKS_TOKEN", "TOKEN", "DATABRICKS_PAT"]:
+            if os.getenv(k):
+                token = os.getenv(k)
+                source_detected = f"env:{k}"
+                break
+
     warehouse_id = warehouse_id or os.getenv("DATABRICKS_SQL_WAREHOUSE_ID") or os.getenv("warehouse_id") or "959d56e804ae9b36"
     host = host or os.getenv("DATABRICKS_HOST") or os.getenv("DATABRICKS_SERVER_HOSTNAME") or "dbc-d5bd17fc-eaf4.cloud.databricks.com"
     http_path = http_path or os.getenv("DATABRICKS_HTTP_PATH") or f"/sql/1.0/endpoints/{warehouse_id}"
@@ -79,9 +129,8 @@ def get_databricks_config():
 
     # Clean formatting
     if host:
-        host = host.replace("https://", "").replace("http://", "").rstrip("/")
-    if token:
-        token = str(token).strip().strip('"').strip("'")
+        host = str(host).replace("https://", "").replace("http://", "").rstrip("/")
+    token = clean_credential_str(token)
     if warehouse_id:
         warehouse_id = str(warehouse_id).strip().strip('"').strip("'")
 
@@ -91,6 +140,7 @@ def get_databricks_config():
         "warehouse_id": warehouse_id,
         "http_path": http_path,
         "d1_proxy_url": d1_url,
+        "source_detected": source_detected,
     }
 
 # ─── AUTHENTICATION GATE (PASSWORD & GOOGLE OAUTH) ───────────────────────────
@@ -164,23 +214,28 @@ def enforce_authentication():
 enforce_authentication()
 
 # ─── DATABASE EXECUTION ENGINE (HIGH-PERFORMANCE REST API) ───────────────────
-DB_CFG = get_databricks_config()
-
 def execute_databricks_sql(sql_statement: str):
     """
     Execute SQL against Databricks SQL Warehouse using the high-performance SQL Statements REST API.
     Stateless, fast (<2s), and 100% cloud-resilient (never hangs on Thrift socket handshakes).
     """
-    if not DB_CFG.get("token"):
-        st.error("""
-        ### 🔑 Databricks Token Missing
+    cfg = get_databricks_config()
+    token = cfg.get("token", "")
+    host = cfg.get("host") or "dbc-d5bd17fc-eaf4.cloud.databricks.com"
+    warehouse_id = cfg.get("warehouse_id") or "959d56e804ae9b36"
+
+    if not token or len(token) < 10:
+        st.error(f"""
+        ### 🔑 Databricks Token Missing or Invalid
         
-        The app cannot connect because the Databricks access token is not set in Streamlit Cloud secrets.
+        The app cannot connect because the Databricks access token is missing or too short.
+        - **Source detected:** `{cfg.get('source_detected')}`
+        - **Token length:** `{len(token)}`
         
-        **How to set it in Streamlit Cloud:**
-        1. Open your app settings at [share.streamlit.io](https://share.streamlit.io) (or click **Manage app** in the bottom-right).
+        **How to configure it in Streamlit Cloud:**
+        1. Open your app at [share.streamlit.io](https://share.streamlit.io) (or click **Manage app** in the bottom right).
         2. Go to **Settings ⚙️ -> Secrets**.
-        3. Paste your secrets block:
+        3. Paste your Databricks configuration:
         ```toml
         [databricks]
         host = "dbc-d5bd17fc-eaf4.cloud.databricks.com"
@@ -190,16 +245,17 @@ def execute_databricks_sql(sql_statement: str):
         4. Click **Save**. The app will reload and connect immediately.
         """)
         st.stop()
-    url = f"https://{DB_CFG['host']}/api/2.0/sql/statements"
+
+    url = f"https://{host}/api/2.0/sql/statements"
     payload = json.dumps({
         "statement": sql_statement,
-        "warehouse_id": DB_CFG["warehouse_id"],
+        "warehouse_id": warehouse_id,
         "wait_timeout": "50s",
         "on_wait_timeout": "CONTINUE"
     }).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {DB_CFG['token']}"
+        "Authorization": f"Bearer {token}"
     }
 
     try:
@@ -231,16 +287,40 @@ def execute_databricks_sql(sql_statement: str):
             err_body = http_err.read().decode("utf-8", errors="replace")
         except Exception:
             pass
-        st.error(f"❌ Databricks HTTP Error {http_err.code}: {err_body or http_err.reason}")
+
+        if http_err.code in (401, 403):
+            masked = f"{token[:4]}...{token[-4:]}" if len(token) >= 8 else "(too short)"
+            st.error(f"""
+            ### ❌ Databricks Authentication Error ({http_err.code})
+            
+            **Databricks Response:**
+            > `{err_body or http_err.reason}`
+            
+            **Diagnostic:**
+            - **Config source:** `{cfg.get('source_detected')}`
+            - **Token length:** `{len(token)}`
+            - **Token preview:** `{masked}`
+            - **Host:** `{host}`
+            
+            **Possible Causes:**
+            1. The token in Streamlit Cloud Secrets is expired or has been revoked.
+            2. The token copied into Streamlit Cloud Secrets contains a typo.
+            
+            *Tip: Generate a fresh Personal Access Token in Databricks (`User Settings -> Developer -> Access Tokens -> Generate New Token`) and paste it into Streamlit Cloud Secrets.*
+            """)
+        else:
+            st.error(f"❌ Databricks HTTP Error {http_err.code}: {err_body or http_err.reason}")
         raise Exception(f"Databricks HTTP {http_err.code}: {err_body or http_err.reason}") from http_err
 
 def execute_d1_query(sql_query: str, params=None):
     """Execute SQL query against Cloudflare D1 via worker proxy."""
-    if not DB_CFG["d1_proxy_url"]:
+    cfg = get_databricks_config()
+    d1_url = cfg.get("d1_proxy_url")
+    if not d1_url:
         return None
     try:
         req = urllib.request.Request(
-            DB_CFG["d1_proxy_url"],
+            d1_url,
             data=json.dumps({"sql": sql_query, "params": params or []}).encode("utf-8"),
             headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
         )
@@ -267,9 +347,13 @@ with st.sidebar:
 
     st.divider()
     st.markdown("##### 🔌 Connection Status")
-    st.markdown(f"**Warehouse ID:** `{DB_CFG['warehouse_id']}`")
-    st.markdown(f"**Host:** `{DB_CFG['host']}`")
-    st.caption("🟢 SQL Warehouse Connected")
+    _active_cfg = get_databricks_config()
+    st.markdown(f"**Warehouse ID:** `{_active_cfg['warehouse_id']}`")
+    st.markdown(f"**Host:** `{_active_cfg['host']}`")
+    if _active_cfg.get("token"):
+        st.caption("🟢 Credentials Detected")
+    else:
+        st.caption("🔴 Credentials Missing")
 
     st.divider()
     st.markdown(f"👤 Signed in as: **{st.session_state.get('auth_user', 'Manager')}**")
@@ -318,6 +402,7 @@ if selected_module == "🧋 Products & Menu (dim_product)":
             df["category"] = df["category"].fillna("Uncategorized").replace({"nan": "Uncategorized", "None": "Uncategorized", "": "Uncategorized"})
             df["subcategory"] = df["subcategory"].fillna("").replace({"nan": "", "None": ""})
             df["variant"] = df["variant"].fillna("Standard").replace({"nan": "Standard", "None": "Standard", "": "Standard"})
+            df["updated_at"] = pd.to_datetime(df["updated_at"], errors="coerce")
         return df
 
     def recalculate_parent_product_ids():
@@ -410,6 +495,7 @@ if selected_module == "🧋 Products & Menu (dim_product)":
         """
         execute_databricks_sql(calc_sql)
 
+    @st.cache_data(ttl=300)
     def load_unmapped_products():
         query = """
             SELECT 
