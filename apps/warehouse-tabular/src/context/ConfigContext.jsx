@@ -153,14 +153,28 @@ export function ConfigProvider({ children }) {
           queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
         ])
 
+        const CANONICAL_UI_STORE_NAMES = {
+          1: 'НОВО КП',
+          2: 'ГРИН ПАРК',
+          3: 'БОН ПАССАЖ',
+          4: 'ЧЕРНОМОРСКИЙ',
+          5: 'СОВЕТОВ',
+          6: 'ГАЛЕРЕЯ',
+          10: 'ОЗМОЛЛ',
+          13: 'КИОСК',
+          99: 'Warehouse',
+        }
+
         const idToName = { 99: 'Warehouse' }
-        const nameToId = { 'Warehouse': 99, 'СКЛАД': 99 }
+        const nameToId = { 'Warehouse': 99, 'СКЛАД': 99, 'Склад': 99, 'склад': 99, 'WHS': 99, 'whs': 99 }
         const idToCode = { 99: 'WHS' }
 
         storesRes.forEach(s => {
-          idToName[s.store_id] = s.store_name
+          const uiName = CANONICAL_UI_STORE_NAMES[s.store_id] || (s.store_id === 99 ? 'Warehouse' : s.store_name)
+          idToName[s.store_id] = uiName
           idToCode[s.store_id] = s.store_code
           nameToId[s.store_name] = s.store_id
+          nameToId[uiName] = s.store_id
           if (s.store_name_en) nameToId[s.store_name_en] = s.store_id
           if (s.store_code) nameToId[s.store_code] = s.store_id
         })
@@ -170,9 +184,20 @@ export function ConfigProvider({ children }) {
             nameToId[a.alias_name] = a.store_id
           }
         })
+
+        // Enforce store 99 explicitly as Warehouse
+        idToName[99] = 'Warehouse'
+        idToCode[99] = 'WHS'
+        nameToId['Warehouse'] = 99
+        nameToId['СКЛАД'] = 99
+        nameToId['Склад'] = 99
+        nameToId['склад'] = 99
+        nameToId['WHS'] = 99
+        nameToId['whs'] = 99
+
         storeMapsRef.current = { idToName, nameToId, idToCode }
 
-        const activeStores = storesRes.filter(s => s.is_active && s.store_id !== 99).map(s => s.store_name)
+        const activeStores = ['НОВО КП', 'ГРИН ПАРК', 'БОН ПАССАЖ', 'ЧЕРНОМОРСКИЙ', 'СОВЕТОВ', 'КИОСК', 'ГАЛЕРЕЯ', 'ОЗМОЛЛ']
         setStoresState(['Warehouse', ...activeStores])
 
         let unitPay = loadFromStorage(COOK_UNIT_PAY_KEY) || {}
@@ -243,9 +268,13 @@ export function ConfigProvider({ children }) {
             overheadCategory: l.overhead_category || 'General Overhead'
           }))
 
-          const storeName = idToName[po.store_id] || po.store_code || 'Warehouse'
-          const fromStoreName = po.from_store_id ? (idToName[po.from_store_id] || 'Warehouse') : null
-          const toStoreName = po.to_store_id ? (idToName[po.to_store_id] || null) : null
+          const isStoreWh = po.store_id === 99 || po.store_code === 'WHS'
+          const isFromWh = po.from_store_id === 99
+          const isToWh = po.to_store_id === 99
+
+          const storeName = isStoreWh ? 'Warehouse' : (idToName[po.store_id] || po.store_code || 'Warehouse')
+          const fromStoreName = po.from_store_id ? (isFromWh ? 'Warehouse' : (idToName[po.from_store_id] || 'Warehouse')) : null
+          const toStoreName = po.to_store_id ? (isToWh ? 'Warehouse' : (idToName[po.to_store_id] || null)) : null
 
           return {
             id: po.po_id,
@@ -276,8 +305,9 @@ export function ConfigProvider({ children }) {
 
         const audits = audHeadersRes.map(h => ({
           id: h.id,
-          store: idToName[h.storeId] || h.storeCode || 'Warehouse',
+          store: (h.storeId === 99 || h.storeCode === 'WHS') ? 'Warehouse' : (idToName[h.storeId] || h.storeCode || 'Warehouse'),
           storeId: h.storeId,
+          storeCode: h.storeCode,
           date: h.date,
           timestamp: h.timestamp,
           status: h.status,
@@ -286,8 +316,9 @@ export function ConfigProvider({ children }) {
 
         const transactions = txRes.map(t => ({
           id: t.id,
-          store: idToName[t.storeId] || t.storeCode || 'Warehouse',
+          store: (t.storeId === 99 || t.storeCode === 'WHS') ? 'Warehouse' : (idToName[t.storeId] || t.storeCode || 'Warehouse'),
           storeId: t.storeId,
+          storeCode: t.storeCode,
           date: t.date,
           timestamp: t.timestamp,
           type: t.type,
@@ -1090,8 +1121,8 @@ export function ConfigProvider({ children }) {
       return {
         ...data,
         purchaseOrders: data.purchaseOrders || [],
-        transactions: (data.transactions || []).filter(tx => tx.store === 'Warehouse'),
-        audits: (data.audits || []).filter(a => a.store === 'Warehouse')
+        transactions: (data.transactions || []).filter(tx => tx.store === 'Warehouse' || tx.storeId === 99 || tx.storeCode === 'WHS'),
+        audits: (data.audits || []).filter(a => a.store === 'Warehouse' || a.storeId === 99 || a.storeCode === 'WHS')
       }
   }, [data])
 

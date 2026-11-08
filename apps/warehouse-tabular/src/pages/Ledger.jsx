@@ -14,7 +14,12 @@ export default function DailyLedger({ initialIngredientId }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const selectedStore = 'Warehouse'
-  const [from,          setFrom]          = useState(reportFrom)
+  const thirtyDaysAgo = () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().slice(0, 10)
+  }
+  const [from,          setFrom]          = useState(() => (reportFrom && reportFrom !== todayStr()) ? reportFrom : thirtyDaysAgo())
   const [to,            setTo]            = useState(todayStr())
   const [selectedIdState, setSelectedIdState] = useState(() => {
     const id = searchParams.get('ingredientId')
