@@ -8,7 +8,7 @@ const r1 = n => Math.round(n * 10) / 10
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
 export default function DailyLedger({ initialIngredientId }) {
-  const { config, sales, posWaste, data, reportFrom, reportTo, settings, selectedStore, selectedStoreCode } = useConfig()
+  const { config, sales, posWaste, data, reportFrom, reportTo, settings, selectedStore, selectedStoreCode, lhBalances } = useConfig()
   const calcs = useCalcs()
   const { t } = useLanguage()
   const { recipes } = config
@@ -63,7 +63,8 @@ export default function DailyLedger({ initialIngredientId }) {
     const filtered = config.ingredients
       .filter(ing => !q || ing.name.toLowerCase().includes(q))
       .map(ing => {
-        const estimate = calcs.estimateCurrentStock(selectedStore, ing.id)
+        const lhRow = lhBalances?.[String(ing.id)]
+        const estimate = lhRow ? Number(lhRow.current_on_hand) : calcs.estimateCurrentStock(selectedStore, ing.id)
         return { id: ing.id, name: ing.name, unit: ing.unit, estimate, productType: getProductType(ing) || 'ingredient' }
       })
     
@@ -73,7 +74,7 @@ export default function DailyLedger({ initialIngredientId }) {
       groups[ing.productType].push(ing)
     })
     return groups
-  }, [config.ingredients, calcs, selectedStore, search])
+  }, [config.ingredients, calcs, selectedStore, search, lhBalances])
 
   // ── Daily ledger rows (single store only) ─────────────────────────────────
   const { auditInfo, ledgerRows } = useMemo(() => {
@@ -377,6 +378,10 @@ export default function DailyLedger({ initialIngredientId }) {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('ledger.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t('ledger.subtitle')}</p>
+          <span className={`mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium w-fit ${lhEvents ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`} title={lhEvents ? 'view_inventory_events_last_audit' : 'Local D1 computation — lakehouse not connected'}>
+            <span className={`w-1.5 h-1.5 rounded-full ${lhEvents ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            {lhEvents ? 'Lakehouse' : 'Локальный D1'}
+          </span>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">

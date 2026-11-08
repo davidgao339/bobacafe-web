@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '@inventory/data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
+import { fetchCurrentInventory } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '@inventory/components/SyncErrorToast'
 
@@ -117,6 +118,8 @@ export function ConfigProvider({ children }) {
   const [suppressedStores, setSuppressedStores] = useState([])
   // Stores app: the retail store this session operates as (never Warehouse/99)
   const [selectedStore, setSelectedStoreState] = useState(() => loadFromStorage('bobacafe_selected_store') || null)
+  // Lakehouse pull state: current balances for the selected store (spec §2 Pull 2)
+  const [lhBalances, setLhBalances] = useState(null)
   const setSelectedStore = useCallback((name) => {
     saveToStorage('bobacafe_selected_store', name)
     setSelectedStoreState(name)
@@ -203,11 +206,14 @@ export function ConfigProvider({ children }) {
 
         storeMapsRef.current = { idToName, nameToId, idToCode }
 
-        // Stores app: active retail stores only (never Warehouse/99)
+        // Stores app: active retail stores only (never Warehouse/99).
+        // Active set verified against lakehouse dim_stores 2026-11-08: RSQ(1), GPK(2), BON(3), CHM(4), GAL(6).
+        const ACTIVE_RETAIL_STORE_IDS = [1, 2, 3, 4, 6]
         const activeRes = storesRes.filter(s => s.store_id !== 99)
-        const activeStores = activeRes.some(s => s.is_active !== undefined)
-          ? activeRes.filter(s => s.is_active).map(s => CANONICAL_UI_STORE_NAMES[s.store_id] || s.store_name)
-          : ['НОВО КП', 'ГРИН ПАРК', 'БОН ПАССАЖ', 'ЧЕРНОМОРСКИЙ', 'СОВЕТОВ', 'КИОСК', 'ГАЛЕРЕЯ', 'ОЗМОЛЛ']
+        const activeStores = activeRes
+          .filter(s => Number(s.is_active) === 1 || (s.is_active === undefined && ACTIVE_RETAIL_STORE_IDS.includes(s.store_id)))
+          .map(s => CANONICAL_UI_STORE_NAMES[s.store_id] || s.store_name)
+        if (activeStores.length === 0) activeStores.push('НОВО КП', 'ГРИН ПАРК', 'БОН ПАССАЖ', 'ЧЕРНОМОРСКИЙ', 'ГАЛЕРЕЯ')
         setStoresState(activeStores)
         setSelectedStoreState(prev => (prev && activeStores.includes(prev)) ? prev : (activeStores[0] || null))
 
@@ -410,6 +416,22 @@ export function ConfigProvider({ children }) {
 
   const selectedStoreId = selectedStore ? (storeMapsRef.current.nameToId[selectedStore] ?? null) : null
   const selectedStoreCode = selectedStoreId != null ? (storeMapsRef.current.idToCode[selectedStoreId] ?? null) : null
+
+  // ─── Lakehouse pull (spec §2 Pull 2): current balances for the selected store ───
+  useEffect(() => {
+    let cancelled = false
+    setLhBalances(null)
+    if (!settings?.token || !settings?.warehouseId || !selectedStoreCode) return
+    fetchCurrentInventory(settings.token, settings.warehouseId, selectedStoreCode)
+      .then(rows => {
+        if (cancelled) return
+        const map = {}
+        ;(rows || []).forEach(r => { map[String(r.ingredient_id)] = r })
+        setLhBalances(map)
+      })
+      .catch(err => console.error('Lakehouse balances fetch failed', err))
+    return () => { cancelled = true }
+  }, [settings?.token, settings?.warehouseId, selectedStoreCode])
 
   // ─── Operational data mutations (Optimistic + D1 Tabular & Legacy) ────────
   const addAudit = useCallback((store, date, counts, timestamp) => {
@@ -1159,6 +1181,7 @@ export function ConfigProvider({ children }) {
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, selectedStore, setSelectedStore, selectedStoreCode, toggleStoreVisibility: () => {},
       settings, saveSettings, updateOzonMapping, refreshSales,
+      lhBalances, lhConnected: Boolean(settings?.token && settings?.warehouseId),
       reportFrom, reportTo,
       exportConfig, importConfig,
       addSupplier, updateSupplier, deleteSupplier,

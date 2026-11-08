@@ -7,9 +7,9 @@ import InventoryLevels from './pages/InventoryLevels'
 import PurchaseOrders from './pages/PurchaseOrders'
 import Adjustments from './pages/Adjustments'
 import Recipes from './pages/Recipes'
-import Audit from './pages/Audit'
 import Ledger from './pages/Ledger'
 import OzonDeliveries from './pages/OzonDeliveries'
+import SettingsModal from './components/SettingsModal'
 
 
 
@@ -88,8 +88,10 @@ function AppRoot() {
 
 function AppContent({ role, onLogout }) {
   const navigate = useNavigate()
-  const { config, stores, selectedStore, setSelectedStore } = useConfig()
+  const { config, stores, selectedStore, setSelectedStore, settings } = useConfig()
   const hasData = (config.ingredients ?? []).length > 0
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const lhConnected = Boolean(settings?.token && settings?.warehouseId)
 
   const handleLoad = () => {
     window.location.reload()
@@ -117,6 +119,11 @@ function AppContent({ role, onLogout }) {
           {hasData && (
             <button onClick={handleLoad} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"><RefreshCw className="w-4 h-4" /></button>
           )}
+          <button onClick={() => setSettingsOpen(true)} title={lhConnected ? 'Lakehouse OK' : 'Lakehouse: no token'}
+            className="p-1.5 rounded-md hover:bg-gray-100 flex items-center gap-1">
+            <span className={`w-2 h-2 rounded-full ${lhConnected ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+            <Settings className="w-4 h-4 text-gray-500" />
+          </button>
           <button onClick={onLogout} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md"><LogOut className="w-4 h-4" /></button>
         </div>
       </header>
@@ -129,10 +136,10 @@ function AppContent({ role, onLogout }) {
           <Route path="/pos" element={<PurchaseOrders />} />
           <Route path="/adjustments" element={<Adjustments />} />
           <Route path="/recipes" element={<Recipes />} />
-          <Route path="/audit" element={<Audit />} />
           <Route path="/ledger" element={<Ledger />} />
           <Route path="/ozon" element={<OzonDeliveries />} />
         </Routes>
+        {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       </main>
 
       {/* Mobile Bottom Navigation */}
@@ -140,7 +147,6 @@ function AppContent({ role, onLogout }) {
         <NavItem to="/inventory" icon={<Layers className="w-5 h-5" />} label="Inventory" />
         <NavItem to="/pos" icon={<ClipboardList className="w-5 h-5" />} label="Receive" />
         <NavItem to="/ozon" icon={<Package className="w-5 h-5" />} label="Ozon" />
-        <NavItem to="/audit" icon={<ClipboardList className="w-5 h-5" />} label="Audit" />
         <NavItem to="/ledger" icon={<Settings className="w-5 h-5" />} label="Ledger" />
         <NavItem to="/recipes" icon={<Settings className="w-5 h-5" />} label="Recipes" />
         <NavItem to="/adjustments" icon={<PlusCircle className="w-5 h-5" />} label="Adjust" />
