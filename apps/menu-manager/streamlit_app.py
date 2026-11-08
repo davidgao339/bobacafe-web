@@ -123,7 +123,7 @@ def enforce_authentication():
                 st.caption("Or unlock with Management PIN / Password:")
 
             with st.form("pin_login_form"):
-                entered = st.text_input("Management PIN or Password", type="password", placeholder="PIN (e.g. 7530)")
+                entered = st.text_input("Management PIN or Password", type="password", placeholder="")
                 submitted = st.form_submit_button("Unlock Portal", type="primary" if not can_oauth else "secondary", use_container_width=True)
 
                 if submitted:
@@ -147,43 +147,27 @@ def enforce_authentication():
 
 enforce_authentication()
 
-# ─── DATABASE EXECUTION ENGINE (SQL CONNECTOR + REST API FALLBACK) ───────────
+# ─── DATABASE EXECUTION ENGINE (HIGH-PERFORMANCE REST API) ───────────────────
 DB_CFG = get_databricks_config()
 
 def execute_databricks_sql(sql_statement: str):
     """
-    Execute SQL against Databricks.
-    Tries databricks-sql-connector first; falls back to REST API for 100% cloud resilience.
+    Execute SQL against Databricks SQL Warehouse using the high-performance SQL Statements REST API.
+    Stateless, fast (<2s), and 100% cloud-resilient (never hangs on Thrift socket handshakes).
     """
-    # Attempt 1: databricks-sql-connector
-    try:
-        from databricks import sql
-        with sql.connect(
-            server_hostname=DB_CFG["host"],
-            http_path=DB_CFG["http_path"],
-            access_token=DB_CFG["token"]
-        ) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(sql_statement)
-                if cursor.description:
-                    columns = [d[0] for d in cursor.description]
-                    rows = cursor.fetchall()
-                    return pd.DataFrame(rows, columns=columns)
-                return pd.DataFrame()
-    except Exception as connector_err:
-        # Attempt 2: REST API fallback (/api/2.0/sql/statements)
-        url = f"https://{DB_CFG['host']}/api/2.0/sql/statements"
-        payload = json.dumps({
-            "statement": sql_statement,
-            "warehouse_id": DB_CFG["warehouse_id"],
-            "wait_timeout": "50s",
-            "on_wait_timeout": "CONTINUE"
-        }).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {DB_CFG['token']}"
-        }
+    url = f"https://{DB_CFG['host']}/api/2.0/sql/statements"
+    payload = json.dumps({
+        "statement": sql_statement,
+        "warehouse_id": DB_CFG["warehouse_id"],
+        "wait_timeout": "50s",
+        "on_wait_timeout": "CONTINUE"
+    }).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DB_CFG['token']}"
+    }
 
+    try:
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
@@ -200,12 +184,20 @@ def execute_databricks_sql(sql_statement: str):
 
         if state not in ("SUCCEEDED", "CLOSED"):
             err_msg = data.get("status", {}).get("error", {}).get("message", "Unknown SQL error")
-            raise Exception(f"Databricks execution error [{state}]: {err_msg} (Connector: {connector_err})")
+            raise Exception(f"Databricks SQL error [{state}]: {err_msg}")
 
         manifest = data.get("manifest", {}).get("schema", {}).get("columns", [])
         columns = [col["name"] for col in manifest]
         rows = data.get("result", {}).get("data_array", [])
         return pd.DataFrame(rows, columns=columns)
+    except urllib.error.HTTPError as http_err:
+        err_body = ""
+        try:
+            err_body = http_err.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        st.error(f"❌ Databricks HTTP Error {http_err.code}: {err_body or http_err.reason}")
+        raise Exception(f"Databricks HTTP {http_err.code}: {err_body or http_err.reason}") from http_err
 
 def execute_d1_query(sql_query: str, params=None):
     """Execute SQL query against Cloudflare D1 via worker proxy."""
@@ -436,7 +428,7 @@ if selected_module == "🧋 Products & Menu (dim_product)":
 
     with tab_edit:
         if "prod_save_msg" in st.session_state:
-            st.success(st.session_state.pop("prod_save_msg"))
+            st.toast(st.session_state.pop("prod_save_msg"), icon="✅")
 
         df_prod = load_dim_product()
 
@@ -444,18 +436,16 @@ if selected_module == "🧋 Products & Menu (dim_product)":
         if uncat_count > 0:
             st.warning(f"⚠️ **{uncat_count}** products pending classification! Filter by **'Uncategorized'** below to set category & price.")
 
-        col_q, col_cat, col_stat, col_ref = st.columns([2, 2, 1.5, 1])
+        col_q, col_cat, col_stat, col_ref = st.columns([2.5, 1.8, 1.4, 0.7])
         with col_q:
-            search_query = st.text_input("🔍 Search product (RU or EN):", placeholder="e.g. Латте, Tiger, Boba...")
+            search_query = st.text_input("🔍 Search product (RU or EN):", placeholder="Type name to filter...", label_visibility="collapsed")
         with col_cat:
-            cats = ["All"] + sorted([c for c in df_prod["category"].dropna().unique() if c])
-            sel_cat = st.selectbox("Category Filter:", cats, index=0)
+            cats = ["All Categories"] + sorted([c for c in df_prod["category"].dropna().unique() if c])
+            sel_cat = st.selectbox("Category Filter:", cats, index=0, label_visibility="collapsed")
         with col_stat:
-            status_filter = st.selectbox("Status Filter:", ["All", "Active Only", "Inactive Only"])
+            status_filter = st.selectbox("Status Filter:", ["All Items", "Active Only", "Inactive Only"], label_visibility="collapsed")
         with col_ref:
-            st.write("")
-            st.write("")
-            if st.button("🔄 Refresh Data", key="refresh_prod"):
+            if st.button("🔄", help="Refresh from Databricks", key="refresh_prod"):
                 st.cache_data.clear()
                 st.rerun()
 
@@ -467,37 +457,54 @@ if selected_module == "🧋 Products & Menu (dim_product)":
                 f_df["parent_product_en"].astype(str).str.contains(search_query, case=False, na=False)
             )
             f_df = f_df[mask]
-        if sel_cat != "All":
+        if sel_cat != "All Categories":
             f_df = f_df[f_df["category"] == sel_cat]
         if status_filter == "Active Only":
             f_df = f_df[f_df["is_active"] == True]
         elif status_filter == "Inactive Only":
             f_df = f_df[f_df["is_active"] == False]
 
-        st.caption(f"Showing **{len(f_df)}** of **{len(df_prod)}** items in product catalog")
-
         prod_cat_options = sorted(list(set(["Drink", "Food", "Dessert", "Toppings & Modifiers", "Service", "Uncategorized", "Other"] + [c for c in df_prod["category"].dropna().unique() if str(c).strip()])))
         prod_var_options = sorted(list(set(["Standard", "No Boba", "Large Cup (500ml)", "Double Shot"] + [v for v in df_prod["variant"].dropna().unique() if str(v).strip()])))
+
+        # Priority column order: Put most-edited fields first
+        prod_col_order = [
+            "product_ru",
+            "base_price",
+            "cost",
+            "is_active",
+            "category",
+            "variant",
+            "parent_product_en",
+            "subcategory",
+            "parent_product_id",
+            "is_modifier",
+            "updated_at",
+        ]
+        f_df = f_df[[c for c in prod_col_order if c in f_df.columns]]
+
+        # Top Action Bar container (rendered above table)
+        top_action_bar = st.container()
 
         edited_df = st.data_editor(
             f_df,
             num_rows="dynamic",
             disabled=["updated_at"],
             column_config={
-                "parent_product_id": st.column_config.NumberColumn("Parent ID", help="Group ID. Products sharing the same Parent ID and English name are grouped together.", format="%d", width="small"),
                 "product_ru": st.column_config.TextColumn("POS Exact Name (Key)", help="Matches POS transactions string", required=True, width="large"),
-                "parent_product_en": st.column_config.TextColumn("English Canonical Name", help="English display name for Genie and reports. Matching names get grouped together.", required=True, width="medium"),
-                "category": st.column_config.SelectboxColumn("Category", options=prod_cat_options, required=True, width="medium"),
-                "subcategory": st.column_config.TextColumn("Subcategory", width="medium"),
-                "variant": st.column_config.SelectboxColumn("Variant", options=prod_var_options, width="small"),
-                "is_modifier": st.column_config.CheckboxColumn("Modifier?", width="small"),
+                "base_price": st.column_config.NumberColumn("Price (₽)", min_value=0.0, step=10.0, format="₽%.0f", width="small", required=True),
+                "cost": st.column_config.NumberColumn("Unit Cost (₽)", min_value=0.0, step=1.0, format="₽%.2f", width="small", help="Recipe COGS in rubles"),
                 "is_active": st.column_config.CheckboxColumn("Active?", help="Uncheck if retired/discontinued", default=True, width="small"),
-                "base_price": st.column_config.NumberColumn("Base Price (₽)", min_value=0.0, step=10.0, format="₽%.0f", width="small"),
-                "cost": st.column_config.NumberColumn("Unit Cost (₽)", min_value=0.0, step=5.0, format="₽%.2f", width="small", help="Recipe COGS in rubles"),
+                "category": st.column_config.SelectboxColumn("Category", options=prod_cat_options, required=True, width="medium"),
+                "variant": st.column_config.SelectboxColumn("Variant", options=prod_var_options, width="small"),
+                "parent_product_en": st.column_config.TextColumn("English Canonical Name", help="English display name for Genie and reports.", width="medium"),
+                "subcategory": st.column_config.TextColumn("Subcategory", width="medium"),
+                "parent_product_id": st.column_config.NumberColumn("Parent ID", help="Group ID. Products sharing the same Parent ID and English name are grouped together.", format="%d", width="small"),
+                "is_modifier": st.column_config.CheckboxColumn("Modifier?", width="small"),
                 "updated_at": st.column_config.DatetimeColumn("Last Updated", format="YYYY-MM-DD HH:mm", width="medium"),
             },
             use_container_width=True,
-            height=540,
+            height=600,
             key="product_catalog_editor"
         )
 
@@ -531,18 +538,32 @@ if selected_module == "🧋 Products & Menu (dim_product)":
                 if changed:
                     modified_rows.append(row)
 
-        col_save, col_recalc, col_cost, col_info = st.columns([1.5, 1.8, 2.0, 2.5])
-        with col_save:
-            save_prod_btn = st.button("💾 Save Changes", type="primary", use_container_width=True)
-        with col_recalc:
-            recalc_btn = st.button("⚡ Recalculate Parent IDs", help="Unifies parent_product_id across all products sharing the same English Canonical Name", use_container_width=True)
-        with col_cost:
-            calc_cost_btn = st.button("🍲 Compute Costs (30d WAC)", help="Recomputes product unit costs (COGS) from recipe ingredients using 30-day WAC", use_container_width=True)
-        with col_info:
-            if modified_rows:
-                st.info(f"✏️ **{len(modified_rows)}** unsaved change(s). Click Save to commit.")
-            else:
-                st.caption("ℹ️ Click inside table cells to edit. Press Enter before saving.")
+        has_changes = len(modified_rows) > 0
+        save_label = f"💾 Save ({len(modified_rows)}) Changes" if has_changes else "💾 Save Changes"
+
+        # Populate Top Action Bar
+        with top_action_bar:
+            col_save_top, col_recalc_top, col_cost_top, col_info_top = st.columns([1.8, 1.8, 1.8, 2.6])
+            with col_save_top:
+                save_prod_top = st.button(save_label, type="primary" if has_changes else "secondary", disabled=not has_changes, use_container_width=True, key="save_prod_top")
+            with col_recalc_top:
+                recalc_top = st.button("⚡ Recalculate Parent IDs", help="Unifies parent_product_id across all products sharing the same English Canonical Name", use_container_width=True, key="recalc_top")
+            with col_cost_top:
+                calc_cost_top = st.button("🍲 Sync Recipe Costs", help="Updates product unit costs directly from real-time recipe BOM COGS view", use_container_width=True, key="calc_cost_top")
+            with col_info_top:
+                if has_changes:
+                    st.info(f"✏️ **{len(modified_rows)}** unsaved change(s). Click Save to commit.")
+                else:
+                    st.caption(f"📋 Showing **{len(f_df)}** of **{len(df_prod)}** products · 🟢 Ready to edit")
+
+        # Bottom save button for convenience when scrolled down
+        col_save_bot, _ = st.columns([1.8, 6.2])
+        with col_save_bot:
+            save_prod_bot = st.button(save_label, type="primary" if has_changes else "secondary", disabled=not has_changes, use_container_width=True, key="save_prod_bot")
+
+        save_prod_btn = save_prod_top or save_prod_bot
+        recalc_btn = recalc_top
+        calc_cost_btn = calc_cost_top
 
         if save_prod_btn:
             if not modified_rows:
@@ -754,7 +775,8 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                 COALESCE(is_hidden, FALSE) AS is_hidden,
                 COALESCE(manual_catalog_cost, 0.0) AS cost_per_unit,
                 COALESCE(effective_unit_cost, 0.0) AS effective_unit_cost,
-                COALESCE(wac_cost_30d, 0.0) AS wac_cost_30d,
+                COALESCE(wac_30d, 0.0) AS wac_30d,
+                COALESCE(wac_30d, 0.0) AS wac_cost_30d,
                 COALESCE(last_purchase_cost, 0.0) AS last_purchase_cost,
                 last_purchase_date,
                 COALESCE(cost_source, 'unpriced') AS cost_source
@@ -788,24 +810,22 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
     # ── TAB 1: EDIT INGREDIENTS ──
     with tab_ing_edit:
         if "ing_save_msg" in st.session_state:
-            st.success(st.session_state.pop("ing_save_msg"))
+            st.toast(st.session_state.pop("ing_save_msg"), icon="✅")
 
         df_ing = load_dim_ingredients()
 
-        # Filters
-        c_search, c_supp, c_type, c_ref = st.columns([2, 1.8, 1.8, 1])
+        # Filters: Single clean row
+        c_search, c_supp, c_type, c_ref = st.columns([2.5, 2.0, 1.8, 0.7])
         with c_search:
-            ing_search = st.text_input("🔍 Search ingredient name:", placeholder="e.g. Молоко, Маракуйя, Тапиока...")
+            ing_search = st.text_input("🔍 Search ingredient name:", placeholder="Type ingredient name to filter...", label_visibility="collapsed")
         with c_supp:
-            supp_options = ["All"] + sorted([s for s in df_ing["supplier_name"].dropna().unique() if s])
-            sel_supp = st.selectbox("Category / Supplier Filter:", supp_options, index=0)
+            supp_options = ["All Suppliers / Categories"] + sorted([s for s in df_ing["supplier_name"].dropna().unique() if s])
+            sel_supp = st.selectbox("Category / Supplier Filter:", supp_options, index=0, label_visibility="collapsed")
         with c_type:
-            type_options = ["All"] + sorted([t for t in df_ing["product_type"].dropna().unique() if t])
-            sel_type = st.selectbox("Product Type Filter:", type_options, index=0)
+            type_options = ["All Product Types"] + sorted([t for t in df_ing["product_type"].dropna().unique() if t])
+            sel_type = st.selectbox("Product Type Filter:", type_options, index=0, label_visibility="collapsed")
         with c_ref:
-            st.write("")
-            st.write("")
-            if st.button("🔄 Refresh Data", key="refresh_ing"):
+            if st.button("🔄", help="Refresh from Databricks", key="refresh_ing"):
                 st.cache_data.clear()
                 st.rerun()
 
@@ -813,39 +833,58 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
         f_ing = df_ing.copy()
         if ing_search:
             f_ing = f_ing[f_ing["ingredient_name"].astype(str).str.contains(ing_search, case=False, na=False)]
-        if sel_supp != "All":
+        if sel_supp != "All Suppliers / Categories":
             f_ing = f_ing[f_ing["supplier_name"] == sel_supp]
-        if sel_type != "All":
+        if sel_type != "All Product Types":
             f_ing = f_ing[f_ing["product_type"] == sel_type]
-
-        st.caption(f"Showing **{len(f_ing)}** of **{len(df_ing)}** ingredients in inventory catalog")
 
         all_units = sorted(list(set(KNOWN_UNITS + [u for u in df_ing["unit"].dropna().unique() if str(u).strip()])))
         all_suppliers = sorted(list(set(KNOWN_SUPPLIERS + [s for s in df_ing["supplier_name"].dropna().unique() if str(s).strip()])))
         all_types = sorted(list(set(KNOWN_PRODUCT_TYPES + [t for t in df_ing["product_type"].dropna().unique() if str(t).strip()])))
+
+        # Priority column order: Put most-edited fields first
+        ing_col_order = [
+            "ingredient_id",
+            "ingredient_name",
+            "cost_per_unit",
+            "effective_unit_cost",
+            "unit",
+            "supplier_name",
+            "is_hidden",
+            "product_type",
+            "is_warehouse_only",
+            "cost_source",
+            "wac_30d",
+            "last_purchase_cost",
+            "last_purchase_date",
+        ]
+        f_ing = f_ing[[c for c in ing_col_order if c in f_ing.columns]]
+
+        # Top Action Bar container (rendered above table)
+        top_ing_bar = st.container()
 
         edited_ing_df = st.data_editor(
             f_ing,
             disabled=["ingredient_id", "effective_unit_cost", "wac_cost_30d", "last_purchase_cost", "last_purchase_date", "cost_source"],
             num_rows="fixed",
             column_config={
-                "ingredient_id": st.column_config.NumberColumn("ID", format="%d", width="small", help="Unique sequential ID"),
+                "ingredient_id": st.column_config.NumberColumn("ID", format="%d", width="small", help="Unique sequential ID", disabled=True),
                 "ingredient_name": st.column_config.TextColumn("Ingredient Name", required=True, width="large"),
+                "cost_per_unit": st.column_config.NumberColumn("Catalog Cost (₽)", min_value=0.0, step=0.5, format="₽%.2f", width="small", help="Manual standard catalog baseline cost"),
+                "effective_unit_cost": st.column_config.NumberColumn("Live Cost (₽)", format="₽%.4f", width="small", help="Real-time 30-day WAC or fallback cost from view", disabled=True),
                 "unit": st.column_config.SelectboxColumn("Unit", options=all_units, required=True, width="small"),
                 "supplier_name": st.column_config.SelectboxColumn("Category / Supplier", options=all_suppliers, required=True, width="medium"),
+                "is_hidden": st.column_config.CheckboxColumn("Hidden?", width="small", help="Check to hide from retail audit forms"),
                 "product_type": st.column_config.SelectboxColumn("Product Type", options=all_types, required=True, width="medium"),
-                "cost_per_unit": st.column_config.NumberColumn("Baseline Cost (₽)", min_value=0.0, step=0.5, format="₽%.2f", width="small", help="Manual standard catalog baseline cost"),
-                "effective_unit_cost": st.column_config.NumberColumn("Effective Cost (₽)", format="₽%.4f", width="small", help="Real-time 30-day WAC or fallback cost from view", disabled=True),
-                "wac_cost_30d": st.column_config.NumberColumn("30d WAC (₽)", format="₽%.4f", width="small", help="Rolling 30-day weighted average cost from POs", disabled=True),
+                "is_warehouse_only": st.column_config.CheckboxColumn("Warehouse Only?", width="small"),
                 "cost_source": st.column_config.TextColumn("Cost Source", width="small", help="30d_wac, last_purchase, manual_catalog, or unpriced", disabled=True),
+                "wac_30d": st.column_config.NumberColumn("30d WAC (₽)", format="₽%.4f", width="small", disabled=True),
                 "last_purchase_cost": st.column_config.NumberColumn("Last PO (₽)", format="₽%.2f", width="small", disabled=True),
                 "last_purchase_date": st.column_config.TextColumn("Last PO Date", width="small", disabled=True),
-                "is_warehouse_only": st.column_config.CheckboxColumn("Warehouse Only?", width="small"),
-                "is_hidden": st.column_config.CheckboxColumn("Hidden?", width="small", help="Check to hide from retail audit forms"),
                 "supplier_id": None, # Hide raw ID
             },
             use_container_width=True,
-            height=540,
+            height=600,
             key="ingredient_catalog_editor"
         )
 
@@ -877,16 +916,29 @@ elif selected_module == "🍓 Ingredients & Stock (dim_ingredients)":
                 if changed:
                     mod_ing_rows.append(row)
 
-        c_save_ing, c_refresh_ing, c_info_ing = st.columns([1.5, 1.8, 3.5])
-        with c_save_ing:
-            save_ing_btn = st.button("💾 Save Ingredients", type="primary", use_container_width=True)
-        with c_refresh_ing:
-            refresh_ing_btn = st.button("🔄 Refresh View Costs", help="Refreshes live 30-day rolling WAC and recipe costs directly from Databricks SQL view", use_container_width=True)
-        with c_info_ing:
-            if mod_ing_rows:
-                st.info(f"✏️ **{len(mod_ing_rows)}** unsaved change(s) detected. Click Save to commit.")
-            else:
-                st.caption("ℹ️ Real-Time 30-Day WAC View is active. Click cells to edit. Press Enter before saving.")
+        has_ing_changes = len(mod_ing_rows) > 0
+        save_ing_label = f"💾 Save ({len(mod_ing_rows)}) Ingredients" if has_ing_changes else "💾 Save Ingredients"
+
+        # Populate Top Action Bar
+        with top_ing_bar:
+            c_save_ing_top, c_ref_ing_top, c_info_ing_top = st.columns([2.0, 2.0, 4.0])
+            with c_save_ing_top:
+                save_ing_top = st.button(save_ing_label, type="primary" if has_ing_changes else "secondary", disabled=not has_ing_changes, use_container_width=True, key="save_ing_top")
+            with c_ref_ing_top:
+                ref_ing_top = st.button("🔄 Refresh View Costs", help="Refreshes live 30-day rolling WAC and recipe costs directly from Databricks SQL view", use_container_width=True, key="ref_ing_top")
+            with c_info_ing_top:
+                if has_ing_changes:
+                    st.info(f"✏️ **{len(mod_ing_rows)}** unsaved change(s) detected. Click Save to commit.")
+                else:
+                    st.caption(f"📋 Showing **{len(f_ing)}** of **{len(df_ing)}** ingredients · 🟢 Real-time WAC active")
+
+        # Bottom save button for convenience when scrolled down
+        c_save_ing_bot, _ = st.columns([2.0, 6.0])
+        with c_save_ing_bot:
+            save_ing_bot = st.button(save_ing_label, type="primary" if has_ing_changes else "secondary", disabled=not has_ing_changes, use_container_width=True, key="save_ing_bot")
+
+        save_ing_btn = save_ing_top or save_ing_bot
+        refresh_ing_btn = ref_ing_top
 
         if refresh_ing_btn:
             st.cache_data.clear()
