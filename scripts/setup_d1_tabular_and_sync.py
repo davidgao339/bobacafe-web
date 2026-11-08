@@ -173,6 +173,10 @@ def main():
         ordered_quantity REAL DEFAULT 0,
         received_quantity REAL DEFAULT 0,
         unit TEXT,
+        unit_cost REAL,
+        total_cost REAL,
+        cost_category TEXT DEFAULT 'cogs',
+        overhead_category TEXT,
         PRIMARY KEY (po_id, line_index)
     )
     """)
@@ -525,7 +529,7 @@ def main():
         DELETE FROM fact_purchase_order_lines WHERE po_id = NEW.id;
 
         -- Array format lines
-        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit)
+        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category)
         SELECT 
             NEW.id,
             CAST(j.key AS INTEGER),
@@ -538,7 +542,15 @@ def main():
             CASE WHEN json_extract(j.value, '$.ingredientId') IS NULL THEN 1 ELSE 0 END,
             COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0),
             COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0),
-            COALESCE(json_extract(j.value, '$.unit'), '')
+            COALESCE(json_extract(j.value, '$.unit'), ''),
+            CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL),
+            CAST(COALESCE(
+                json_extract(j.value, '$.totalCost'), 
+                json_extract(j.value, '$.total_cost'),
+                CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL) * COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0)
+            ) AS REAL),
+            CASE WHEN json_extract(j.value, '$.ingredientId') IS NULL THEN 'overhead' ELSE 'cogs' END,
+            CASE WHEN json_extract(j.value, '$.ingredientId') IS NULL THEN COALESCE(json_extract(j.value, '$.overheadCategory'), 'General Overhead') ELSE NULL END
         FROM json_each(NEW.lines) j
         WHERE json_valid(NEW.lines) 
           AND json_type(NEW.lines) = 'array'
@@ -546,7 +558,7 @@ def main():
                OR COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0) > 0);
 
         -- Object format: regular lines
-        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit)
+        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category)
         SELECT 
             NEW.id,
             CAST(j.key AS INTEGER),
@@ -558,7 +570,15 @@ def main():
             0,
             COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0),
             COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0),
-            COALESCE(json_extract(j.value, '$.unit'), '')
+            COALESCE(json_extract(j.value, '$.unit'), ''),
+            CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL),
+            CAST(COALESCE(
+                json_extract(j.value, '$.totalCost'), 
+                json_extract(j.value, '$.total_cost'),
+                CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL) * COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0)
+            ) AS REAL),
+            'cogs',
+            NULL
         FROM json_each(json_extract(NEW.lines, '$.regular')) j
         WHERE json_valid(NEW.lines) 
           AND json_type(NEW.lines) = 'object'
@@ -566,7 +586,7 @@ def main():
                OR COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0) > 0);
 
         -- Object format: custom lines
-        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit)
+        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category)
         SELECT 
             NEW.id,
             1000 + CAST(j.key AS INTEGER),
@@ -575,7 +595,15 @@ def main():
             1,
             COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0),
             COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0),
-            COALESCE(json_extract(j.value, '$.unit'), 'шт')
+            COALESCE(json_extract(j.value, '$.unit'), 'шт'),
+            CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL),
+            CAST(COALESCE(
+                json_extract(j.value, '$.totalCost'), 
+                json_extract(j.value, '$.total_cost'),
+                CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL) * COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0)
+            ) AS REAL),
+            'overhead',
+            COALESCE(json_extract(j.value, '$.overheadCategory'), 'General Overhead')
         FROM json_each(json_extract(NEW.lines, '$.custom')) j
         WHERE json_valid(NEW.lines) 
           AND json_type(NEW.lines) = 'object';
@@ -606,7 +634,7 @@ def main():
         DELETE FROM fact_purchase_order_lines WHERE po_id = NEW.id;
 
         -- Array format lines
-        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit)
+        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category)
         SELECT 
             NEW.id,
             CAST(j.key AS INTEGER),
@@ -619,7 +647,15 @@ def main():
             CASE WHEN json_extract(j.value, '$.ingredientId') IS NULL THEN 1 ELSE 0 END,
             COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0),
             COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0),
-            COALESCE(json_extract(j.value, '$.unit'), '')
+            COALESCE(json_extract(j.value, '$.unit'), ''),
+            CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL),
+            CAST(COALESCE(
+                json_extract(j.value, '$.totalCost'), 
+                json_extract(j.value, '$.total_cost'),
+                CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL) * COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0)
+            ) AS REAL),
+            CASE WHEN json_extract(j.value, '$.ingredientId') IS NULL THEN 'overhead' ELSE 'cogs' END,
+            CASE WHEN json_extract(j.value, '$.ingredientId') IS NULL THEN COALESCE(json_extract(j.value, '$.overheadCategory'), 'General Overhead') ELSE NULL END
         FROM json_each(NEW.lines) j
         WHERE json_valid(NEW.lines) 
           AND json_type(NEW.lines) = 'array'
@@ -627,7 +663,7 @@ def main():
                OR COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0) > 0);
 
         -- Object format: regular lines
-        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit)
+        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category)
         SELECT 
             NEW.id,
             CAST(j.key AS INTEGER),
@@ -639,7 +675,15 @@ def main():
             0,
             COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0),
             COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0),
-            COALESCE(json_extract(j.value, '$.unit'), '')
+            COALESCE(json_extract(j.value, '$.unit'), ''),
+            CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL),
+            CAST(COALESCE(
+                json_extract(j.value, '$.totalCost'), 
+                json_extract(j.value, '$.total_cost'),
+                CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL) * COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0)
+            ) AS REAL),
+            'cogs',
+            NULL
         FROM json_each(json_extract(NEW.lines, '$.regular')) j
         WHERE json_valid(NEW.lines) 
           AND json_type(NEW.lines) = 'object'
@@ -647,7 +691,7 @@ def main():
                OR COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0) > 0);
 
         -- Object format: custom lines
-        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit)
+        INSERT INTO fact_purchase_order_lines (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category)
         SELECT 
             NEW.id,
             1000 + CAST(j.key AS INTEGER),
@@ -656,7 +700,15 @@ def main():
             1,
             COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0),
             COALESCE(CAST(json_extract(j.value, '$.received') AS REAL), 0),
-            COALESCE(json_extract(j.value, '$.unit'), 'шт')
+            COALESCE(json_extract(j.value, '$.unit'), 'шт'),
+            CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL),
+            CAST(COALESCE(
+                json_extract(j.value, '$.totalCost'), 
+                json_extract(j.value, '$.total_cost'),
+                CAST(COALESCE(json_extract(j.value, '$.unitCost'), json_extract(j.value, '$.unit_cost')) AS REAL) * COALESCE(CAST(json_extract(j.value, '$.ordered') AS REAL), 0)
+            ) AS REAL),
+            'overhead',
+            COALESCE(json_extract(j.value, '$.overheadCategory'), 'General Overhead')
         FROM json_each(json_extract(NEW.lines, '$.custom')) j
         WHERE json_valid(NEW.lines) 
           AND json_type(NEW.lines) = 'object';

@@ -594,6 +594,15 @@
                 <div class="app-desc" data-ru="Центральный склад, поставки и логирование производства.">Central warehouse stock, supplier deliveries, and ingredient production logging.</div>
                 <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
             </div>
+            <div class="app-card" data-app="warehouse-tabular">
+                <div class="card-top">
+                    <div class="app-icon">📊</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Склад (D1 Tabular)">Warehouse (Tabular)</div>
+                <div class="app-desc" data-ru="Реляционная версия склада на таблицах D1 SQL с контролем цен поставщиков.">Relational D1 SQL tabular warehouse with strict supplier cost validation.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
             <div class="app-card" data-app="tapioca">
                 <div class="card-top">
                     <div class="app-icon">🧋</div>
@@ -725,6 +734,14 @@
             labelRu: 'Склад и производство',
             icon:   '📦',
         },
+        'warehouse-tabular': {
+            url:    '/internal/warehouse-tabular/',
+            pin:    _P.warehouse || '8888',
+            pins:   [_P.warehouse || '8888', _P.cook || '3344'],
+            label:  'Warehouse (Tabular)',
+            labelRu: 'Склад (D1 Tabular)',
+            icon:   '📊',
+        },
         'audit': {
             url:    '/internal/audit/',
             pins:   [_P.quick_count || '1234', _P.inv_admin || '7530', MASTER_PIN],
@@ -799,7 +816,7 @@
         const allowed = app.pins ? [...app.pins, MASTER_PIN] : [app.pin, MASTER_PIN];
         if (allowed.includes(pin)) {
             sessionStorage.setItem(SESSION_PREFIX + activeApp, '1');
-            if (activeApp === 'warehouse') {
+            if (activeApp === 'warehouse' || activeApp === 'warehouse-tabular') {
                 if (pin === (_P.cook || '3344')) {
                     localStorage.setItem('whRole', 'cook');
                 } else if (pin === (_P.warehouse || '8888')) {
