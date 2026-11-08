@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '@inventory/data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
-import { fetchCurrentInventory, fetchLh } from '../services/databricks'
+import { fetchCurrentInventory, fetchLh, LH_PUSH, runDatabricksSql } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '@inventory/components/SyncErrorToast'
 
@@ -54,6 +54,15 @@ function coerceLhRows(rows) {
     }
     return out
   })
+}
+
+// Fire-and-forget lakehouse push (spec §3). D1 write above is already saved,
+// so a failed push is logged and healed by the nightly sync. Idempotent MERGEs
+// mean a re-save never duplicates.
+function lhPush(settings, sqls) {
+  if (!settings?.token || !settings?.warehouseId || !sqls?.length) return
+  sqls.reduce((p, s) => p.then(() => runDatabricksSql(settings.token, settings.warehouseId, s)), Promise.resolve())
+    .catch(err => console.error('LH push failed (D1 write already saved):', err))
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -177,13 +186,13 @@ export function ConfigProvider({ children }) {
               Promise.resolve([]),
               lh('ingredients'),
               lh('recipes'),
-              Promise.resolve([]),
+              lh('suppliers'),
               lh('transactions'),
               lh('purchaseOrders'),
               lh('poLines'),
               lh('auditHeaders'),
               lh('auditCounts'),
-              Promise.resolve([]),
+              lh('cookUnitPay'),
             ])
           : await Promise.all([
               queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
@@ -499,6 +508,16 @@ export function ConfigProvider({ children }) {
         }
       })
 
+      // 1b. Lakehouse push (spec §3): idempotent MERGE + counts replace
+      lhPush(settings, [
+        LH_PUSH.auditHeader({ auditId, storeId, storeCode, date, ts }),
+        ...LH_PUSH.auditCountsReplace(auditId, storeId, date, Object.entries(mergedCounts).map(([ingId, qty]) => ({
+          ingredientId: Number(ingId),
+          name: config.ingredients.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`,
+          qty: Number(qty),
+        }))),
+      ])
+
       // 3. Legacy audits table sync
       if (existing) {
         queryD1(`UPDATE audits SET counts = ?, timestamp = ? WHERE id = ?`, [JSON.stringify(mergedCounts), ts, existing.id]).catch(console.error)
@@ -520,6 +539,7 @@ export function ConfigProvider({ children }) {
     queryD1(`DELETE FROM fact_audit_headers WHERE audit_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM fact_audit_counts WHERE audit_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM audits WHERE id = ?`, [id]).catch(console.error)
+    lhPush(settings, [LH_PUSH.del('fact_audit_headers', `audit_id = '${id}'`), LH_PUSH.del('fact_audit_counts', `audit_id = '${id}'`)])
     setDataState(prev => ({ ...prev, audits: prev.audits.filter(a => a.id !== id) }))
   }, [])
 
@@ -540,6 +560,11 @@ export function ConfigProvider({ children }) {
       })
 
       queryD1(`UPDATE audits SET counts = ? WHERE id = ?`, [JSON.stringify(counts), id]).catch(console.error)
+      lhPush(settings, LH_PUSH.auditCountsReplace(id, audit.storeId, audit.date, Object.entries(counts).map(([ingId, qty]) => ({
+        ingredientId: Number(ingId),
+        name: config.ingredients.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`,
+        qty: Number(qty),
+      }))))
       return {
         ...prev,
         audits: prev.audits.map(a => a.id === id ? { ...a, counts } : a),
@@ -556,6 +581,7 @@ export function ConfigProvider({ children }) {
       `INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [newTx.id, storeId, storeCode, newTx.date, newTx.timestamp, newTx.type, newTx.ingredientId, newTx.ingredientName || '', newTx.quantity, newTx.poId || null, newTx.reason || null]
     ).catch(console.error)
+    lhPush(settings, [LH_PUSH.tx({ id: newTx.id, storeId, storeCode, date: newTx.date, ts: newTx.timestamp, type: newTx.type, ingredientId: newTx.ingredientId, ingredientName: newTx.ingredientName || '', qty: newTx.quantity, poId: newTx.poId, reason: newTx.reason })])
 
     queryD1(
       `INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
@@ -571,6 +597,7 @@ export function ConfigProvider({ children }) {
       toDelete.forEach(d => {
         queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [d.id]).catch(console.error)
         queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error)
+        lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${d.id}'`)])
       })
       return { ...prev, transactions: prev.transactions.filter(t => t.poId !== poId || t.type !== 'production') }
     })
@@ -582,6 +609,7 @@ export function ConfigProvider({ children }) {
       toDelete.forEach(d => {
         queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [d.id]).catch(console.error)
         queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error)
+        lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${d.id}'`)])
       })
       
       newTransactions.forEach(tx => {
@@ -591,6 +619,7 @@ export function ConfigProvider({ children }) {
           `INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [tx.id, storeId, storeCode, tx.date, tx.timestamp, tx.type, tx.ingredientId, tx.ingredientName || '', tx.quantity, tx.poId || null, tx.reason || null]
         ).catch(console.error)
+        lhPush(settings, [LH_PUSH.tx({ id: tx.id, storeId, storeCode, date: tx.date, ts: tx.timestamp, type: tx.type, ingredientId: tx.ingredientId, ingredientName: tx.ingredientName || '', qty: tx.quantity, poId: tx.poId, reason: tx.reason })])
 
         queryD1(
           `INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
@@ -617,6 +646,7 @@ export function ConfigProvider({ children }) {
       toDelete.forEach(d => {
         queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [d.id]).catch(console.error)
         queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error)
+        lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${d.id}'`)])
       })
       
       return { ...prev, transactions: prev.transactions.filter(t => t.id !== id && !isPairedLeg(t)) }
