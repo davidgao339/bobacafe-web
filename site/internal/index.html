@@ -561,6 +561,15 @@
                 <div class="app-desc" data-ru="Управление складом, закупки у поставщиков, накладные расходы и интеграция с Ozon.">Central warehouse management, supplier purchase orders, overhead tracking, and Ozon receipts.</div>
                 <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
             </div>
+            <div class="app-card" data-app="stores-tabular">
+                <div class="card-top">
+                    <div class="app-icon">🏪</div>
+                    <span class="badge badge-locked">🔒 PIN</span>
+                </div>
+                <div class="app-name" data-ru="Филиалы и заказы">Stores & Purchase Order</div>
+                <div class="app-desc" data-ru="Заказы напрямую от поставщиков в филиал, трансферы между филиалами и складом, ledger по каждому филиалу.">Direct vendor orders to stores, inter-store and WHS transfers, and per-store lakehouse ledger.</div>
+                <div class="card-link" data-ru="Разблокировать →">Unlock App →</div>
+            </div>
             <div class="app-card" data-app="audit">
                 <div class="card-top">
                     <div class="app-icon">📝</div>
@@ -742,6 +751,14 @@
             labelRu: 'Склад и заказы',
             icon:   '📦',
         },
+        'stores-tabular': {
+            url:    '/internal/stores-tabular/',
+            pin:    _P.warehouse || '8888',
+            pins:   [_P.warehouse || '8888', _P.inv_admin || '7530'],
+            label:  'Stores & Purchase Order',
+            labelRu: 'Филиалы и заказы',
+            icon:   '🏪',
+        },
         'audit': {
             url:    '/internal/audit/',
             pins:   [_P.quick_count || '1234', _P.inv_admin || '7530', MASTER_PIN],
@@ -823,6 +840,12 @@
                     localStorage.setItem('whRole', 'warehouse');
                 } else {
                     localStorage.setItem('whRole', 'admin');
+                }
+            } else if (activeApp === 'stores-tabular') {
+                if (pin === (_P.warehouse || '8888')) {
+                    localStorage.setItem('storesRole', 'store');
+                } else {
+                    localStorage.setItem('storesRole', 'admin');
                 }
             } else if (activeApp === 'audit') {
                 if (pin === (_P.quick_count || '1234')) {

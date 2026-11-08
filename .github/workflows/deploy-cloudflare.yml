@@ -58,6 +58,12 @@ jobs:
           npm ci
           npm run build
 
+      - name: Build Stores Tabular App
+        run: |
+          cd apps/stores-tabular
+          npm ci
+          npm run build
+
       - name: Build Audit App
         run: |
           cd apps/audit-app
@@ -128,7 +134,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ steps.databricks_token.outputs.token }}
         run: |
           # 1. Create output directories
-          mkdir -p deploy/internal/schedule deploy/internal/inventory deploy/internal/warehouse deploy/internal/warehouse-tabular deploy/internal/reports deploy/internal/audit
+          mkdir -p deploy/internal/schedule deploy/internal/inventory deploy/internal/warehouse deploy/internal/warehouse-tabular deploy/internal/stores-tabular deploy/internal/reports deploy/internal/audit
 
           # 2. Public site root
           cp site/index.html deploy/index.html
@@ -148,6 +154,7 @@ jobs:
           cp -r apps/inventory-app/dist/*   deploy/internal/inventory/
           cp -r apps/warehouse-app/dist/*   deploy/internal/warehouse/
           cp -r apps/warehouse-tabular/dist/* deploy/internal/warehouse-tabular/
+          cp -r apps/stores-tabular/dist/* deploy/internal/stores-tabular/
           cp -r apps/audit-app/dist/*       deploy/internal/audit/
 
           # 5. Reports
