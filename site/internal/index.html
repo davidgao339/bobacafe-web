@@ -774,7 +774,7 @@
             icon:   '⏱️',
         },
         'tapioca': {
-            url:    '/internal/inventory/tapioca',
+            url:    '/internal/tapioca-app/',
             pin:    _P.boba || '1023',
             pins:   [_P.boba || '1023', _P.inv_logistics || '9876', _P.inv_manager || '9876', _P.inv_admin || '7530', MASTER_PIN],
             label:  'Tapioca Cooking Plan',
@@ -855,12 +855,7 @@
                     sessionStorage.setItem('audit_role', 'manager');
                 }
             } else if (activeApp === 'tapioca') {
-                if (pin === (_P.inv_admin || '7530') || pin === MASTER_PIN) {
-                    localStorage.setItem('invRole', JSON.stringify({ role: 'admin', expires: Date.now() + 30 * 86400000 }));
-                } else {
-                    sessionStorage.setItem('invRole', 'logistics');
-                    sessionStorage.setItem('initialTab', 'tapioca');
-                }
+                sessionStorage.setItem('tapiocaAuth', '1');
             }
             closeModal();
             navigate(app);

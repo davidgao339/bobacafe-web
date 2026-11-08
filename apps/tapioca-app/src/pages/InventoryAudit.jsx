@@ -1,0 +1,1137 @@
+import { useState, useRef, useEffect, Fragment, useMemo } from 'react'
+import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
+
+
+// ─── Count tab ────────────────────────────────────────────────────────────────
+
+export function CountTab({ store, setStore, date, setDate, hideHeader }) {
+  const { config, data, addAudit, stores } = useConfig()
+  const { t } = useLanguage()
+
+  const [counts,  setCounts]  = useState({})
+  const [saved,   setSaved]   = useState(false)
+  const [search,  setSearch]  = useState('')
+  const [showGuide, setShowGuide] = useState(false)
+  const [sortKey, setSortKey] = useState('supplier')
+  const [sortDir, setSortDir] = useState('desc')
+  const [time,    setTime]    = useState(() => new Date().toTimeString().slice(0, 5))
+  const handleSort = key => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+  const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+
+  const existingAudit = (data.audits || []).find(a => a.store === store && a.date === date)
+
+  const lastItemAudits = useMemo(() => {
+    const storeAudits = (data.audits || [])
+      .filter(a => {
+        if (a.store !== store) return false
+        if (a.status === 'rejected') return false
+        if (existingAudit && a.id === existingAudit.id) return false
+        if (a.date > date) return false
+        if (existingAudit && a.date === date) {
+          if (existingAudit.timestamp && a.timestamp && a.timestamp >= existingAudit.timestamp) return false
+        }
+        return true
+      })
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.timestamp || '').localeCompare(a.timestamp || ''))
+
+    const map = {}
+    for (const audit of storeAudits) {
+      if (!audit.counts) continue
+      for (const [ingIdStr, qty] of Object.entries(audit.counts)) {
+        const id = Number(ingIdStr)
+        if (qty != null && qty !== '' && !isNaN(Number(qty)) && map[id] === undefined) {
+          map[id] = { count: Number(qty), date: audit.date, auditId: audit.id }
+        }
+      }
+    }
+    return map
+  }, [data.audits, store, existingAudit, date])
+  
+  useEffect(() => {
+    // 1. Try to load unsaved draft from local storage
+    const draftKey = `audit-draft-${store}-${date}`
+    const draft = localStorage.getItem(draftKey)
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft)
+        if (Object.keys(parsed).length > 0) {
+          setCounts(prev => ({ ...parsed, ...prev }))
+          return
+        }
+      } catch (e) {}
+    }
+
+    // 2. Otherwise load existing DB audit
+    if (existingAudit) {
+      const restored = {}
+      for (const [id, val] of Object.entries(existingAudit.counts)) {
+        restored[`${store}-${id}`] = val
+      }
+      setCounts(prev => ({ ...restored, ...prev }))
+    }
+  }, [store, date, existingAudit])
+
+  const startTime = useRef(Date.now())
+  
+  const lastCount = (productId) => {
+    const item = lastItemAudits[productId]
+    return item != null ? item.count : '—'
+  }
+
+  const lastCountDate = (productId) => {
+    return lastItemAudits[productId]?.date ?? null
+  }
+
+  const handleChange = (productId, val) => {
+    setSaved(false)
+    setCounts(prev => {
+      const next = { ...prev, [`${store}-${productId}`]: val }
+      // Auto-save draft to prevent data loss if browser is killed
+      localStorage.setItem(`audit-draft-${store}-${date}`, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
+  
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+  
+  const visibleIngredients = storeIngredients.filter(p => !p.hidden)
+  
+  const filledCount = visibleIngredients.filter(p => getValue(p.id) !== '').length
+  const totalCount = visibleIngredients.length
+  const isComplete = filledCount === totalCount
+
+  const hasVarianceFlags = visibleIngredients.some(product => {
+    const prev = lastCount(product.id)
+    const val = getValue(product.id)
+    if (val === '' || prev === '—') return false
+    const v = parseFloat(val)
+    const p = parseFloat(prev)
+    if (p === 0 && v > 10) return true
+    if (p > 0) {
+      const diff = Math.abs(v - p)
+      if (diff / p > 0.5 && diff > 5) return true
+    }
+    return false
+  })
+
+  const isSuspiciouslyFast = isComplete && (Date.now() - startTime.current) < 60000 && totalCount > 10
+  const isFlagged = hasVarianceFlags || isSuspiciouslyFast
+
+  const handleSave = async () => {
+    if (!isComplete) {
+      const msg = hideHeader 
+        ? `Вы посчитали только ${filledCount} из ${totalCount} позиций. Вы уверены, что хотите завершить неполную инвентаризацию? (Чтобы просто сохранить текущий результат без завершения, нажмите "Сохранить прогресс")`
+        : `You have only counted ${filledCount} out of ${totalCount} items. Are you sure you want to COMPLETE an incomplete audit? (Use "Save Progress" if you just want to save your current work without clearing the screen)`
+      if (!window.confirm(msg)) return
+    }
+    const auditCounts = {}
+    for (const product of visibleIngredients) {
+      const val = getValue(product.id)
+      if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
+    }
+    const status = isFlagged ? 'pending' : 'approved'
+    
+    try {
+      await addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
+      setSaved(true)
+      localStorage.removeItem(`audit-draft-${store}-${date}`)
+      setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+      startTime.current = Date.now()
+      setTimeout(() => setSaved(false), 3500)
+    } catch (err) {
+      alert(hideHeader ? `Ошибка сохранения. Убедитесь, что интернет работает, и попробуйте еще раз.\n\nДетали: ${err.message}` : `Save failed. Please check your connection and try again.\n\nDetails: ${err.message}`)
+    }
+  }
+
+  const handleSaveProgress = async () => {
+    const auditCounts = {}
+    for (const product of visibleIngredients) {
+      const val = getValue(product.id)
+      if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
+    }
+    const status = isFlagged ? 'pending' : 'approved'
+    
+    try {
+      await addAudit(store, date, auditCounts, `${date}T${time}:00`, status)
+      setSaved(true)
+      localStorage.removeItem(`audit-draft-${store}-${date}`)
+      setTimeout(() => setSaved(false), 3500)
+    } catch (err) {
+      alert(hideHeader ? `Ошибка сохранения прогресса. Убедитесь, что интернет работает.\n\nДетали: ${err.message}` : `Save progress failed. Please check your connection.\n\nDetails: ${err.message}`)
+    }
+  }
+
+  const suppName  = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
+
+  return (
+    <>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50 shadow-sm mb-6 overflow-hidden transition-all duration-300">
+        <button onClick={() => setShowGuide(!showGuide)} className="w-full px-5 py-4 flex items-center justify-between text-left group">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Инструкция по инвентаризации</p>
+              <p className="text-xs text-blue-600/70 mt-0.5">{showGuide ? 'Скрыть детали' : 'Нажмите, чтобы прочитать правила подсчета'}</p>
+            </div>
+          </div>
+          <svg className={`w-5 h-5 text-blue-400 transition-transform duration-300 ${showGuide ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+        {showGuide && (
+          <div className="px-5 pb-5 pt-1 text-sm text-blue-800/80 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">✨</span><p><strong>Сиропы</strong> = вносим в мл. В 1 бутылке 1000мл, если бутылка открыта наполовину то это 500мл, если половина половины то 250мл, если больше половины, то 750мл. В сиропнице 700мл. Половина сиропницы 350мл. Вносим только общее количество мл (например 1250мл)</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">🍓</span><p><strong>Пюре</strong> = вносим в гр. Вносим общее количество грамм на весах, вес бутылки не вычитаем, измеряем вместе с бутылкой. В закрытой бутылке 1065гр</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">🍯</span><p><strong>Топпинги</strong> также как и Пюре</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">🥤</span><p><strong>Стаканы и трубочки</strong> вносим в штуках (не в упаковках)</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">⚖️</span><p>Все что находится в контейнере нужно вычесть вес контейнера без порошка. Запишите вес контейнера на самом контейнере, чтобы было в дальнейшем проще вычитать.</p></div>
+            <div className="flex items-start gap-2.5"><span className="text-lg leading-none">📦</span><p>Все остальное смотрите на единицу измерения, открытые пачки в тонких упаковках измеряем на весах, вес упаковки не вычитаем. Сырный и кетчуп на упаковке написано вес в граммах, записываем примерно сколько осталось.</p></div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        {!hideHeader && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
+              <select value={store} onChange={e => { setStore(e.target.value); setSaved(false) }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                {stores.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('audit.auditDate')}</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </>
+        )}
+        <div className="flex-1 min-w-48">
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.search')}</label>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder={t('audit.filterPlaceholder')} value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {existingAudit && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          {t('audit.existingWarning', { store, date })}
+        </div>
+      )}
+
+      <div className="mb-24 flex flex-col gap-3 md:gap-0 md:bg-white md:rounded-xl md:border md:border-gray-200 md:shadow-sm md:overflow-hidden">
+        <div className={`hidden md:grid px-6 py-3 bg-gray-50 border-b border-gray-200 ${hideHeader ? 'grid-cols-4' : 'grid-cols-5'} gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide`}>
+          <span className="col-span-2 cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('name')}>
+            {t('common.ingredient')}{si('name')}
+          </span>
+          <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('supplier')}>
+            {t('recipes.supplier')}{si('supplier')}
+          </span>
+          {!hideHeader && (
+            <span className="cursor-pointer select-none hover:text-gray-700" onClick={() => handleSort('prev')}>
+              {t('audit.prevCount')}{si('prev')}
+            </span>
+          )}
+          <span>{t('audit.newCount')}</span>
+        </div>
+        {storeIngredients
+          .filter(p => !p.hidden && (!search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+            suppName(p).toLowerCase().includes(search.toLowerCase())))
+          .length === 0 && (
+            <div className="px-6 py-8 text-center text-sm text-gray-400">{t('audit.noMatch', { query: search })}</div>
+          )
+        }
+        {(() => {
+          const filtered = storeIngredients.filter(p =>
+            !p.hidden && (!search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+            suppName(p).toLowerCase().includes(search.toLowerCase()))
+          )
+          const sorted = sortKey ? [...filtered].sort((a, b) => {
+            let cmp = 0
+            if (sortKey === 'name')     cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+            if (sortKey === 'supplier') cmp = suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' })
+            if (sortKey === 'prev') {
+              const pa = lastItemAudits[a.id]?.count ?? -1, pb = lastItemAudits[b.id]?.count ?? -1
+              cmp = pa - pb
+            }
+            return sortDir === 'asc' ? cmp : -cmp
+          }) : [...filtered].sort((a, b) => suppName(a).localeCompare(suppName(b), undefined, { sensitivity: 'base' }))
+          return sorted
+        })().map((product, i) => {
+          const prev      = lastCount(product.id)
+          const prevDate  = lastCountDate(product.id)
+          const val       = getValue(product.id)
+          const delta     = val !== '' && prev !== '—' ? parseFloat(val) - parseFloat(prev) : null
+
+          return (
+            <div key={product.id}
+              className={`p-4 md:px-6 md:py-4 flex flex-col md:grid ${hideHeader ? 'md:grid-cols-4' : 'md:grid-cols-5'} gap-3 md:gap-4 md:items-center bg-white rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 md:border-b md:border-gray-100 last:border-0 transition-all duration-300 hover:shadow-md md:hover:shadow-none hover:border-blue-200 md:hover:bg-blue-50/50 group`}>
+              <div className="md:col-span-2 flex justify-between items-start md:block">
+                <div>
+                  <p className="font-semibold text-gray-900 text-base md:text-sm group-hover:text-blue-700 transition-colors">{product.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{product.unit}</p>
+                </div>
+                <div className="md:hidden text-[10px] font-medium tracking-wide uppercase px-2.5 py-1 bg-gradient-to-r from-gray-100 to-gray-50 rounded-full text-gray-500 truncate max-w-[140px] shadow-sm border border-gray-200/50">
+                  {suppName(product) || '—'}
+                </div>
+              </div>
+              <div className="hidden md:block text-xs text-gray-500 truncate">
+                {suppName(product) || <span className="text-gray-300">—</span>}
+              </div>
+              {!hideHeader && (
+                <div className="text-sm text-gray-700 tabular-nums flex justify-between items-center md:block bg-gray-50 md:bg-transparent rounded-lg p-2 md:p-0 border border-gray-100 md:border-none">
+                  <span className="md:hidden text-xs font-medium text-gray-400 uppercase tracking-wider">{t('audit.prevCount')}</span>
+                  <div className="text-right md:text-left">
+                    <div className="font-medium text-gray-900">
+                      {prev} <span className="text-gray-400 text-xs font-normal">{prev !== '—' ? product.unit : ''}</span>
+                    </div>
+                    {prevDate && (
+                      <div className="text-[11px] text-gray-400 font-normal">
+                        {prevDate}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3 w-full md:w-auto mt-2 md:mt-0">
+                <div className="relative flex-1 md:flex-none">
+                  <input type="number" min="0" step="0.1" inputMode="decimal" placeholder="0" value={val}
+                    onChange={e => handleChange(product.id, e.target.value)}
+                    className={`w-full md:w-32 border-2 ${val === '' ? 'border-blue-100 bg-blue-50/30' : 'border-gray-200 bg-gray-50'} rounded-xl pl-4 md:pl-3 pr-10 py-3 md:py-2 text-lg md:text-sm font-semibold text-gray-900 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white tabular-nums transition-all`} />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm md:text-xs font-medium text-gray-400 pointer-events-none select-none">
+                    {product.unit}
+                  </span>
+                </div>
+                {!hideHeader && delta !== null && (
+                  <span className={`text-base md:text-sm font-bold w-14 text-right md:text-left flex-shrink-0 ${delta < 0 ? 'text-rose-500' : delta > 0 ? 'text-emerald-500' : 'text-gray-400'}`}>
+                    {delta > 0 ? '+' : ''}{Math.round(delta * 10) / 10}
+                  </span>
+                )}
+                {(() => {
+                   if (val === '' || prev === '—') return null
+                   const v = parseFloat(val), p = parseFloat(prev)
+                   const isWarning = (p === 0 && v > 10) || (p > 0 && (Math.abs(v - p) / p > 0.5) && Math.abs(v - p) > 5)
+                   if (isWarning) return <span className="text-amber-500 flex-shrink-0 text-xl md:text-base" title="High variance detected">⚠️</span>
+                   return null
+                })()}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="h-24"></div>
+
+      <div className={`fixed ${hideHeader ? 'bottom-0 left-0' : 'bottom-14 md:bottom-0 left-0 md:left-64'} right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 py-3 md:py-4 shadow-[0_-8px_15px_-3px_rgba(0,0,0,0.1)] z-40`}>
+        <div className="max-w-4xl mx-auto flex items-center justify-between w-full px-3 md:px-8 gap-2">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <button onClick={() => {
+              const msg = hideHeader
+                ? "Вы уверены, что хотите очистить все введенные данные? Это действие нельзя отменить."
+                : "Are you sure you want to clear all entered counts? This cannot be undone."
+              if (window.confirm(msg)) {
+                localStorage.removeItem(`audit-draft-${store}-${date}`)
+                setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+              }
+            }}
+              className="text-xs sm:text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              {t('audit.clearAll')}
+            </button>
+            
+            <div className="flex flex-col hidden sm:flex">
+              <span className="text-xs font-medium text-gray-500">Progress</span>
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${totalCount ? (filledCount / totalCount) * 100 : 0}%` }} />
+                </div>
+                <span className="text-xs text-gray-500 tabular-nums">{filledCount} / {totalCount}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {saved && (
+              <span className="text-sm text-green-600 font-medium flex items-center gap-1.5 hidden sm:flex">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                {t('audit.savedFor', { store })}
+              </span>
+            )}
+            <button onClick={handleSaveProgress} disabled={filledCount === 0}
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                filledCount > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+              }`}>
+              {hideHeader ? 'Сохранить' : 'Save'}
+            </button>
+            <button onClick={handleSave} disabled={filledCount === 0}
+              className={`px-3.5 sm:px-6 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors shadow-sm ${
+                filledCount > 0 ? (isFlagged ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700') : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}>
+              {isFlagged ? (hideHeader ? 'Завершить (!)' : 'Review') : (hideHeader ? 'Завершить' : 'Complete')}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="text-xs text-gray-400 text-right mt-2 px-2">
+        <p>⚠️ {hideHeader ? 'Вносите штуки, а не упаковки. Если пусто, обязательно ставьте 0.' : 'Remember to count individual units, not full cases! Explicitly enter 0 if an item is out of stock.'}</p>
+        {isFlagged && <p className="text-amber-600 mt-1">{hideHeader ? 'Высокая дисперсия. Будет передано на проверку.' : 'High variance or suspicious speed detected. Saving will submit this count for manager review.'}</p>}
+      </div>
+    </>
+  )
+}
+
+// ─── History tab ──────────────────────────────────────────────────────────────
+
+function HistoryTab() {
+  const { config, data, deleteAudit, updateAudit, updateAuditStatus, stores } = useConfig()
+  const { t } = useLanguage()
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+  const [historyStore,  setHistoryStore]  = useState('All')
+  const [filterStatus,  setFilterStatus]  = useState('All')
+  const [expanded,      setExpanded]      = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [editingId,     setEditingId]     = useState(null)
+  const [editCounts,    setEditCounts]    = useState({}) // { ingredientId: string | null }
+  const [editSearch,    setEditSearch]    = useState('')
+
+  const audits = [...data.audits]
+    .filter(a => historyStore === 'All' || a.store === historyStore)
+    .filter(a => filterStatus === 'All' || a.status === filterStatus.toLowerCase())
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+
+  const startEdit = (audit) => {
+    // Pre-fill with existing counts as strings; null = will be removed on save
+    const draft = {}
+    Object.entries(audit.counts).forEach(([id, val]) => { draft[id] = String(val) })
+    setEditCounts(draft)
+    setEditingId(audit.id)
+    setEditSearch('')
+  }
+
+  const cancelEdit = () => { setEditingId(null); setEditCounts({}); setEditSearch('') }
+
+  const saveEdit = (auditId) => {
+    const newCounts = {}
+    Object.entries(editCounts).forEach(([id, val]) => {
+      if (val !== '' && val !== null) {
+        const num = parseFloat(val)
+        if (!isNaN(num)) newCounts[Number(id)] = Math.max(0, num)
+      }
+    })
+    updateAudit(auditId, newCounts)
+    cancelEdit()
+  }
+
+  const setIngVal = (id, val) => setEditCounts(prev => ({ ...prev, [id]: val }))
+  const removeIng = (id) => setEditCounts(prev => { const n = { ...prev }; delete n[id]; return n })
+
+  return (
+    <>
+      <div className="flex items-center gap-4 mb-6">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
+          <select value={historyStore}
+            onChange={e => { setHistoryStore(e.target.value); setExpanded(null); setPendingDelete(null); cancelEdit() }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="All">{t('common.allStores')}</option>
+            {stores.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select value={filterStatus}
+            onChange={e => { setFilterStatus(e.target.value); setExpanded(null); setPendingDelete(null); cancelEdit() }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="All">All Statuses</option>
+            <option value="Approved">Approved</option>
+            <option value="Pending">Pending Review</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+        <p className="text-sm text-gray-500 mt-5">
+          {t('audit.auditsCount', { count: audits.length })}
+        </p>
+      </div>
+
+      {audits.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
+          {t('audit.noAuditsYet')}{historyStore !== 'All' ? ` for ${historyStore}` : ''}
+        </div>
+      ) : (
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-3">
+            {audits.map(audit => {
+              const isExpanded = expanded === audit.id
+              const isPending  = pendingDelete === audit.id
+              const isEditing  = editingId === audit.id
+              const counted    = Object.keys(audit.counts).length
+
+              return (
+                <div key={audit.id} className={`bg-white rounded-xl border shadow-xs overflow-hidden transition-all ${
+                  isExpanded || isEditing ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200'
+                }`}>
+                  <div
+                    onClick={() => { if (!isPending && !isEditing) setExpanded(prev => prev === audit.id ? null : audit.id) }}
+                    className="p-4 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900 text-sm">{audit.store}</span>
+                        <span className="font-mono text-xs text-gray-400">#{audit.id}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        audit.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                        audit.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {audit.status}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                      <span className="font-medium text-gray-700">{audit.date}</span>
+                      <span className="tabular-nums">
+                        {isEditing ? <span className="text-blue-600 font-semibold">{Object.keys(editCounts).length}</span> : counted} / {storeIngredients.length} {t('audit.colCounted').toLowerCase()}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setExpanded(prev => prev === audit.id ? null : audit.id)}
+                        className="text-xs text-blue-600 font-medium py-1 flex items-center gap-1"
+                      >
+                        {isExpanded ? (t('audit.hideDetails') || 'Скрыть') : (t('audit.details') || 'Подробнее')}
+                        <svg className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {isPending ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-red-600 font-medium">{t('audit.deleteThisAudit')}</span>
+                            <button onClick={() => { deleteAudit(audit.id); setPendingDelete(null); if (expanded === audit.id) setExpanded(null) }}
+                              className="text-xs px-2.5 py-1 bg-red-600 text-white rounded-md font-medium">{t('common.yes')}</button>
+                            <button onClick={() => setPendingDelete(null)}
+                              className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md">{t('common.no')}</button>
+                          </div>
+                        ) : isEditing ? (
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => saveEdit(audit.id)}
+                              className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md font-medium">{t('common.save')}</button>
+                            <button onClick={cancelEdit}
+                              className="text-xs px-2 py-1 text-gray-500 border border-gray-200 rounded-md">{t('common.cancel')}</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); startEdit(audit); setExpanded(audit.id) }}
+                              className="text-xs px-2.5 py-1 text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-md transition-colors">{t('common.edit')}</button>
+                            <button onClick={() => setPendingDelete(audit.id)}
+                              className="text-xs px-2.5 py-1 text-red-600 hover:bg-red-50 border border-red-200 rounded-md transition-colors">{t('common.delete')}</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {(isExpanded || isEditing) && (
+                    <div className={`p-4 border-t ${isEditing ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50/70 border-gray-100'}`}>
+                      {audit.status === 'pending' && !isEditing && (() => {
+                        let hasAnyVariance = false
+                        for (const [id, val] of Object.entries(audit.counts)) {
+                          const prevAudit = (data.audits || [])
+                            .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date && a.counts?.[id] != null)
+                            .sort((a, b) => b.date.localeCompare(a.date))[0]
+                          const prev = prevAudit?.counts[id]
+                          if (val != null && prev != null) {
+                            if (prev === 0 && val > 10) hasAnyVariance = true
+                            else if (prev > 0 && Math.abs(val - prev) / prev > 0.5 && Math.abs(val - prev) > 5) hasAnyVariance = true
+                          }
+                        }
+                        return (
+                          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-xs font-semibold text-amber-800">Manager Review Required</p>
+                            <p className="text-xs text-amber-700 mt-0.5 mb-2.5">
+                              {hasAnyVariance 
+                                ? "Suspiciously high variance detected." 
+                                : "Completed suspiciously fast."}
+                            </p>
+                            <div className="flex gap-2">
+                              <button onClick={() => updateAuditStatus(audit.id, 'approved')} className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-md">Approve</button>
+                              <button onClick={() => updateAuditStatus(audit.id, 'rejected')} className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded-md">Reject</button>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      {isEditing ? (
+                        <>
+                          <p className="text-xs text-blue-700 font-medium mb-2.5">
+                            {t('audit.editCountsHint')}
+                          </p>
+                          <div className="relative mb-2.5">
+                            <input type="text" placeholder={t('audit.filterPlaceholder')} value={editSearch}
+                              onChange={e => setEditSearch(e.target.value)}
+                              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              ...storeIngredients.filter(ing => audit.counts[ing.id] != null),
+                              ...storeIngredients.filter(ing => audit.counts[ing.id] == null),
+                            ]
+                              .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
+                              .map(ing => {
+                                const inDraft = ing.id in editCounts
+                                return (
+                                  <div key={ing.id} className={`bg-white rounded-lg p-2 text-xs ${
+                                    inDraft ? 'border border-blue-200 shadow-xs' : 'border border-dashed border-gray-200 opacity-60'
+                                  }`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className={`truncate text-xs ${inDraft ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{ing.name}</p>
+                                      {inDraft && (
+                                        <button onClick={() => removeIng(ing.id)} className="text-gray-300 hover:text-red-400 ml-1">✕</button>
+                                      )}
+                                    </div>
+                                    <input type="number" min="0" step="0.1" inputMode="decimal" placeholder={inDraft ? undefined : '—'}
+                                      value={editCounts[ing.id] ?? ''}
+                                      onChange={e => setIngVal(ing.id, e.target.value)}
+                                      className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
+                                    <span className="text-[10px] text-gray-400 mt-0.5 block">{ing.unit}</span>
+                                  </div>
+                                )
+                              })
+                            }
+                          </div>
+                        </>
+                      ) : counted === 0 ? (
+                        <p className="text-xs text-gray-400">{t('audit.noCountsRecorded')}</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {storeIngredients
+                            .filter(ing => audit.counts[ing.id] != null)
+                            .map(ing => {
+                              const val = audit.counts[ing.id]
+                              return (
+                                <div key={ing.id} className="bg-white rounded-lg p-2 border border-gray-200/80 text-xs">
+                                  <p className="truncate text-gray-500 text-[11px]">{ing.name}</p>
+                                  <p className="font-semibold text-gray-900 tabular-nums mt-0.5 text-xs">
+                                    {val} <span className="font-normal text-gray-400 text-[10px]">{ing.unit}</span>
+                                  </p>
+                                </div>
+                              )
+                            })
+                          }
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th className="px-6 py-3 font-medium">{t('audit.colId')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.date')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium text-right">{t('audit.colCounted')}</th>
+                <th className="px-4 py-3 font-medium w-52"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {audits.map(audit => {
+                const isExpanded = expanded === audit.id
+                const isPending  = pendingDelete === audit.id
+                const isEditing  = editingId === audit.id
+                const counted    = Object.keys(audit.counts).length
+
+                return (
+                  <Fragment key={audit.id}>
+                    <tr
+                      onClick={() => { if (!isPending && !isEditing) setExpanded(prev => prev === audit.id ? null : audit.id) }}
+                      className={`border-b border-gray-50 cursor-pointer transition-colors ${isExpanded || isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                      <td className="px-6 py-3 font-mono text-xs text-gray-400">{audit.id}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{audit.date}</td>
+                      <td className="px-4 py-3 text-gray-700">{audit.store}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                          audit.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                          audit.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {audit.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-600">
+                        {isEditing
+                          ? <span className="text-blue-600">{Object.keys(editCounts).length}</span>
+                          : counted}
+                        <span className="text-gray-400 text-xs"> / {storeIngredients.length}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                        {isPending ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="text-xs text-red-600">{t('audit.deleteThisAudit')}</span>
+                            <button onClick={() => { deleteAudit(audit.id); setPendingDelete(null); if (expanded === audit.id) setExpanded(null) }}
+                              className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
+                            <button onClick={() => setPendingDelete(null)}
+                              className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
+                          </div>
+                        ) : isEditing ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => saveEdit(audit.id)}
+                              className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700">{t('common.save')}</button>
+                            <button onClick={cancelEdit}
+                              className="text-xs text-gray-500 hover:text-gray-700">{t('common.cancel')}</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={e => { e.stopPropagation(); startEdit(audit); setExpanded(audit.id) }}
+                              className="text-xs text-blue-500 hover:text-blue-700 transition-colors">{t('common.edit')}</button>
+                            <button onClick={() => setPendingDelete(audit.id)}
+                              className="text-xs text-red-400 hover:text-red-600 transition-colors">{t('common.delete')}</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+
+                    {(isExpanded || isEditing) && (
+                      <tr className={`border-b ${isEditing ? 'bg-blue-50 border-blue-200' : 'bg-blue-50 border-blue-100'}`}>
+                        <td colSpan={6} className="px-6 py-4">
+                          {audit.status === 'pending' && !isEditing && (() => {
+                            let hasAnyVariance = false
+                            for (const [id, val] of Object.entries(audit.counts)) {
+                              const prevAudit = (data.audits || [])
+                                .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date && a.counts?.[id] != null)
+                                .sort((a, b) => b.date.localeCompare(a.date))[0]
+                              const prev = prevAudit?.counts[id]
+                              if (val != null && prev != null) {
+                                if (prev === 0 && val > 10) hasAnyVariance = true
+                                else if (prev > 0 && Math.abs(val - prev) / prev > 0.5 && Math.abs(val - prev) > 5) hasAnyVariance = true
+                              }
+                            }
+                            return (
+                              <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                                <div>
+                                  <p className="text-sm font-medium text-amber-800">Manager Review Required</p>
+                                  <p className="text-xs text-amber-700 mt-0.5">
+                                    {hasAnyVariance 
+                                      ? "This audit contains items with suspiciously high variance compared to the previous count." 
+                                      : "This audit was completed suspiciously fast and flagged for speed."}
+                                  </p>
+                                </div>
+                                <div className="flex gap-3">
+                                  <button onClick={() => updateAuditStatus(audit.id, 'approved')} className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm">Approve</button>
+                                  <button onClick={() => updateAuditStatus(audit.id, 'rejected')} className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm">Reject</button>
+                                </div>
+                              </div>
+                            )
+                          })()}
+                          {isEditing ? (
+                            <>
+                              <p className="text-xs text-blue-700 font-medium mb-3">
+                                {t('audit.editCountsHint')}
+                              </p>
+                              {/* Search within edit mode */}
+                              <div className="relative mb-3 max-w-xs">
+                                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input type="text" placeholder={t('audit.filterPlaceholder')} value={editSearch}
+                                  onChange={e => setEditSearch(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                {/* Partition by the ORIGINAL audit counts so a card never jumps
+                                    between groups mid-typing (which unmounts the input and drops focus) */}
+                                {[
+                                  ...storeIngredients.filter(ing => audit.counts[ing.id] != null),
+                                  ...storeIngredients.filter(ing => audit.counts[ing.id] == null),
+                                ]
+                                  .filter(ing => !editSearch || ing.name.toLowerCase().includes(editSearch.toLowerCase()))
+                                  .map(ing => {
+                                    const inDraft = ing.id in editCounts
+                                    return (
+                                      <div key={ing.id} className={`bg-white rounded-lg px-3 py-2 text-xs ${
+                                        inDraft
+                                          ? 'border border-blue-200'
+                                          : 'border border-dashed border-gray-200 opacity-60 hover:opacity-100 transition-opacity'
+                                      }`}>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <p className={`truncate flex-1 ${inDraft ? 'text-gray-500' : 'text-gray-400'}`}>{ing.name}</p>
+                                          {inDraft && (
+                                            <button onClick={() => removeIng(ing.id)}
+                                              className="text-gray-300 hover:text-red-400 ml-1 flex-shrink-0">✕</button>
+                                          )}
+                                        </div>
+                                        <input type="number" min="0" step="0.1" placeholder={inDraft ? undefined : '—'}
+                                          value={editCounts[ing.id] ?? ''}
+                                          onChange={e => setIngVal(ing.id, e.target.value)}
+                                          className="w-full border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 tabular-nums" />
+                                        <span className="text-gray-400 text-xs">{ing.unit}</span>
+                                      </div>
+                                    )
+                                  })
+                                }
+                              </div>
+                            </>
+                          ) : counted === 0 ? (
+                            <p className="text-sm text-gray-400">{t('audit.noCountsRecorded')}</p>
+                          ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                              {storeIngredients
+                                .filter(ing => audit.counts[ing.id] != null)
+                                .map(ing => {
+                                  const val = audit.counts[ing.id]
+                                  const prevAudit = (data.audits || [])
+                                    .filter(a => a.store === audit.store && a.status !== 'rejected' && a.date < audit.date && a.counts?.[ing.id] != null)
+                                    .sort((a, b) => b.date.localeCompare(a.date))[0]
+                                  const prev = prevAudit?.counts[ing.id]
+                                  
+                                  let isHighRisk = false
+                                  if (audit.status === 'pending' && val != null && prev != null) {
+                                    if (prev === 0 && val > 10) isHighRisk = true
+                                    else if (prev > 0 && Math.abs(val - prev) / prev > 0.5 && Math.abs(val - prev) > 5) isHighRisk = true
+                                  }
+
+                                  return (
+                                    <div key={ing.id} className={`rounded-lg px-3 py-2 border text-xs ${isHighRisk ? 'bg-amber-50 border-amber-300' : 'bg-white border-blue-100'}`}>
+                                      <div className="flex items-center justify-between">
+                                        <p className={`truncate ${isHighRisk ? 'text-amber-800 font-medium' : 'text-gray-500'}`}>{ing.name}</p>
+                                        {isHighRisk && <span title={`Previous count was ${prev}`} className="text-[10px] bg-amber-200 text-amber-800 px-1 py-0.5 rounded ml-1 leading-none font-bold">!</span>}
+                                      </div>
+                                      <p className={`font-semibold tabular-nums mt-0.5 ${isHighRisk ? 'text-amber-900' : 'text-gray-900'}`}>
+                                        {val}{' '}
+                                        <span className={`font-normal ${isHighRisk ? 'text-amber-700' : 'text-gray-400'}`}>{ing.unit}</span>
+                                      </p>
+                                    </div>
+                                  )
+                                })
+                              }
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </>
+      )}
+    </>
+  )
+}
+
+// ─── Import tab ───────────────────────────────────────────────────────────────
+
+function parseCSVLine(line, delim = ',') {
+  const result = []
+  let current = '', inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+      else inQuotes = !inQuotes
+    } else if (ch === delim && !inQuotes) {
+      result.push(current); current = ''
+    } else {
+      current += ch
+    }
+  }
+  result.push(current)
+  return result
+}
+
+const RUSSIAN_LABEL_CELLS = new Set(['кафе', 'дата', 'время', 'ингредиент', 'ед.измерения', 'количество'])
+
+function normalizeDate(raw) {
+  // Accept DD.MM.YYYY in addition to YYYY-MM-DD
+  const ddmmyyyy = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`
+  return raw
+}
+
+// 24-hour H:mm or HH:mm → 'HH:mm', or null if invalid
+function normalizeTime(raw) {
+  const m = raw.match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return null
+  const h = Number(m[1]), min = Number(m[2])
+  if (h > 23 || min > 59) return null
+  return `${String(h).padStart(2, '0')}:${m[2]}`
+}
+
+function ImportTab() {
+  const { config, addAudit, stores } = useConfig()
+  const { t } = useLanguage()
+  const storeIngredients = config.ingredients.filter(i => !i.warehouseOnly)
+  const [parsed,  setParsed]  = useState(null)
+  const [result,  setResult]  = useState(null)
+  const fileRef = useRef(null)
+
+  const csvEsc = v => /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+
+  const downloadTemplate = () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
+    const rows = [
+      ['store', 'date', 'time', 'ingredient', 'unit', 'supplier', 'qty'],
+      ...[...storeIngredients]
+        .sort((a, b) => {
+          const sa = suppName(a), sb = suppName(b)
+          if (sa !== sb) return sa.localeCompare(sb)
+          return a.name.localeCompare(b.name)
+        })
+        .map(i => [stores[0], today, '', i.name, i.unit, suppName(i), '']),
+    ]
+    const csv = rows.map(r => r.map(csvEsc).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'audit-template.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseFile = (text) => {
+    const clean = text.replace(/^﻿/, '')
+    const lines = clean.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return { audits: [], rowErrors: [], unknownIngredients: [] }
+
+    // Auto-detect delimiter: whichever of , or ; appears more in the header line
+    const delim = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ','
+
+    const headers = parseCSVLine(lines[0], delim).map(h => h.trim().toLowerCase())
+    const iStore = headers.indexOf('store')
+    const iDate  = headers.indexOf('date')
+    const iTime  = headers.indexOf('time')   // optional, 24h HH:mm
+    const iIng   = headers.indexOf('ingredient')
+    const iQty   = headers.indexOf('qty')
+    if (iStore < 0 || iDate < 0 || iIng < 0 || iQty < 0)
+      return { audits: [], rowErrors: [{ rowNum: 1, msg: t('audit.importBadHeader') }], unknownIngredients: [] }
+
+    const ingByName = {}
+    storeIngredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
+
+    // collect raw row errors and valid counts grouped by store+date
+    const groups = {}   // key "store||date" -> { store, date, counts: {} }
+    const rowErrors = []
+    const unknownIngredients = new Set()
+
+    // Determine first data row — skip a Russian label row if present
+    const firstDataRow = (() => {
+      const cells = parseCSVLine(lines[1], delim).map(c => c.trim().toLowerCase())
+      const isLabel = cells.some(c => RUSSIAN_LABEL_CELLS.has(c))
+      return isLabel ? 2 : 1
+    })()
+
+    for (let i = firstDataRow; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i], delim)
+      if (cells.every(c => !c.trim())) continue
+      const rowNum = i + 1
+      const store   = cells[iStore]?.trim() ?? ''
+      const date    = normalizeDate(cells[iDate]?.trim() ?? '')
+      const timeRaw = iTime >= 0 ? (cells[iTime]?.trim() ?? '') : ''
+      const ingRaw  = cells[iIng]?.trim()   ?? ''
+      const qtyRaw  = cells[iQty]?.trim()   ?? ''
+      const errors = []
+
+      if (!stores.includes(store)) errors.push(`unknown store "${store}"`)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${cells[iDate]?.trim()}"`)
+      const time = timeRaw ? normalizeTime(timeRaw) : null
+      if (timeRaw && !time) errors.push(`invalid time "${timeRaw}" (use 24h HH:mm)`)
+      const ing = ingByName[ingRaw.toLowerCase()]
+      if (!ing) { unknownIngredients.add(ingRaw); continue }
+      const qty = parseFloat(qtyRaw)
+      if (qtyRaw && isNaN(qty)) errors.push(`invalid qty "${qtyRaw}"`)
+
+      if (errors.length > 0) { rowErrors.push({ rowNum, msg: errors.join('; ') }); continue }
+      if (!qtyRaw) continue  // blank qty = not counted, skip silently
+
+      const key = `${store}||${date}`
+      if (!groups[key]) groups[key] = { store, date, time: null, counts: {} }
+      if (time && !groups[key].time) groups[key].time = time
+      groups[key].counts[ing.id] = Math.max(0, qty)
+    }
+
+    const audits = Object.values(groups)
+    return { audits, rowErrors, unknownIngredients: [...unknownIngredients].sort() }
+  }
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setResult(null)
+    const reader = new FileReader()
+    reader.onload = ev => setParsed(parseFile(ev.target.result))
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleImport = async () => {
+    if (!parsed?.audits) return;
+    try {
+      for (const a of parsed.audits) {
+        await addAudit(a.store, a.date, a.counts, a.time ? `${a.date}T${a.time}:00` : undefined)
+      }
+      setResult({ imported: parsed.audits.length })
+      setParsed(null)
+      if (fileRef.current) fileRef.current.value = ''
+    } catch (err) {
+      alert("Import error: " + err.message)
+    }
+  }
+
+  return (
+    <>
+      <div className="mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">{t('audit.importTitle')}</h2>
+        <p className="text-sm text-gray-500">{t('audit.importDesc')}</p>
+      </div>
+
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={downloadTemplate}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          {t('audit.downloadTemplate')}
+        </button>
+        <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          {t('audit.uploadCSV')}
+          <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
+        </label>
+      </div>
+
+      {result && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+          {t('audit.importSuccess', { count: result.imported })}
+        </div>
+      )}
+
+      {parsed && (
+        <>
+          {parsed.unknownIngredients.length > 0 && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <p className="text-xs font-medium text-amber-800 mb-1.5">
+                {parsed.unknownIngredients.length} ingredient(s) not found in system — rows skipped:
+              </p>
+              <ul className="text-xs text-amber-700 space-y-0.5">
+                {parsed.unknownIngredients.map(name => <li key={name}>"{name}"</li>)}
+              </ul>
+            </div>
+          )}
+
+          {parsed.rowErrors.length > 0 && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+              <p className="text-xs font-medium text-red-700 mb-1.5">{parsed.rowErrors.length} row error(s) — these rows were skipped:</p>
+              <ul className="text-xs text-red-600 space-y-0.5">
+                {parsed.rowErrors.map(e => <li key={e.rowNum}>Row {e.rowNum}: {e.msg}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {parsed.audits.length > 0 ? (
+            <>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
+                <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
+                  <span className="text-sm font-medium text-gray-700">
+                    {t('audit.importReady', { valid: parsed.audits.length, errors: parsed.rowErrors.length })}
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
+                      <th className="px-4 py-2 font-medium">{t('common.store')}</th>
+                      <th className="px-4 py-2 font-medium">{t('common.date')}</th>
+                      <th className="px-4 py-2 font-medium text-right">{t('audit.colCounted')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {parsed.audits.map(a => (
+                      <tr key={`${a.store}||${a.date}`}>
+                        <td className="px-4 py-2 font-medium text-gray-900">{a.store}</td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {a.date}
+                          {a.time && <span className="text-gray-400 text-xs ml-1.5">{a.time}</span>}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-gray-600">
+                          {Object.keys(a.counts).length}
+                          <span className="text-gray-400 text-xs"> / {storeIngredients.length}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end">
+                <button onClick={handleImport}
+                  className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                  {t('audit.importNow', { count: parsed.audits.length })}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">{t('audit.importNoRows')}</p>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function InventoryAudit({ activeTab = 'count', onTabChange }) {
+  const { stores } = useConfig()
+  const [store, setStore] = useState(stores?.[0] ?? '')
+  const [date,  setDate]  = useState(new Date().toISOString().slice(0, 10))
+  const { t } = useLanguage()
+
+  return (
+    <div className="p-4 md:p-8 max-w-4xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">{t('audit.title')}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{t('audit.subtitle')}</p>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
+        {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')], ['import', t('audit.tabImport')]].map(([id, label]) => (
+          <button key={id} onClick={() => onTabChange?.(id)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'count'   && <CountTab   store={store} setStore={setStore} date={date} setDate={setDate} />}
+      {activeTab === 'history' && <HistoryTab />}
+      {activeTab === 'import'  && <ImportTab />}
+    </div>
+  )
+}

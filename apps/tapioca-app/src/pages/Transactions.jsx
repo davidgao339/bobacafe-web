@@ -1,0 +1,1241 @@
+import { useState, useMemo, Fragment } from 'react'
+import { useConfig, useCalcs } from '../context/ConfigContext'
+import { useLanguage } from '../context/LanguageContext'
+
+const PAGE_SIZE = 100
+
+// ─── Sales tab ────────────────────────────────────────────────────────────────
+
+function SalesTab({ customFrom, customTo }) {
+  const { sales, salesCache, reportFrom, reportTo, settings, saveSettings, refreshSales, recalculateUsage, clearSalesCache, stores } = useConfig()
+  const { getSaleIngredientImpact } = useCalcs()
+  const { t } = useLanguage()
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+  const todayStr     = new Date().toISOString().slice(0, 10)
+
+  const [filterStore,    setFilterStore]    = useState('All')
+  const [filterFrom,     setFilterFrom]     = useState(customFrom || sevenDaysAgo)
+  const [filterTo,       setFilterTo]       = useState(customTo || todayStr)
+  const [expanded,       setExpanded]       = useState(null)
+  const [page,           setPage]           = useState(0)
+  const [refreshing,     setRefreshing]     = useState(false)
+  const [recalculating,  setRecalculating]  = useState(false)
+  const [refreshMsg,     setRefreshMsg]     = useState(null)
+  const [showSettings,   setShowSettings]   = useState(false)
+  const [localToken,     setLocalToken]     = useState(settings.token ?? '')
+  const [localWarehouse, setLocalWarehouse] = useState(settings.warehouseId ?? '')
+
+  // Sync if custom dates provided from parent
+  useMemo(() => {
+    if (customFrom) setFilterFrom(customFrom)
+    if (customTo)   setFilterTo(customTo)
+  }, [customFrom, customTo])
+
+  const lastSync = salesCache?.lastRefreshDate ?? null
+
+  const handleRefresh = async () => {
+    // Use live input if settings panel is open, otherwise fall back to saved settings
+    const token       = (showSettings ? localToken : settings.token)?.trim()
+    let warehouseId = (showSettings ? localWarehouse : settings.warehouseId)?.trim()
+    
+    if (!token) {
+      setShowSettings(true)
+      setRefreshMsg({ type: 'error', text: 'Enter a Databricks PAT token first.' })
+      return
+    }
+    if (!token.startsWith('dapi')) {
+      setShowSettings(true)
+      setRefreshMsg({ type: 'error', text: 'Token should start with "dapi". Check your Databricks PAT.' })
+      return
+    }
+    if (!warehouseId) {
+      setShowSettings(true)
+      setRefreshMsg({ type: 'error', text: 'Enter a Databricks Warehouse ID.' })
+      return
+    }
+
+    // If the user accidentally pasted the HTTP Path, extract the ID
+    const match = warehouseId.match(/(?:warehouses|endpoints)\/([a-zA-Z0-9]+)/) || warehouseId.match(/([a-fA-F0-9]{16})/)
+    if (match) {
+      warehouseId = match[1]
+    }
+
+    setRefreshing(true); setRefreshMsg(null)
+    try {
+      const result = await refreshSales(token, warehouseId, filterFrom, filterTo)
+      
+      if (result.upToDate) {
+        setRefreshMsg({ type: 'ok', text: `Already up to date through ${result.throughDate}.` })
+      } else {
+        setRefreshMsg({ type: 'ok', text: `Fetched ${result.newRows} rows (${result.fromDate} → ${result.toDate}).` })
+      }
+    } catch (err) {
+      setRefreshMsg({ type: 'error', text: err.message })
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleRecalcUsage = async () => {
+    if (filterFrom > filterTo) {
+      setRefreshMsg({ type: 'error', text: 'Start date cannot be after end date.' })
+      return
+    }
+    setRecalculating(true)
+    setRefreshMsg(null)
+    try {
+      const res = await recalculateUsage(filterFrom, filterTo, filterStore)
+      setRefreshMsg({
+        type: 'ok',
+        text: t('tx.recalcSuccess', { count: res.count, from: filterFrom, to: filterTo }) + (res.syncedDatabricks ? ' · Synced Databricks' : '')
+      })
+    } catch (err) {
+      setRefreshMsg({ type: 'error', text: 'Recalculation error: ' + err.message })
+    } finally {
+      setRecalculating(false)
+    }
+  }
+
+  const saveCredentials = () => {
+    saveSettings({ token: localToken.trim(), warehouseId: localWarehouse.trim() })
+    setShowSettings(false)
+    setRefreshMsg(null)
+  }
+
+  const resetView = () => { setPage(0); setExpanded(null) }
+
+  const filtered = useMemo(() =>
+    sales.filter(s => {
+      if (filterStore !== 'All' && s.store !== filterStore) return false
+      if (s.date < filterFrom || s.date > filterTo)         return false
+      return true
+    })
+  , [sales, filterStore, filterFrom, filterTo])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows   = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  const toggle = (id) => setExpanded(prev => prev === id ? null : id)
+
+  return (
+    <>
+      {/* Filter + refresh bar */}
+      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-end gap-4 flex-wrap">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
+            <select value={filterStore} onChange={e => { setFilterStore(e.target.value); resetView() }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="All">{t('common.all')}</option>
+              {stores.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.from')}</label>
+            <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); resetView() }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.to')}</label>
+            <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); resetView() }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <span className="text-sm text-gray-500 pb-2">{t('tx.rows', { count: filtered.length })}</span>
+          <div className="flex-1" />
+          <div className="flex items-center gap-2 pb-0.5">
+            {lastSync && (
+              <span className="text-xs text-gray-400">
+                {t('tx.cachedThrough')} <span className="font-medium text-gray-600">{lastSync}</span>
+              </span>
+            )}
+            <button onClick={handleRefresh} disabled={refreshing || recalculating}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {refreshing ? t('tx.syncing') : t('tx.refresh')}
+            </button>
+            <button onClick={handleRecalcUsage} disabled={refreshing || recalculating}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+              title={t('tx.recalcDialogDesc')}>
+              <svg className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {recalculating ? t('tx.recalculating') : t('tx.recalcUsage')}
+            </button>
+            <button onClick={() => { clearSalesCache(); setRefreshMsg({ type: 'ok', text: 'Cache cleared.' }) }}
+              title="Clear cached data" disabled={refreshing || recalculating}
+              className="px-2.5 py-2 rounded-lg border border-gray-200 text-xs text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-50">
+              {t('tx.clearCache')}
+            </button>
+            <button onClick={() => setShowSettings(s => !s)} title="Databricks settings"
+              className={`p-2 rounded-lg border text-xs transition-colors ${showSettings ? 'bg-gray-100 border-gray-300 text-gray-700' : 'border-gray-200 text-gray-400 hover:text-gray-600'}`}>
+              ⚙
+            </button>
+          </div>
+        </div>
+
+        {refreshMsg && (
+          <div className={`text-xs px-3 py-2 rounded-lg flex items-center justify-between ${refreshMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+            <span>{refreshMsg.text}</span>
+            {refreshMsg.type === 'error' && (
+              <button onClick={handleRefresh} disabled={refreshing} className="ml-4 px-3 py-1 bg-white rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors shadow-sm">
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+
+        {showSettings && (
+          <div className="pt-3 border-t border-gray-100 flex items-end gap-3 flex-wrap">
+            <div className="flex-1 min-w-56">
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('tx.token')}</label>
+              <input type="password" value={localToken} onChange={e => setLocalToken(e.target.value)}
+                placeholder="dapi…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+            </div>
+            <div className="w-52">
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('tx.warehouseId')}</label>
+              <input type="text" value={localWarehouse} onChange={e => setLocalWarehouse(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+            </div>
+            <button onClick={saveCredentials}
+              className="px-4 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors mb-0.5">
+              {t('common.save')}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Mobile: cards */}
+        {refreshing ? (
+          <div className="md:hidden divide-y divide-gray-100">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="px-4 py-4 animate-pulse">
+                <div className="flex justify-between mb-3">
+                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                </div>
+                <div className="h-4 bg-gray-200 rounded w-32 mb-3"></div>
+                <div className="flex gap-2">
+                  <div className="h-5 bg-gray-100 rounded w-16"></div>
+                  <div className="h-5 bg-gray-100 rounded w-20"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0
+          ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</p>
+          : <div className="md:hidden divide-y divide-gray-100">
+              {pageRows.map(s => {
+                const impact = getSaleIngredientImpact(s.product, s.quantity)
+                const isOpen = expanded === s.id
+                return (
+                  <div key={s.id}>
+                    <div onClick={() => toggle(s.id)}
+                      className={`px-4 py-3 cursor-pointer ${isOpen ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span className="font-mono">{s.date}</span>
+                          {s.time && (
+                            <span className="font-mono text-gray-600 bg-gray-100 px-1 rounded text-[11px]">
+                              {s.time.slice(0, 5)}
+                            </span>
+                          )}
+                          <span>·</span>
+                          <span>{s.store}</span>
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums text-gray-800">
+                          {s.quantity} <span className="text-xs font-normal text-gray-400">{t('tx.cups')}</span>
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1.5">{s.product}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {impact.map(i => (
+                          <span key={i.id} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs tabular-nums">
+                            {i.consumed} {i.unit} {i.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div className="bg-blue-50 border-t border-blue-100 px-4 py-3">
+                        <p className="text-xs font-semibold text-blue-700 mb-2">
+                          {t('tx.recipeBreakdown', { qty: s.quantity, product: s.product })}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {impact.map(i => (
+                            <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
+                              <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                              <p className="text-gray-500">{i.name}</p>
+                              <p className="text-blue-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / s.quantity).toFixed(3) })}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+        }
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th className="px-5 py-3 font-medium">{t('tx.date')}</th>
+                <th className="px-3 py-3 font-medium">{t('tx.time')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.name')}</th>
+                <th className="px-4 py-3 font-medium text-right">{t('tx.qtySold')}</th>
+                <th className="px-4 py-3 font-medium text-gray-400 font-normal">{t('tx.ingredientImpact')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {refreshing ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-50 animate-pulse">
+                    <td className="px-5 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-14"></div></td>
+                    <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                    <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"></div></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <div className="h-5 bg-gray-100 rounded w-16"></div>
+                        <div className="h-5 bg-gray-100 rounded w-24"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : filtered.length === 0
+                ? <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400 text-sm">{t('tx.noSales')}</td></tr>
+                : pageRows.map(s => {
+                    const impact = getSaleIngredientImpact(s.product, s.quantity)
+                    const isOpen = expanded === s.id
+                    return (
+                      <Fragment key={s.id}>
+                        <tr onClick={() => toggle(s.id)}
+                          className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer">
+                          <td className="px-5 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">{s.date}</td>
+                          <td className="px-3 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">
+                            {s.time ? (
+                              <span className="inline-block px-1.5 py-0.5 bg-gray-100 rounded text-gray-700 font-mono text-[11px] font-medium">
+                                {s.time.slice(0, 5)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-800">{s.store}</td>
+                          <td className="px-4 py-2.5 text-gray-800 text-xs">{s.product}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
+                            {s.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-wrap gap-1.5">
+                              {impact.map(i => (
+                                <span key={i.id} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs tabular-nums">
+                                  {i.consumed} {i.unit} {i.name}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="bg-blue-50 border-b border-blue-100">
+                            <td colSpan={6} className="px-6 py-3">
+                              <p className="text-xs font-semibold text-blue-700 mb-2">
+                                {t('tx.recipeBreakdown', { qty: s.quantity, product: s.product })}
+                              </p>
+                              <div className="flex flex-wrap gap-3">
+                                {impact.map(i => (
+                                  <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200 text-xs">
+                                    <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                                    <p className="text-gray-500">{i.name}</p>
+                                    <p className="text-blue-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / s.quantity).toFixed(3) })}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-gray-400 hidden md:block">{t('tx.clickRow')}</p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 mx-auto md:mx-0">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              ←
+            </button>
+            <span className="text-xs text-gray-500 tabular-nums">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} / {filtered.length}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              →
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── Waste tab (Non-Fiscal POS transactions) ─────────────────────────────────
+
+function WasteTab({ customFrom, customTo }) {
+  const { posWaste, salesCache, reportFrom, reportTo, stores, recalculateUsage } = useConfig()
+  const { getSaleIngredientImpact } = useCalcs()
+  const { t } = useLanguage()
+  const today = new Date().toISOString().slice(0, 10)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const [filterStore, setFilterStore] = useState('All')
+  const [filterFrom,  setFilterFrom]  = useState(customFrom || (posWaste.length > 0 ? reportFrom : thirtyDaysAgo))
+  const [filterTo,    setFilterTo]    = useState(customTo || (posWaste.length > 0 ? reportTo   : today))
+  const [expanded,    setExpanded]    = useState(null)
+  const [page,        setPage]        = useState(0)
+  const [sortAsc,     setSortAsc]     = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
+  const [recalcMsg,   setRecalcMsg]   = useState(null)
+
+  useMemo(() => {
+    if (customFrom) setFilterFrom(customFrom)
+    if (customTo)   setFilterTo(customTo)
+  }, [customFrom, customTo])
+
+  const resetView = () => { setPage(0); setExpanded(null) }
+
+  const handleRecalcUsage = async () => {
+    if (filterFrom > filterTo) {
+      setRecalcMsg({ type: 'error', text: 'Start date cannot be after end date.' })
+      return
+    }
+    setRecalculating(true)
+    setRecalcMsg(null)
+    try {
+      const res = await recalculateUsage(filterFrom, filterTo, filterStore)
+      setRecalcMsg({
+        type: 'ok',
+        text: t('tx.recalcSuccess', { count: res.count, from: filterFrom, to: filterTo }) + (res.syncedDatabricks ? ' · Synced Databricks' : '')
+      })
+    } catch (err) {
+      setRecalcMsg({ type: 'error', text: 'Recalculation error: ' + err.message })
+    } finally {
+      setRecalculating(false)
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const rows = posWaste.filter(r => {
+      if (filterStore !== 'All' && r.store !== filterStore) return false
+      if (r.date < filterFrom || r.date > filterTo)         return false
+      return true
+    })
+    return sortAsc
+      ? [...rows].sort((a, b) => a.date.localeCompare(b.date))
+      : rows
+  }, [posWaste, filterStore, filterFrom, filterTo, sortAsc])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows   = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  const toggle = (id) => setExpanded(prev => prev === id ? null : id)
+
+  return (
+    <>
+      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-end gap-4 flex-wrap">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
+            <select value={filterStore} onChange={e => { setFilterStore(e.target.value); resetView() }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="All">{t('common.all')}</option>
+              {stores.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.from')}</label>
+            <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); resetView() }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.to')}</label>
+            <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); resetView() }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <span className="text-sm text-gray-500 pb-2">{t('tx.rows', { count: filtered.length })}</span>
+          <div className="flex-1" />
+          <div className="flex items-center gap-2 pb-0.5">
+            {salesCache?.lastRefreshDate && (
+              <span className="text-xs text-gray-400">
+                {t('tx.cachedThrough')} <span className="font-medium text-gray-600">{salesCache.lastRefreshDate}</span>
+              </span>
+            )}
+            <button onClick={handleRecalcUsage} disabled={recalculating}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+              title={t('tx.recalcDialogDesc')}>
+              <svg className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {recalculating ? t('tx.recalculating') : t('tx.recalcUsage')}
+            </button>
+          </div>
+        </div>
+
+        {recalcMsg && (
+          <div className={`text-xs px-3 py-2 rounded-lg flex items-center justify-between ${recalcMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+            <span>{recalcMsg.text}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Mobile: cards */}
+        {filtered.length === 0
+          ? <p className="md:hidden px-6 py-10 text-center text-gray-400 text-sm">{posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}</p>
+          : <div className="md:hidden divide-y divide-gray-100">
+              {pageRows.map(r => {
+                const impact = getSaleIngredientImpact(r.product, r.quantity)
+                const isOpen = expanded === r.id
+                return (
+                  <div key={r.id}>
+                    <div onClick={() => toggle(r.id)}
+                      className={`px-4 py-3 cursor-pointer ${isOpen ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span className="font-mono">{r.date}</span>
+                          {r.time && (
+                            <span className="font-mono text-gray-600 bg-orange-100/70 px-1 rounded text-[11px]">
+                              {r.time.slice(0, 5)}
+                            </span>
+                          )}
+                          <span>·</span>
+                          <span>{r.store}</span>
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums text-gray-800">
+                          {r.quantity} <span className="text-xs font-normal text-gray-400">{t('tx.cups')}</span>
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900 mb-1.5">{r.product}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {impact.map(i => (
+                          <span key={i.id} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded text-xs tabular-nums">
+                            {i.consumed} {i.unit} {i.name}
+                          </span>
+                        ))}
+                        {impact.length === 0 && <span className="text-xs text-gray-300">{t('tx.noRecipe')}</span>}
+                      </div>
+                    </div>
+                    {isOpen && impact.length > 0 && (
+                      <div className="bg-orange-50 border-t border-orange-100 px-4 py-3">
+                        <p className="text-xs font-semibold text-orange-700 mb-2">
+                          {t('tx.ingredientLoss', { qty: r.quantity, product: r.product })}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {impact.map(i => (
+                            <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs">
+                              <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                              <p className="text-gray-500">{i.name}</p>
+                              <p className="text-orange-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / r.quantity).toFixed(3) })}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+        }
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+                <th className="px-5 py-3 font-medium">
+                  <button onClick={() => { setSortAsc(v => !v); resetView() }}
+                    className="flex items-center gap-1 hover:text-gray-800 transition-colors">
+                    {t('tx.date')}
+                    <span className="text-gray-300">{sortAsc ? '↑' : '↓'}</span>
+                  </button>
+                </th>
+                <th className="px-3 py-3 font-medium">{t('tx.time')}</th>
+                <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+                <th className="px-4 py-3 font-medium">{t('tx.itemWrittenOff')}</th>
+                <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
+                <th className="px-4 py-3 font-medium text-gray-400 font-normal">{t('tx.ingredientImpact')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400 text-sm">
+                    {posWaste.length === 0 ? t('tx.noWaste') : t('tx.noMatch')}
+                  </td></tr>
+                : pageRows.map(r => {
+                    const impact = getSaleIngredientImpact(r.product, r.quantity)
+                    const isOpen = expanded === r.id
+                    return (
+                      <Fragment key={r.id}>
+                        <tr onClick={() => toggle(r.id)}
+                          className="border-b border-gray-50 hover:bg-orange-50 cursor-pointer">
+                          <td className="px-5 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">{r.date}</td>
+                          <td className="px-3 py-2.5 text-gray-500 font-mono text-xs whitespace-nowrap">
+                            {r.time ? (
+                              <span className="inline-block px-1.5 py-0.5 bg-orange-50 border border-orange-100 rounded text-orange-800 font-mono text-[11px] font-medium">
+                                {r.time.slice(0, 5)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-800">{r.store}</td>
+                          <td className="px-4 py-2.5 text-gray-800 text-xs">{r.product}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-800 whitespace-nowrap">
+                            {r.quantity} <span className="text-gray-400 font-normal text-xs">{t('tx.cups')}</span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex flex-wrap gap-1.5">
+                              {impact.map(i => (
+                                <span key={i.id} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded text-xs tabular-nums">
+                                  {i.consumed} {i.unit} {i.name}
+                                </span>
+                              ))}
+                              {impact.length === 0 && <span className="text-xs text-gray-300">{t('tx.noRecipe')}</span>}
+                            </div>
+                          </td>
+                        </tr>
+                        {isOpen && impact.length > 0 && (
+                          <tr className="bg-orange-50 border-b border-orange-100">
+                            <td colSpan={6} className="px-6 py-3">
+                              <p className="text-xs font-semibold text-orange-700 mb-2">
+                                {t('tx.ingredientLoss', { qty: r.quantity, product: r.product })}
+                              </p>
+                              <div className="flex flex-wrap gap-3">
+                                {impact.map(i => (
+                                  <div key={i.id} className="bg-white rounded-lg px-3 py-2 border border-orange-200 text-xs">
+                                    <p className="font-semibold text-gray-800">{i.consumed} {i.unit}</p>
+                                    <p className="text-gray-500">{i.name}</p>
+                                    <p className="text-orange-400 mt-0.5">{t('tx.perCup', { qty: (i.consumed / r.quantity).toFixed(3) })}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-gray-400 hidden md:block">{t('tx.clickRow')}</p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 mx-auto md:mx-0">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              ←
+            </button>
+            <span className="text-xs text-gray-500 tabular-nums">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} / {filtered.length}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-default">
+              →
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── Transfers tab ────────────────────────────────────────────────────────────
+
+function TransfersTab() {
+  const { data, config, deleteTransaction } = useConfig()
+  const { t } = useLanguage()
+  const [pendingDelete, setPendingDelete] = useState(null)
+
+  const txns = [...data.transactions].sort((a, b) => b.date.localeCompare(a.date))
+  const ingName = (id) => config.ingredients.find(i => i.id === id)?.name ?? `#${id}`
+  const ingUnit = (id) => config.ingredients.find(i => i.id === id)?.unit ?? ''
+  const poExists = (poId) => data.purchaseOrders.some(po => po.id === poId)
+
+  if (txns.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
+        {t('tx.noTransfers')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Mobile cards view */}
+      <div className="md:hidden divide-y divide-gray-100">
+        {txns.map(tx => (
+          <div key={tx.id} className="p-3.5 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">{ingName(tx.ingredientId)}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-gray-500 font-mono">{tx.date}</span>
+                  <span className="text-xs text-gray-700 bg-gray-100 px-2 py-0.5 rounded font-medium">{tx.store}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`text-sm font-bold tabular-nums ${tx.quantity >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {tx.quantity >= 0 ? '+' : ''}{tx.quantity}{' '}
+                  <span className="text-xs font-normal text-gray-500">{ingUnit(tx.ingredientId)}</span>
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-gray-50 text-xs">
+              <div>
+                {tx.poId == null ? (
+                  <span className="text-gray-300">no link</span>
+                ) : poExists(tx.poId) ? (
+                  <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium">{tx.poId}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-medium">{tx.poId} · orphaned</span>
+                )}
+              </div>
+              {pendingDelete === tx.id ? (
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs text-red-600">{t('tx.confirmDelete')}?</span>
+                  <button onClick={() => { deleteTransaction(tx.id); setPendingDelete(null) }}
+                    className="text-xs px-2.5 py-1 bg-red-500 text-white rounded hover:bg-red-600 min-h-[32px]">{t('common.yes')}</button>
+                  <button onClick={() => setPendingDelete(null)}
+                    className="text-xs px-2.5 py-1 text-gray-500 hover:text-gray-700 min-h-[32px]">{t('common.no')}</button>
+                </div>
+              ) : (
+                <button onClick={() => setPendingDelete(tx.id)}
+                  className="text-xs text-red-500 hover:text-red-700 py-1 px-2 min-h-[32px] font-medium">{t('tx.deleteTransfer')}</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+              <th className="px-5 py-3 font-medium">{t('tx.date')}</th>
+              <th className="px-4 py-3 font-medium">{t('common.store')}</th>
+              <th className="px-4 py-3 font-medium">{t('common.ingredient')}</th>
+              <th className="px-4 py-3 font-medium text-right">{t('tx.qty')}</th>
+              <th className="px-4 py-3 font-medium text-gray-400 font-normal">PO</th>
+              <th className="px-4 py-3 w-32"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {txns.map(tx => (
+              <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
+                <td className="px-5 py-2.5 text-gray-500 font-mono text-xs">{tx.date}</td>
+                <td className="px-4 py-2.5 text-gray-800">{tx.store}</td>
+                <td className="px-4 py-2.5 text-gray-800">{ingName(tx.ingredientId)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                  <span className={tx.quantity >= 0 ? 'text-green-600' : 'text-red-500'}>
+                    {tx.quantity >= 0 ? '+' : ''}{tx.quantity}{' '}
+                    <span className="text-gray-400 text-xs font-normal">{ingUnit(tx.ingredientId)}</span>
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-xs">
+                  {tx.poId == null
+                    ? <span className="text-gray-300">no link</span>
+                    : poExists(tx.poId)
+                      ? <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5 font-medium">{tx.poId}</span>
+                      : <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 rounded px-1.5 py-0.5 font-medium">{tx.poId} · orphaned</span>
+                  }
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  {pendingDelete === tx.id
+                    ? <div className="flex gap-2 items-center justify-end">
+                        <span className="text-xs text-red-600">{t('tx.confirmDelete')}</span>
+                        <button onClick={() => { deleteTransaction(tx.id); setPendingDelete(null) }}
+                          className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600">{t('common.yes')}</button>
+                        <button onClick={() => setPendingDelete(null)}
+                          className="text-xs text-gray-500 hover:text-gray-700">{t('common.no')}</button>
+                      </div>
+                    : <button onClick={() => setPendingDelete(tx.id)}
+                        className="text-xs text-red-400 hover:text-red-600">{t('tx.deleteTransfer')}</button>
+                  }
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Monthly Consumption tab ──────────────────────────────────────────────────
+
+function MonthlyConsumptionTab() {
+  const { sales, posWaste, config, stores } = useConfig()
+  const { getSaleIngredientImpact } = useCalcs()
+  const { t } = useLanguage()
+
+  const [filterStore, setFilterStore] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortCol, setSortCol] = useState('name')
+  const [sortAsc, setSortAsc] = useState(true)
+  const [expandedIng, setExpandedIng] = useState(null)
+
+  // Calculate monthly consumption
+  const data = useMemo(() => {
+    const monthlyMap = {} // month -> ingredientId -> amount
+    const allMonths = new Set()
+
+    const processItem = (item) => {
+      if (filterStore !== 'All' && item.store !== filterStore) return
+      const month = item.date.slice(0, 7) // YYYY-MM
+      allMonths.add(month)
+      if (!monthlyMap[month]) monthlyMap[month] = {}
+      
+      const impact = getSaleIngredientImpact(item.product, item.quantity)
+      for (const i of impact) {
+        monthlyMap[month][i.id] = (monthlyMap[month][i.id] || 0) + i.consumed
+      }
+    }
+
+    sales.forEach(processItem)
+    posWaste.forEach(processItem)
+
+    const sortedMonths = Array.from(allMonths).sort().reverse()
+    
+    // Build rows for each ingredient that has > 0 consumption in ANY month
+    const rows = []
+    for (const ing of config.ingredients || []) {
+      let hasData = false
+      const amounts = {}
+      let total = 0
+      for (const m of sortedMonths) {
+        const val = monthlyMap[m]?.[ing.id] || 0
+        if (val > 0) hasData = true
+        amounts[m] = val
+        total += val
+      }
+      if (hasData) {
+        rows.push({
+          id: ing.id,
+          name: ing.name,
+          unit: ing.unit,
+          amounts,
+          total
+        })
+      }
+    }
+    
+    // Sort rows by name
+    rows.sort((a, b) => a.name.localeCompare(b.name))
+
+    return { months: sortedMonths, rows }
+  }, [sales, posWaste, filterStore, config.ingredients, getSaleIngredientImpact])
+
+  const filteredAndSortedRows = useMemo(() => {
+    let result = data.rows
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter(r => r.name.toLowerCase().includes(q))
+    }
+    result = [...result].sort((a, b) => {
+      let valA, valB
+      if (sortCol === 'name') {
+        valA = a.name
+        valB = b.name
+      } else if (sortCol === 'total') {
+        valA = a.total
+        valB = b.total
+      } else {
+        valA = a.amounts[sortCol] || 0
+        valB = b.amounts[sortCol] || 0
+      }
+      
+      if (valA < valB) return sortAsc ? -1 : 1
+      if (valA > valB) return sortAsc ? 1 : -1
+      return 0
+    })
+    return result
+  }, [data.rows, searchQuery, sortCol, sortAsc])
+
+  const handleSort = (col) => {
+    if (sortCol === col) {
+      setSortAsc(!sortAsc)
+    } else {
+      setSortCol(col)
+      setSortAsc(col === 'name' ? true : false)
+    }
+  }
+
+  return (
+    <>
+      <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 flex gap-4 items-end flex-wrap">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.store')}</label>
+          <select value={filterStore} onChange={e => setFilterStore(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="All">{t('common.allStores')}</option>
+            {stores.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('common.search')}</label>
+          <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder={t('recipes.searchPlaceholder') || 'Search...'}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+        </div>
+      </div>
+
+      {/* Mobile Card View (md:hidden) */}
+      <div className="md:hidden space-y-2.5 mb-4">
+        {filteredAndSortedRows.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-gray-400 text-sm">
+            {t('tx.noMatch')}
+          </div>
+        ) : (
+          filteredAndSortedRows.map(r => {
+            const isExpanded = expandedIng === r.id
+            return (
+              <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-xs">
+                <button
+                  onClick={() => setExpandedIng(id => id === r.id ? null : r.id)}
+                  className="w-full flex items-start justify-between text-left"
+                >
+                  <div className="flex-1 pr-2">
+                    <p className="font-semibold text-gray-900 text-sm">{r.name}</p>
+                    <span className="text-xs text-gray-400">{r.unit}</span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-gray-400 block uppercase font-medium">{t('tx.colTotal') || 'Total'}</span>
+                    <span className="text-sm font-bold text-blue-700 tabular-nums">
+                      {r.total.toFixed(2).replace(/\.00$/, '')} {r.unit}
+                    </span>
+                  </div>
+                </button>
+
+                <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+                  <span className="text-gray-500 font-medium">{data.months.length} {data.months.length === 1 ? 'month' : 'months'}</span>
+                  <button
+                    onClick={() => setExpandedIng(id => id === r.id ? null : r.id)}
+                    className="text-blue-600 font-medium py-1 px-2 -mr-2"
+                  >
+                    {isExpanded ? 'Скрыть ▲' : 'По месяцам ▼'}
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 bg-gray-50 p-2.5 rounded-lg text-xs">
+                    {data.months.map(m => (
+                      <div key={m} className="flex items-center justify-between p-1 border-b border-gray-200/60 last:border-0">
+                        <span className="text-gray-500 font-mono text-[11px]">{m}:</span>
+                        <span className="font-semibold tabular-nums text-gray-800">
+                          {r.amounts[m] > 0 ? r.amounts[m].toFixed(2).replace(/\.00$/, '') : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop Table View (hidden md:block) */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+              <th className="px-6 py-3 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>
+                <div className="flex items-center gap-1">
+                  {t('common.ingredient')}
+                  {sortCol === 'name' && <span className="text-gray-400">{sortAsc ? '↑' : '↓'}</span>}
+                </div>
+              </th>
+              <th className="px-4 py-3 font-medium text-right bg-blue-50/50 cursor-pointer hover:bg-blue-100/50 transition-colors" onClick={() => handleSort('total')}>
+                <div className="flex items-center justify-end gap-1">
+                  {t('tx.colTotal') || 'Total'}
+                  {sortCol === 'total' && <span className="text-gray-400">{sortAsc ? '↑' : '↓'}</span>}
+                </div>
+              </th>
+              {data.months.map(m => (
+                <th key={m} className="px-4 py-3 font-medium text-right cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort(m)}>
+                  <div className="flex items-center justify-end gap-1">
+                    {m}
+                    {sortCol === m && <span className="text-gray-400">{sortAsc ? '↑' : '↓'}</span>}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAndSortedRows.length === 0 ? (
+              <tr>
+                <td colSpan={data.months.length + 2} className="px-6 py-10 text-center text-gray-400 text-sm">
+                  {t('tx.noMatch')}
+                </td>
+              </tr>
+            ) : (
+              filteredAndSortedRows.map(r => (
+                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="px-6 py-2.5 text-gray-800 font-medium whitespace-nowrap">
+                    {r.name} <span className="text-gray-400 text-xs font-normal ml-1">{r.unit}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-gray-800 bg-blue-50/30 tabular-nums">
+                    {r.total.toFixed(2).replace(/\.00$/, '')}
+                  </td>
+                  {data.months.map(m => (
+                    <td key={m} className="px-4 py-2.5 text-right tabular-nums text-gray-600">
+                      {r.amounts[m] > 0 ? r.amounts[m].toFixed(2).replace(/\.00$/, '') : <span className="text-gray-300">-</span>}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+// ─── Recalculate Usage Modal ──────────────────────────────────────────────────
+
+function RecalcUsageModal({ isOpen, onClose, onNavigateSales }) {
+  const { recalculateUsage, reportFrom, reportTo, stores, salesCache } = useConfig()
+  const { t } = useLanguage()
+  const sevenDaysAgo = useMemo(() => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10), [])
+  const todayStr     = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
+  const [from, setFrom] = useState(reportFrom || sevenDaysAgo)
+  const [to, setTo]     = useState(reportTo || todayStr)
+  const [store, setStore] = useState('All')
+  const [running, setRunning] = useState(false)
+  const [result, setResult]   = useState(null)
+  const [error, setError]     = useState(null)
+
+  const previewCount = useMemo(() => {
+    const rows = salesCache?.rows || []
+    return rows.filter(r => {
+      if (store !== 'All' && (r.store ?? r.store_name) !== store) return false
+      return r.date >= from && r.date <= to
+    }).length
+  }, [salesCache, from, to, store])
+
+  if (!isOpen) return null
+
+  const handleRecalculate = async () => {
+    if (from > to) {
+      setError('Start date cannot be after end date.')
+      return
+    }
+    setRunning(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await recalculateUsage(from, to, store)
+      setResult(res)
+    } catch (e) {
+      setError(e.message || 'Recalculation failed')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 max-w-lg w-full overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">{t('tx.recalcDialogTitle')}</h2>
+              <p className="text-xs text-gray-500">{t('tx.recalcDialogDesc')}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('common.from')}</label>
+              <input
+                type="date"
+                value={from}
+                onChange={e => { setFrom(e.target.value); setResult(null); setError(null) }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">{t('common.to')}</label>
+              <input
+                type="date"
+                value={to}
+                onChange={e => { setTo(e.target.value); setResult(null); setError(null) }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('common.store')}</label>
+            <select
+              value={store}
+              onChange={e => { setStore(e.target.value); setResult(null); setError(null) }}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              <option value="All">{t('common.allStores')}</option>
+              {stores.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-900 space-y-1">
+            <p className="font-medium flex items-center justify-between">
+              <span>Transactions in range:</span>
+              <span className="font-semibold text-indigo-700 tabular-nums">{previewCount} rows</span>
+            </p>
+            <p className="text-indigo-600">
+              Applies current recipes from Cloudflare D1 across all matching transactions from {from} to {to}.
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="bg-green-50 border border-green-200 text-green-800 text-xs px-3 py-2.5 rounded-lg space-y-2">
+              <p className="font-medium">
+                ✓ {t('tx.recalcSuccess', { count: result.count, from: result.fromDate, to: result.toDate })}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-green-700">
+                <span>{result.recipesCount} recipes loaded from D1</span>
+                {result.syncedDatabricks && <span>Synced with Databricks</span>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          {result ? (
+            <button
+              onClick={() => {
+                onNavigateSales?.(from, to, store)
+                onClose()
+              }}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              {t('tx.recalcViewSales')} →
+            </button>
+          ) : <div />}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              disabled={running}
+              className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {t('tx.recalcClose')}
+            </button>
+            <button
+              onClick={handleRecalculate}
+              disabled={running}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              <svg className={`w-3.5 h-3.5 ${running ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {running ? t('tx.recalculating') : t('tx.recalcUsage')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function Transactions({ activeTab = 'sales', onTabChange }) {
+  const { t } = useLanguage()
+  const [showRecalcModal, setShowRecalcModal] = useState(false)
+  const [salesDates, setSalesDates] = useState({ from: null, to: null })
+
+  const handleNavigateSales = (from, to) => {
+    setSalesDates({ from, to })
+    onTabChange?.('sales')
+  }
+
+  return (
+    <div className="p-4 md:p-8">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('tx.title')}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t('tx.subtitle')}</p>
+        </div>
+        <button
+          onClick={() => setShowRecalcModal(true)}
+          className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 shadow-sm transition-colors self-start sm:self-auto"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {t('tx.recalcUsage')}
+        </button>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6 flex-wrap">
+        {[['sales', t('tx.tabSales')], ['waste', t('tx.tabWaste')], ['transfers', t('tx.tabTransfers')], ['monthly', t('tx.tabMonthly')]].map(([id, label]) => (
+          <button key={id} onClick={() => onTabChange?.(id)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'sales'     && <SalesTab customFrom={salesDates.from} customTo={salesDates.to} />}
+      {activeTab === 'waste'     && <WasteTab customFrom={salesDates.from} customTo={salesDates.to} />}
+      {activeTab === 'transfers' && <TransfersTab />}
+      {activeTab === 'monthly'   && <MonthlyConsumptionTab />}
+
+      <RecalcUsageModal
+        isOpen={showRecalcModal}
+        onClose={() => setShowRecalcModal(false)}
+        onNavigateSales={handleNavigateSales}
+      />
+    </div>
+  )
+}
