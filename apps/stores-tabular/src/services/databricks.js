@@ -78,7 +78,7 @@ export const LH_QUERIES = {
   poLines: `SELECT po_id, CAST(ROW_NUMBER() OVER (PARTITION BY po_id ORDER BY ingredient_id) AS INT) AS line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, CASE WHEN is_custom_item THEN 'overhead' ELSE 'cogs' END AS cost_category, CAST(NULL AS STRING) AS overhead_category FROM ${T('fact_purchase_order_lines')} ORDER BY po_id, ingredient_id ASC`,
   auditHeaders: `SELECT audit_id AS id, store_id AS storeId, store_code AS storeCode, audit_date AS date, audit_timestamp AS timestamp, status FROM ${T('fact_audit_headers')} ORDER BY audit_date DESC, audit_timestamp DESC`,
   auditCounts: `SELECT audit_id, ingredient_id, count_quantity FROM ${T('fact_audit_counts')}`,
-  suppliers: `SELECT DISTINCT supplier_id AS id, supplier_name AS name FROM ${T('dim_ingredients')} WHERE supplier_id IS NOT NULL ORDER BY supplier_id ASC`,
+  suppliers: `SELECT DISTINCT supplier_id AS id, supplier_name AS name FROM ${T('dim_ingredients')} WHERE supplier_id IS NOT NULL ORDER BY id ASC`,
   cookUnitPay: `SELECT product_name, pay_rate FROM ${T('dim_cook_unit_pay')}`,
 }
 

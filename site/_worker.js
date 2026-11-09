@@ -5,19 +5,15 @@ export default {
       const url = new URL(request.url);
       const path = url.pathname;
 
-      const apps = [
-        { prefix: "/internal/audit/",     index: "/internal/audit/index.html" },
-        { prefix: "/internal/inventory/", index: "/internal/inventory/index.html" },
-        { prefix: "/internal/warehouse/", index: "/internal/warehouse/index.html" },
-        { prefix: "/internal/schedule/",  index: "/internal/schedule/index.html" },
-      ];
-
-      for (const app of apps) {
-        if (path.startsWith(app.prefix)) {
-          const rewritten = new URL(request.url);
-          rewritten.pathname = app.index;
-          return env.ASSETS.fetch(new Request(rewritten, request));
-        }
+      // SPA fallback for ANY /internal/<app>/... route: serve that app's
+      // index.html so client-side routes (e.g. /internal/stores-tabular/ledger)
+      // never 404. New apps are covered automatically — no list to maintain.
+      const m = path.match(/^\/internal\/([^/]+)\/.+$/);
+      if (m) {
+        const rewritten = new URL(request.url);
+        rewritten.pathname = `/internal/${m[1]}/index.html`;
+        const index = await env.ASSETS.fetch(new Request(rewritten, request));
+        if (index.status !== 404) return index;
       }
     }
 
