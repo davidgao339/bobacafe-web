@@ -97,6 +97,15 @@ export const LH_PUSH = {
     ...lines.map(l => `INSERT INTO ${T('fact_purchase_order_lines')} (po_id, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost) VALUES ('${esc(poId)}', ${l.ingredientId ?? 'NULL'}, '${esc(l.name)}', ${l.isCustom ? 'true' : 'false'}, ${Number(l.ordered) || 0}, ${Number(l.received) || 0}, '${esc(l.unit || '')}', ${Number(l.unitCost) || 0}, ${Number(l.totalCost) || 0})`),
   ],
   del: (table, where) => `DELETE FROM ${T(table)} WHERE ${where}`,
+  upd: (table, set, where) => `UPDATE ${T(table)} SET ${set} WHERE ${where}`,
+  recipeReplace: (product, entries) => [
+    `DELETE FROM ${T('fact_recipe_ingredients')} WHERE recipe_product_name = '${esc(product)}' AND recipe_type = 'production'`,
+    ...entries.map(e => `INSERT INTO ${T('fact_recipe_ingredients')} (recipe_product_name, ingredient_id, ingredient_name, amount_per_serving, recipe_type) VALUES ('${esc(product)}', ${Number(e.id)}, '${esc(e.name)}', ${Number(e.amt)}, 'production')`),
+  ],
+  ingredient: (i) => `MERGE INTO ${T('dim_ingredients')} t USING (SELECT ${i.id} AS ingredient_id, '${esc(i.name)}' AS ingredient_name, '${esc(i.unit)}' AS unit, ${i.productType ? `'${esc(i.productType)}'` : 'NULL'} AS product_type, ${i.supplierId ?? 'NULL'} AS supplier_id, ${i.supplierName ? `'${esc(i.supplierName)}'` : 'NULL'} AS supplier_name, ${i.warehouseOnly ? 'true' : 'false'} AS is_warehouse_only, ${i.hidden ? 'true' : 'false'} AS is_hidden, ${i.costPerUnit ?? 'NULL'} AS cost_per_unit) s ON t.ingredient_id = s.ingredient_id WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *`,
+  cookPay: (product, rate) => rate == null
+    ? `DELETE FROM ${T('dim_cook_unit_pay')} WHERE product_name = '${esc(product)}'`
+    : `MERGE INTO ${T('dim_cook_unit_pay')} t USING (SELECT '${esc(product)}' AS product_name, ${Number(rate)} AS pay_rate) s ON t.product_name = s.product_name WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *`,
 }
 
 export function fetchLh(token, warehouseId, queryKey) {

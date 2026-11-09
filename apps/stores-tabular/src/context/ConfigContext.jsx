@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '@inventory/data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
-import { fetchCurrentInventory, fetchLh, LH_PUSH, runDatabricksSql } from '../services/databricks'
+import { fetchCurrentInventory, fetchLh, LH_PUSH, runDatabricksSql, esc } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '@inventory/components/SyncErrorToast'
 
@@ -41,7 +41,7 @@ function rowsToSales(rows) {
 
 // Statement API returns every value as a string; coerce numerics/booleans so
 // lakehouse rows match what queryD1 (Cloudflare worker) would have returned.
-const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d'])
+const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
 const _BOOL = new Set(['is_active', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
 function coerceLhRows(rows) {
   return (rows || []).map(r => {
@@ -63,6 +63,29 @@ function lhPush(settings, sqls) {
   if (!settings?.token || !settings?.warehouseId || !sqls?.length) return
   sqls.reduce((p, s) => p.then(() => runDatabricksSql(settings.token, settings.warehouseId, s)), Promise.resolve())
     .catch(err => console.error('LH push failed (D1 write already saved):', err))
+}
+
+// Normalized PO lines (regular + custom) for lakehouse pushes
+function buildPoLines(po, ingredients) {
+  const reg = (po.lines || [])
+    .filter(l => (Number(l.ordered) || 0) > 0 || (Number(l.received) || 0) > 0)
+    .map(l => {
+      const ing = ingredients.find(i => i.id === l.ingredientId)
+      const unitCost = l.unitCost != null ? Number(l.unitCost) : (ing?.costPerUnit ?? ing?.lastPurchaseCost ?? 0)
+      return {
+        ingredientId: l.ingredientId, name: l.name || ing?.name || `Item #${l.ingredientId}`,
+        unit: l.unit || ing?.unit || '', isCustom: false,
+        ordered: Number(l.ordered) || 0, received: Number(l.received) || 0, unitCost,
+        totalCost: l.totalCost != null ? Number(l.totalCost) : unitCost * (Number(l.received) || Number(l.ordered) || 0),
+      }
+    })
+  const cust = (po.customLines || []).map(c => ({
+    ingredientId: null, name: c.name || 'One-off item', unit: c.unit || 'шт', isCustom: true,
+    ordered: Number(c.ordered) || 0, received: Number(c.received) || 0,
+    unitCost: c.unitCost != null ? Number(c.unitCost) : 0,
+    totalCost: c.totalCost != null ? Number(c.totalCost) : 0,
+  }))
+  return [...reg, ...cust]
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -682,6 +705,12 @@ export function ConfigProvider({ children }) {
       ]
     ).catch(console.error)
 
+    // 1b. Lakehouse push (spec §3)
+    lhPush(settings, [
+      LH_PUSH.po({ poId: po.id, orderType, storeId, storeCode, fromStoreId, toStoreId, status: po.status || 'draft', receivedDate: po.receivedDate || (po.receivedAt ? po.receivedAt.split('T')[0] : null), receivedAt: po.receivedAt, createdDate: po.createdDate, sentDate: po.sentDate }),
+      ...LH_PUSH.poLinesReplace(po.id, buildPoLines(po, config.ingredients)),
+    ])
+
     // 2. D1 fact_purchase_order_lines
     queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [po.id]).catch(console.error)
 
@@ -789,6 +818,12 @@ export function ConfigProvider({ children }) {
         ]
       ).catch(console.error)
 
+      // 1b. Lakehouse push (spec §3)
+      lhPush(settings, [
+        LH_PUSH.po({ poId: id, orderType, storeId, storeCode, fromStoreId, toStoreId, status: updatedPo.status, receivedDate: updatedPo.receivedDate || (updatedPo.receivedAt ? updatedPo.receivedAt.split('T')[0] : null), receivedAt: updatedPo.receivedAt, createdDate: updatedPo.createdDate, sentDate: updatedPo.sentDate }),
+        ...(changes.lines || changes.customLines ? LH_PUSH.poLinesReplace(id, buildPoLines(updatedPo, config.ingredients)) : []),
+      ])
+
       // 2. If lines or customLines changed, update fact_purchase_order_lines
       if (changes.lines || changes.customLines) {
         queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [id]).catch(console.error)
@@ -852,6 +887,7 @@ export function ConfigProvider({ children }) {
           oldTxns.forEach(t => {
             queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [t.id]).catch(console.error)
             queryD1(`DELETE FROM transactions WHERE id = ?`, [t.id]).catch(console.error)
+            lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${t.id}'`)])
           })
           
           newTxns = newTxns.filter(t => t.poId !== id)
@@ -877,6 +913,10 @@ export function ConfigProvider({ children }) {
 
                 queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx1.id, tx1.store, tx1.date, tx1.type, tx1.ingredientId, tx1.quantity, tx1.poId, tx1.timestamp]).catch(console.error)
                 queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx2.id, tx2.store, tx2.date, tx2.type, tx2.ingredientId, tx2.quantity, tx2.poId, tx2.timestamp]).catch(console.error)
+                lhPush(settings, [
+                  LH_PUSH.tx({ id: tx1.id, storeId: fromId, storeCode: resolveStoreCode(fromId), date: tx1.date, ts: tx1.timestamp, type: tx1.type, ingredientId: tx1.ingredientId, ingredientName: l.name || '', qty: tx1.quantity, poId: tx1.poId }),
+                  LH_PUSH.tx({ id: tx2.id, storeId: toId, storeCode: resolveStoreCode(toId), date: tx2.date, ts: tx2.timestamp, type: tx2.type, ingredientId: tx2.ingredientId, ingredientName: l.name || '', qty: tx2.quantity, poId: tx2.poId }),
+                ])
                 
                 newTxns.push(tx1, tx2)
               }
@@ -900,6 +940,7 @@ export function ConfigProvider({ children }) {
     queryD1(`DELETE FROM fact_inventory_transactions WHERE po_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM purchase_orders WHERE id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM transactions WHERE poId = ?`, [id]).catch(console.error)
+    lhPush(settings, [LH_PUSH.del('fact_purchase_orders', `po_id = '${id}'`), LH_PUSH.del('fact_purchase_order_lines', `po_id = '${id}'`), LH_PUSH.del('fact_inventory_transactions', `po_id = '${id}'`)])
     
     setDataState(prev => ({
       ...prev,
@@ -913,6 +954,10 @@ export function ConfigProvider({ children }) {
     queryD1(`UPDATE purchase_orders SET receivedAt = ? WHERE id = ?`, [receivedAt, id]).catch(console.error)
     queryD1(`UPDATE fact_inventory_transactions SET transaction_date = ?, transaction_timestamp = ? WHERE po_id = ?`, [receivedDate, receivedAt, id]).catch(console.error)
     queryD1(`UPDATE transactions SET date = ? WHERE poId = ?`, [receivedDate, id]).catch(console.error)
+    lhPush(settings, [
+      LH_PUSH.upd('fact_purchase_orders', `received_date = '${esc(receivedDate)}', received_at = '${esc(receivedAt)}'`, `po_id = '${id}'`),
+      LH_PUSH.upd('fact_inventory_transactions', `transaction_date = '${esc(receivedDate)}', transaction_timestamp = '${esc(receivedAt)}'`, `po_id = '${id}'`),
+    ])
     
     setDataState(prev => ({
       ...prev,
@@ -930,6 +975,7 @@ export function ConfigProvider({ children }) {
     queryD1(`UPDATE purchase_orders SET status = 'sent', receivedAt = NULL WHERE id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM fact_inventory_transactions WHERE po_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM transactions WHERE poId = ?`, [id]).catch(console.error)
+    lhPush(settings, [LH_PUSH.upd('fact_purchase_orders', `status = 'sent', received_date = NULL, received_at = NULL`, `po_id = '${id}'`), LH_PUSH.del('fact_inventory_transactions', `po_id = '${id}'`)])
     
     setDataState(prev => ({
       ...prev,
@@ -959,6 +1005,7 @@ export function ConfigProvider({ children }) {
               ).catch(console.error)
             })
             queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
+            lhPush(settings, LH_PUSH.recipeReplace(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: next.ingredients?.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`, amt: Number(amt) }))))
           }
         }
         const nextProducts = new Set(Object.keys(next.recipes))
@@ -966,6 +1013,7 @@ export function ConfigProvider({ children }) {
           if (!nextProducts.has(product)) {
             queryD1(`DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = ? AND recipe_type = 'production'`, [product]).catch(console.error)
             queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'production'`, [product]).catch(console.error)
+            lhPush(settings, [LH_PUSH.del('fact_recipe_ingredients', `recipe_product_name = '${esc(product)}' AND recipe_type = 'production'`)])
           }
         }
       }
@@ -981,12 +1029,14 @@ export function ConfigProvider({ children }) {
             ).catch(console.error)
             queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
               [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0]).catch(console.error)
+            lhPush(settings, [LH_PUSH.ingredient(ing)])
           }
         }
         const nextIds = new Set(next.ingredients.map(i => i.id))
         for (const oldIng of prev.ingredients) {
           if (!nextIds.has(oldIng.id)) {
             queryD1(`DELETE FROM dim_ingredients WHERE ingredient_id = ?`, [oldIng.id]).catch(console.error)
+            lhPush(settings, [LH_PUSH.del('dim_ingredients', `ingredient_id = ${oldIng.id}`)])
             queryD1(`DELETE FROM ingredients WHERE id = ?`, [oldIng.id]).catch(console.error)
           }
         }
@@ -997,10 +1047,16 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const refreshRecipes = useCallback(async () => {
-    const [recRes, payRes] = await Promise.all([
-      queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
-      queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
-    ])
+    const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
+    const [recRes, payRes] = useLh
+      ? await Promise.all([
+          fetchLh(settings.token, settings.warehouseId, 'recipes').then(coerceLhRows),
+          fetchLh(settings.token, settings.warehouseId, 'cookUnitPay').then(coerceLhRows),
+        ])
+      : await Promise.all([
+          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+          queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
+        ])
     let unitPayUpdate = null
     if (payRes && payRes.length > 0) {
       unitPayUpdate = {}
@@ -1028,9 +1084,11 @@ export function ConfigProvider({ children }) {
       if (!isNaN(numRate) && numRate >= 0) {
         nextUnitPay[productName] = numRate
         queryD1("INSERT OR REPLACE INTO dim_cook_unit_pay (product_name, pay_rate) VALUES (?, ?)", [productName, numRate]).catch(console.error)
+        lhPush(settings, [LH_PUSH.cookPay(productName, numRate)])
       } else {
         delete nextUnitPay[productName]
         queryD1("DELETE FROM dim_cook_unit_pay WHERE product_name = ?", [productName]).catch(console.error)
+        lhPush(settings, [LH_PUSH.cookPay(productName, null)])
       }
       saveToStorage(COOK_UNIT_PAY_KEY, nextUnitPay)
       queryD1("INSERT OR REPLACE INTO settings (key, value) VALUES ('cook_unit_pay', ?)", [JSON.stringify(nextUnitPay)]).catch(console.error)
