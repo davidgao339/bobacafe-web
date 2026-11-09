@@ -42,6 +42,9 @@ export default function InventoryLevels() {
   const si = key => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
   const { ingredients } = config
+  // Retail (drink) recipes map POS sales → ingredient usage; config.recipes
+  // holds only production (WHS-made) recipes.
+  const salesRecipes = config.salesRecipes ?? config.recipes
 
   if (ingredients.length === 0) {
     return (
@@ -90,7 +93,7 @@ export default function InventoryLevels() {
       .filter(s => s.store === store && s.date >= sparkDates[0] && s.date <= sparkTo)
       .forEach(s => { (rowsByDate[s.date] ??= []).push(s) })
     const sparkFor = (ingId) => sparkDates.map(d =>
-      (rowsByDate[d] ?? []).reduce((sum, s) => sum + s.quantity * (config.recipes[s.product]?.[ingId] ?? 0), 0))
+      (rowsByDate[d] ?? []).reduce((sum, s) => sum + s.quantity * (salesRecipes[s.product]?.[ingId] ?? 0), 0))
 
     const rows = ingredients
       .filter(ing => !q || ing.name.toLowerCase().includes(q))

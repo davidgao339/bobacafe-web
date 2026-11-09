@@ -3,10 +3,14 @@ import { useConfig } from '../context/ConfigContext'
 import { roundOrderQty } from '@inventory/utils/productTypes'
 
 export function useCalcs() {
-  const { config, sales, posWaste, data, stores } = useConfig()
+  const { config, sales, posWaste, data, stores, lhBalancesByStore } = useConfig()
 
   return useMemo(() => {
     const { ingredients, recipes } = config
+    // Retail (drink) recipes map POS product names → ingredient usage for
+    // sales-based consumption. config.recipes holds only production (WHS-made)
+    // recipes — used by getSaleIngredientImpact below, NOT by sales loops.
+    const salesRecipes = config.salesRecipes ?? recipes
     const r1 = n => Math.round(n * 10) / 10
 
     // PRECOMPUTATION
@@ -50,7 +54,7 @@ export function useCalcs() {
       const store = s.store
       const date = s.date
       const qty = s.quantity
-      const recipe = recipes[s.product]
+      const recipe = salesRecipes[s.product]
       if (!recipe || !stores.includes(store)) continue
       
       for (const ingId in recipe) {
@@ -209,6 +213,12 @@ export function useCalcs() {
     const getAdjDelta = (store, ingredientId) => adjDelta[store]?.[ingredientId] || 0
     
     const estimateCurrentStock = (store, ingredientId) => {
+      // View-prioritized: view_current_inventory (via lhBalancesByStore) is
+      // the authoritative current on-hand (audit + movements - consumption,
+      // maintained in the lakehouse). The local audit+tx+po calc below is
+      // only a fallback for pairs the view doesn't cover.
+      const viewed = lhBalancesByStore?.[store]?.[ingredientId]
+      if (viewed != null) return r1(viewed)
       const lastIngAudit = sortedAuditsByStore[store]?.filter(a => a.counts[ingredientId] != null)[0]
       const base = lastIngAudit?.counts[ingredientId] ?? 0
       return r1(base - (salesSinceLastAudit[store]?.[ingredientId] || 0) + (txSinceLastAudit[store]?.[ingredientId] || 0) + (poSinceLastAudit[store]?.[ingredientId] || 0))
@@ -222,7 +232,7 @@ export function useCalcs() {
       
       for (const s of [...sales, ...posWaste]) {
         if (s.store === store && s.date > fromDate && s.date <= toDate) {
-          const recipe = recipes[s.product]
+          const recipe = salesRecipes[s.product]
           if (recipe && recipe[ingredientId]) {
             total += s.quantity * recipe[ingredientId]
           }
@@ -299,5 +309,5 @@ export function useCalcs() {
       getActualConsumed, getUnexplainedVariance, getVariancePct,
       getVarianceWindow, getIngredientVarianceWindow, getLastAudit,
     }
-  }, [config, sales, data])
+  }, [config, sales, data, lhBalancesByStore])
 }

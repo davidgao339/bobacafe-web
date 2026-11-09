@@ -150,6 +150,7 @@ export function ConfigProvider({ children }) {
   const [config, setConfigState] = useState(() => ({
     ingredients: DEFAULT_INGREDIENTS,
     recipes: DEFAULT_RECIPES,
+    salesRecipes: DEFAULT_RECIPES,
     unitPay: loadFromStorage(COOK_UNIT_PAY_KEY) || {},
     suppliers: [],
     _nextIngId: 1,
@@ -159,6 +160,9 @@ export function ConfigProvider({ children }) {
   
   const [isD1Loaded, setIsD1Loaded] = useState(false)
   const [salesCache, setSalesCacheState] = useState(null)
+  // Flips true once the async IDB sales-cache load has settled (needed so the
+  // auto sales refresh below doesn't race the cache load).
+  const [salesCacheLoaded, setSalesCacheLoaded] = useState(false)
   const [settings, setSettingsState] = useState(() => {
     const stored = loadFromStorage(SETTINGS_KEY) ?? {}
     return { token: '', warehouseId: '', ...stored }
@@ -167,8 +171,10 @@ export function ConfigProvider({ children }) {
   const [suppressedStores, setSuppressedStores] = useState([])
   // Stores app: the retail store this session operates as (never Warehouse/99)
   const [selectedStore, setSelectedStoreState] = useState(() => loadFromStorage('bobacafe_selected_store') || null)
-  // Lakehouse pull state: current balances for the selected store (spec §2 Pull 2)
-  const [lhBalances, setLhBalances] = useState(null)
+  // Lakehouse pull state: current balances from view_current_inventory — ALL
+  // stores in one fetch (~1 row per store × ingredient pair). Derived maps
+  // below make every estimateCurrentStock consumer view-prioritized.
+  const [lhAllRows, setLhAllRows] = useState(null)
   const setSelectedStore = useCallback((name) => {
     saveToStorage('bobacafe_selected_store', name)
     setSelectedStoreState(name)
@@ -203,12 +209,13 @@ export function ConfigProvider({ children }) {
         const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
         const lh = qk => fetchLh(settings.token, settings.warehouseId, qk).then(coerceLhRows)
 
-        const [storesRes, aliasesRes, ingRes, recRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes] = useLh
+        const [storesRes, aliasesRes, ingRes, recRes, recRetailRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes] = useLh
           ? await Promise.all([
               lh('stores'),
               Promise.resolve([]),
               lh('ingredients'),
               lh('recipes'),
+              lh('recipesRetail'),
               lh('suppliers'),
               lh('transactions'),
               lh('purchaseOrders'),
@@ -222,6 +229,7 @@ export function ConfigProvider({ children }) {
               queryD1('SELECT * FROM dim_store_aliases'),
               queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
               queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+              queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
               queryD1('SELECT * FROM suppliers'),
               queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
               queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
@@ -315,9 +323,19 @@ export function ConfigProvider({ children }) {
           recipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
         })
 
+        // Retail (drink) recipes drive POS-sales-based consumption for PO
+        // suggestions. Production recipes (WHS-made items) stay in config.recipes
+        // and are managed on the Recipes tab — see useInventoryCalcs.
+        const salesRecipes = {}
+        ;(recRetailRes || []).forEach(r => {
+          if (!salesRecipes[r.recipe_product_name]) salesRecipes[r.recipe_product_name] = {}
+          salesRecipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
+        })
+
         setConfigState({
           ingredients,
           recipes,
+          salesRecipes,
           unitPay,
           suppliers: suppRes,
           _nextIngId: Math.max(0, ...ingredients.map(i => i.id)) + 1,
@@ -450,6 +468,8 @@ export function ConfigProvider({ children }) {
         if (cache) setSalesCacheState(cache)
       } catch (err) {
         console.error('Failed to load sales cache from IDB', err)
+      } finally {
+        setSalesCacheLoaded(true)
       }
     }
     initSalesCache()
@@ -486,21 +506,44 @@ export function ConfigProvider({ children }) {
   const selectedStoreId = selectedStore ? (storeMapsRef.current.nameToId[selectedStore] ?? null) : null
   const selectedStoreCode = selectedStoreId != null ? (storeMapsRef.current.idToCode[selectedStoreId] ?? null) : null
 
-  // ─── Lakehouse pull (spec §2 Pull 2): current balances for the selected store ───
+  // ─── Lakehouse pull (spec §2 Pull 2): current balances, view-prioritized ───
+  // One fetch for ALL stores from view_current_inventory (source of truth for
+  // on-hand). Per-store maps are derived so estimateCurrentStock — and every
+  // consumer of it (PO suggestions, Inventory Levels, Ledger) — uses the view
+  // value first, falling back to the local audit+tx calc only for pairs the
+  // view doesn't cover (e.g. never-audited ingredients).
   useEffect(() => {
     let cancelled = false
-    setLhBalances(null)
-    if (!settings?.token || !settings?.warehouseId || !selectedStoreCode) return
-    fetchCurrentInventory(settings.token, settings.warehouseId, selectedStoreCode)
-      .then(rows => {
-        if (cancelled) return
-        const map = {}
-        ;(rows || []).forEach(r => { map[String(r.ingredient_id)] = r })
-        setLhBalances(map)
-      })
+    setLhAllRows(null)
+    if (!settings?.token || !settings?.warehouseId) return
+    fetchCurrentInventory(settings.token, settings.warehouseId)
+      .then(rows => { if (!cancelled) setLhAllRows(rows || []) })
       .catch(err => console.error('Lakehouse balances fetch failed', err))
     return () => { cancelled = true }
-  }, [settings?.token, settings?.warehouseId, selectedStoreCode])
+  }, [settings?.token, settings?.warehouseId])
+
+  // Raw view rows for the selected store, keyed by ingredient_id (Ledger shape).
+  const lhBalances = useMemo(() => {
+    if (!lhAllRows || !selectedStoreCode) return null
+    const map = {}
+    lhAllRows.forEach(r => { if (r.store_code === selectedStoreCode) map[String(r.ingredient_id)] = r })
+    return map
+  }, [lhAllRows, selectedStoreCode])
+
+  // Numeric on-hand per UI store name → ingredient_id → current_on_hand.
+  const lhBalancesByStore = useMemo(() => {
+    const { idToName, idToCode } = storeMapsRef.current
+    const codeToName = {}
+    Object.entries(idToCode).forEach(([id, code]) => { codeToName[code] = idToName[id] })
+    const out = {}
+    ;(lhAllRows || []).forEach(r => {
+      const name = codeToName[r.store_code]
+      if (!name) return
+      const n = Number(r.current_on_hand)
+      ;(out[name] ??= {})[r.ingredient_id] = Number.isFinite(n) ? n : 0
+    })
+    return out
+  }, [lhAllRows, isD1Loaded])
 
   // ─── Operational data mutations (Optimistic + D1 Tabular & Legacy) ────────
   const addAudit = useCallback((store, date, counts, timestamp) => {
@@ -1048,13 +1091,15 @@ export function ConfigProvider({ children }) {
 
   const refreshRecipes = useCallback(async () => {
     const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
-    const [recRes, payRes] = useLh
+    const [recRes, recRetailRes, payRes] = useLh
       ? await Promise.all([
           fetchLh(settings.token, settings.warehouseId, 'recipes').then(coerceLhRows),
+          fetchLh(settings.token, settings.warehouseId, 'recipesRetail').then(coerceLhRows),
           fetchLh(settings.token, settings.warehouseId, 'cookUnitPay').then(coerceLhRows),
         ])
       : await Promise.all([
           queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
           queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
         ])
     let unitPayUpdate = null
@@ -1070,9 +1115,15 @@ export function ConfigProvider({ children }) {
       if (!recipes[r.recipe_product_name]) recipes[r.recipe_product_name] = {}
       recipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
     })
+    const salesRecipes = {}
+    ;(recRetailRes || []).forEach(r => {
+      if (!salesRecipes[r.recipe_product_name]) salesRecipes[r.recipe_product_name] = {}
+      salesRecipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
+    })
     setConfigState(prev => ({
       ...prev,
       recipes,
+      salesRecipes,
       ...(unitPayUpdate ? { unitPay: unitPayUpdate } : {})
     }))
   }, [])
@@ -1172,6 +1223,30 @@ export function ConfigProvider({ children }) {
 
     return { upToDate: false, newRows: newRows.length, fromDate, toDate }
   }, [salesCache])
+
+  // Auto-refresh POS sales on load so PO suggestions have data with no manual
+  // step. refreshSales is otherwise dead code in this app: a fresh browser has
+  // an empty IndexedDB cache, sales stays [] and every suggestion is 0.
+  // Fetches from the day after lastRefreshDate — or the last 60 days when the
+  // cache is empty — through today. The Statement API aggregates by date, so
+  // re-pulling the boundary day is safe (the merge dedups by key).
+  const autoSalesRef = useRef(false)
+  const refreshSalesRef = useRef(refreshSales)
+  refreshSalesRef.current = refreshSales
+  useEffect(() => {
+    if (autoSalesRef.current) return
+    if (!isD1Loaded || !salesCacheLoaded) return
+    if (!settings?.token || !settings?.warehouseId) return
+    autoSalesRef.current = true
+    const today = new Date().toISOString().slice(0, 10)
+    const last = salesCache?.lastRefreshDate
+    const cut = new Date((last || today) + 'T12:00:00')
+    if (!last) cut.setDate(cut.getDate() - 60)
+    const fromDate = cut.toISOString().slice(0, 10)
+    if (fromDate > today) return
+    refreshSalesRef.current(settings.token, settings.warehouseId, fromDate, today)
+      .catch(err => console.error('Auto sales refresh failed (suggestions will be 0):', err))
+  }, [isD1Loaded, salesCacheLoaded, settings?.token, settings?.warehouseId, salesCache?.lastRefreshDate])
 
   // Removed cloud backups logic, D1 is now the source of truth
   const exportConfig = useCallback(() => {
@@ -1306,7 +1381,7 @@ export function ConfigProvider({ children }) {
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, selectedStore, setSelectedStore, selectedStoreCode, toggleStoreVisibility: () => {},
       settings, saveSettings, updateOzonMapping, refreshSales,
-      lhBalances, lhConnected: Boolean(settings?.token && settings?.warehouseId),
+      lhBalances, lhBalancesByStore, lhConnected: Boolean(settings?.token && settings?.warehouseId),
       dataSource: settings?.dataSource || 'd1',
       reportFrom, reportTo,
       exportConfig, importConfig,
