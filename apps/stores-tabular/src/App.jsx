@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ConfigProvider, useConfig } from './context/ConfigContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'
@@ -88,10 +88,38 @@ function AppRoot() {
 
 function AppContent({ role, onLogout }) {
   const navigate = useNavigate()
-  const { config, stores, selectedStore, setSelectedStore, settings } = useConfig()
+  const { config, stores, selectedStore, setSelectedStore, settings, sales, lhBalances } = useConfig()
   const hasData = (config.ingredients ?? []).length > 0
   const [settingsOpen, setSettingsOpen] = useState(false)
   const lhConnected = Boolean(settings?.token && settings?.warehouseId)
+
+  // "Live data as of": the latest date covered by the loaded data — the newest
+  // POS sales row and the lakehouse view's current_on_hand_as_of_date.
+  // Updates automatically as sales refresh / balance pulls land.
+  const dataAsOf = useMemo(() => {
+    const dates = []
+    if (sales?.length) {
+      let max = sales[0].date
+      for (const s of sales) if (s.date > max) max = s.date
+      if (max) dates.push(String(max))
+    }
+    if (lhBalances) {
+      for (const r of Object.values(lhBalances)) {
+        const d = r.current_on_hand_as_of_date ? String(r.current_on_hand_as_of_date).slice(0, 10) : ''
+        if (d) dates.push(d)
+      }
+    }
+    return dates.length ? dates.sort().pop() : null
+  }, [sales, lhBalances])
+
+  // Fresh = data covers today or yesterday (yesterday allowed so early-morning
+  // use before the day's POS sales arrive still shows green).
+  const isFresh = useMemo(() => {
+    if (!dataAsOf) return false
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 1)
+    return dataAsOf >= cutoff.toISOString().slice(0, 10)
+  }, [dataAsOf])
 
   const handleLoad = () => {
     window.location.reload()
@@ -106,6 +134,21 @@ function AppContent({ role, onLogout }) {
           <span className="font-semibold text-gray-900 text-sm">Stores &amp; Purchase Order</span>
         </div>
         <div className="flex items-center gap-2">
+          {dataAsOf && (
+            <span
+              title={lhConnected
+                ? `Данные актуальны на ${dataAsOf} (новейшая дата продаж POS и остатков из lakehouse)`
+                : 'Lakehouse не подключён — данные могут быть неактуальны'}
+              className={`flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-full border ${
+                lhConnected && isFresh
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${lhConnected && isFresh ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+              Live data as of {dataAsOf}
+            </span>
+          )}
           {stores.length > 0 && (
             <select
               value={selectedStore || ''}
