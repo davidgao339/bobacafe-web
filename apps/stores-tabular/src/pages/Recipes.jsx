@@ -434,7 +434,14 @@ function RecipesTab() {
   const [ingOpen,    setIngOpen]    = useState(false)
   const [creating,   setCreating]   = useState(false)
   const [newIngDef,  setNewIngDef]  = useState({ name: '', unit: '' })
-  const allProducts = [...new Set(config.ingredients.map(i => i.name))].sort()
+  // Product universe = products seen in POS (sales + waste within the sales
+  // cache window) plus every product that already has a recipe, so configured
+  // items always appear regardless of cache age. Ingredient names are raw
+  // materials, NOT products - listing them here was the pre-migration bug
+  // (showed ~116 items with most "missing").
+  const salesProducts = new Set(sales.map(s => s.product))
+  const wasteProducts = new Set(posWaste.map(s => s.product))
+  const allProducts   = [...new Set([...salesProducts, ...wasteProducts, ...Object.keys(config.recipes)])].sort()
 
 
   const hasRecipe     = (p) => Object.values(config.recipes[p] ?? {}).some(q => q > 0)
