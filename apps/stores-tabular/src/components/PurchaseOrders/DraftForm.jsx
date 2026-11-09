@@ -142,7 +142,7 @@ export default function DraftForm({
     const suggested = getOrderQty(store, p.id, days, bufferPct)
     const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : 0)
     const received = key in receivedQtys ? receivedQtys[key] : (initialLines ? (initialLines.find(l => l.ingredientId === p.id)?.received ?? qty) : qty)
-    const unitCost = key in unitCosts ? unitCosts[key] : (initialLines?.find(l => l.ingredientId === p.id)?.unitCost || (p.costPerUnit || p.lastPurchaseCost || ''))
+    const unitCost = key in unitCosts ? unitCosts[key] : (initialLines?.find(l => l.ingredientId === p.id)?.unitCost ?? (p.costPerUnit || p.lastPurchaseCost || ''))
     const totalCost = key in totalCosts ? totalCosts[key] : ((Number(qty) > 0 && Number(unitCost) > 0) ? (Number(qty) * Number(unitCost)).toFixed(2) : '')
     return { ...p, suggested, qty, received, unitCost, totalCost, isOriginal: originalIds.has(p.id) }
   })
@@ -366,13 +366,13 @@ export default function DraftForm({
         {t('po.suggested')}{si('suggested')}
       </th>
       <th className="px-4 py-3 font-medium text-right">{t('po.orderQty')}</th>
-      {showCosts && (
+      {isSupplierPurchase && (
         <>
           <th className="px-4 py-3 font-medium text-right text-amber-900 w-36">
-            Цена за ед. (₽) {isSupplierPurchase && <span className="text-red-500 font-bold">*</span>}
+            Цена за ед. (₽) <span className="text-red-500 font-bold">*</span>
           </th>
           <th className="px-4 py-3 font-medium text-right text-amber-900 w-36">
-            Сумма (₽) {isSupplierPurchase && <span className="text-red-500 font-bold">*</span>}
+            Сумма (₽) <span className="text-red-500 font-bold">*</span>
           </th>
         </>
       )}
@@ -406,7 +406,7 @@ export default function DraftForm({
             onChange={e => setQty(l.id, e.target.value)}
             className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </td>
-        {showCosts && (
+        {isSupplierPurchase && (
           <>
             <td className="px-4 py-2.5 text-right">
               <div className="flex items-center justify-end gap-1">
@@ -530,7 +530,7 @@ export default function DraftForm({
         </div>
       </div>
 
-      {showCosts && (
+      {isSupplierPurchase && (
         <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-between text-xs text-amber-900">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5 font-medium">
@@ -612,7 +612,7 @@ export default function DraftForm({
               <th className="px-4 py-2.5 w-48">Категория Overhead</th>
               <th className="px-4 py-2.5 w-24">Ед. изм.</th>
               <th className="px-4 py-2.5 w-24 text-right">Кол-во</th>
-              {showCosts && (
+              {isSupplierPurchase && (
                 <>
                   <th className="px-4 py-2.5 w-36 text-right">Цена за ед. (₽)</th>
                   <th className="px-4 py-2.5 w-36 text-right">Сумма (₽)</th>
@@ -668,7 +668,7 @@ export default function DraftForm({
                       className="w-full border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </td>
-                  {showCosts && (
+                  {isSupplierPurchase && (
                     <>
                       <td className="px-4 py-2.5 w-36 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -749,7 +749,7 @@ export default function DraftForm({
           </button>
         </div>
         <div className="flex items-center gap-6">
-          {showCosts && (
+          {isSupplierPurchase && (
             <div className="flex items-center gap-4 text-right">
               <div>
                 <span className="text-[11px] text-gray-400 uppercase tracking-wide block">Сырьё (COGS)</span>
