@@ -2,6 +2,24 @@ import { useMemo } from 'react'
 import { useConfig } from '../context/ConfigContext'
 import { roundOrderQty } from '@inventory/utils/productTypes'
 
+// POS history keeps old spellings (case, double spaces) that dim_product
+// dedup folds away — resolve the sales recipe key case/format-insensitively
+// so folded names still consume sales.
+function normProductKey(name) {
+  return String(name ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function salesRecipeFor(salesRecipes, product) {
+  if (!product) return null
+  const exact = salesRecipes[product]
+  if (exact) return exact
+  const key = normProductKey(product)
+  for (const k of Object.keys(salesRecipes)) {
+    if (normProductKey(k) === key) return salesRecipes[k]
+  }
+  return null
+}
+
 export function useCalcs() {
   const { config, sales, posWaste, data, stores, lhBalancesByStore } = useConfig()
 
@@ -54,7 +72,7 @@ export function useCalcs() {
       const store = s.store
       const date = s.date
       const qty = s.quantity
-      const recipe = salesRecipes[s.product]
+      const recipe = salesRecipeFor(salesRecipes, s.product)
       if (!recipe || !stores.includes(store)) continue
       
       for (const ingId in recipe) {
@@ -232,7 +250,7 @@ export function useCalcs() {
       
       for (const s of [...sales, ...posWaste]) {
         if (s.store === store && s.date > fromDate && s.date <= toDate) {
-          const recipe = salesRecipes[s.product]
+          const recipe = salesRecipeFor(salesRecipes, s.product)
           if (recipe && recipe[ingredientId]) {
             total += s.quantity * recipe[ingredientId]
           }

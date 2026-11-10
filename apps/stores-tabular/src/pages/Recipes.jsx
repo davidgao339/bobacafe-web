@@ -590,10 +590,14 @@ function RecipesTab() {
     ? groups.reduce((n, g) => n + g.children.filter(c => !hasRecipe(c.productRu)).length, 0)
     : legacyDisplayed.filter(p => !hasRecipe(p.productRu)).length
 
+  // Recipe editor works on the FULL dim_ingredients list (allIngredients):
+  // production consumes warehouse-only raw materials (flour, cream cheese…),
+  // so the store-facing filtered list would hide most of the recipe.
+  const allIngredients = config.allIngredients?.length ? config.allIngredients : config.ingredients
   const selectedRecipe    = config.recipes[selected] ?? {}
-  const recipeIngredients = config.ingredients.filter(i => (selectedRecipe[i.id] ?? 0) > 0)
-  const unusedIngredients = config.ingredients.filter(i => !((selectedRecipe[i.id] ?? 0) > 0))
-  const selectedProductUnit = config.ingredients.find(i => i.name === selected)?.unit || 'ед.'
+  const recipeIngredients = allIngredients.filter(i => (selectedRecipe[i.id] ?? 0) > 0)
+  const unusedIngredients = allIngredients.filter(i => !((selectedRecipe[i.id] ?? 0) > 0))
+  const selectedProductUnit = allIngredients.find(i => i.name === selected)?.unit || 'ед.'
   const selectedDim = dimRows.find(p => p.productRu === selected) || null
   const selectedIsOrphan = useCatalog && !catalogNames.has(selected) && Object.keys(selectedRecipe).length > 0
 
@@ -699,9 +703,9 @@ function RecipesTab() {
 
   // In editing mode, show ingredients currently in draft (may differ from saved)
   const draftIngredients = editing
-    ? config.ingredients.filter(i => i.id in draftQtys)
+    ? allIngredients.filter(i => i.id in draftQtys)
     : recipeIngredients
-  const draftUnused = config.ingredients.filter(i => !(i.id in draftQtys))
+  const draftUnused = allIngredients.filter(i => !(i.id in draftQtys))
 
   return (
     <div className="flex flex-col md:flex-row gap-4 h-full">
@@ -935,7 +939,15 @@ function RecipesTab() {
                 <tbody className="divide-y divide-gray-50">
                   {draftIngredients.map(ing => (
                     <tr key={ing.id} className={editing ? 'bg-white hover:bg-blue-50/30' : 'hover:bg-gray-50'}>
-                      <td className="px-5 py-2.5 font-medium text-gray-800">{ing.name}</td>
+                      <td className="px-5 py-2.5 font-medium text-gray-800">
+                        {ing.name}
+                        {ing.warehouseOnly && (
+                          <span title="Handled at the Warehouse (WHS) — no store-level stock"
+                            className="ml-1.5 align-middle text-[9px] font-mono font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                            WHS
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-gray-500">{ing.unit}</td>
                       <td className="px-4 py-2.5 text-right">
                         {editing ? (

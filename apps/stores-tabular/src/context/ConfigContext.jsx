@@ -149,6 +149,11 @@ export function ConfigProvider({ children }) {
   // Initialize with empty defaults, will populate from D1
   const [config, setConfigState] = useState(() => ({
     ingredients: DEFAULT_INGREDIENTS,
+    // Full dim_ingredients (incl. is_warehouse_only rows). The store-facing
+    // `ingredients` above only carries what a retail store can hold; Recipes
+    // consumes WHS-only raw materials (flour, cream cheese…), so the recipe
+    // editor needs the unfiltered list.
+    allIngredients: DEFAULT_INGREDIENTS,
     recipes: DEFAULT_RECIPES,
     salesRecipes: DEFAULT_RECIPES,
     dimProducts: [],
@@ -310,7 +315,9 @@ export function ConfigProvider({ children }) {
         }
 
         // Stores app: only store-visible ingredients (what WHS produces/ships); warehouse-only excluded
-        const ingredients = ingRes.filter(i => !i.warehouseOnly).map(i => ({
+        // from the store-facing list — but Recipes still consumes WHS-only raw
+        // materials, so the full dim_ingredients rides along in allIngredients.
+        const allIngredients = ingRes.map(i => ({
           id: i.id,
           name: i.name,
           unit: i.unit,
@@ -323,6 +330,7 @@ export function ConfigProvider({ children }) {
           lastPurchaseCost: i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0,
           wacCost30d: i.wacCost30d != null ? Number(i.wacCost30d) : 0,
         }))
+        const ingredients = allIngredients.filter(i => !i.warehouseOnly)
 
         const recipes = {}
         recRes.forEach(r => {
@@ -359,6 +367,7 @@ export function ConfigProvider({ children }) {
 
         setConfigState({
           ingredients,
+          allIngredients,
           recipes,
           salesRecipes,
           dimProducts,
