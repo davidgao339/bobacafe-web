@@ -41,7 +41,7 @@ function rowsToSales(rows) {
 
 // Statement API returns every value as a string; coerce numerics/booleans so
 // lakehouse rows match what queryD1 (Cloudflare worker) would have returned.
-const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
+const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'product_id', 'parent_product_id', 'productId', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
 const _BOOL = new Set(['is_active', 'isActive', 'is_modifier', 'isModifier', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
 function coerceLhRows(rows) {
   return (rows || []).map(r => {
@@ -63,6 +63,32 @@ function lhPush(settings, sqls) {
   if (!settings?.token || !settings?.warehouseId || !sqls?.length) return
   sqls.reduce((p, s) => p.then(() => runDatabricksSql(settings.token, settings.warehouseId, s)), Promise.resolve())
     .catch(err => console.error('LH push failed (D1 write already saved):', err))
+}
+
+// Canonical recipe key resolution (product_id matched). Recipe facts are
+// attached to dim_product by product_id in the lakehouse; D1 rows carry no
+// product_id column, so they resolve by normalized spelling (case/whitespace
+// insensitive) against dim_product, preferring active rows. Rows with no dim
+// match keep their raw fact spelling (retail pseudo-products 'Списание - …').
+function normNameKey(s) {
+  return String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function buildRecipeKeyResolver(dimProducts) {
+  const byId = new Map()
+  const byNorm = new Map()
+  for (const p of dimProducts || []) {
+    if (!p.productRu) continue
+    if (p.productId != null && !byId.has(Number(p.productId))) byId.set(Number(p.productId), p.productRu)
+    const k = normNameKey(p.productRu)
+    const prev = byNorm.get(k)
+    if (!prev || (p.isActive && !prev.isActive)) byNorm.set(k, p)
+  }
+  return row => {
+    if (row.product_id != null && byId.has(Number(row.product_id))) return byId.get(Number(row.product_id))
+    const hit = byNorm.get(normNameKey(row.recipe_product_name))
+    return (hit && hit.isActive) ? hit.productRu : row.recipe_product_name
+  }
 }
 
 // Normalized PO lines (regular + custom) for lakehouse pushes
@@ -332,24 +358,10 @@ export function ConfigProvider({ children }) {
         }))
         const ingredients = allIngredients.filter(i => !i.warehouseOnly)
 
-        const recipes = {}
-        recRes.forEach(r => {
-          if (!recipes[r.recipe_product_name]) recipes[r.recipe_product_name] = {}
-          recipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
-        })
-
-        // Retail (drink) recipes drive POS-sales-based consumption for PO
-        // suggestions. Production recipes (WHS-made items) stay in config.recipes
-        // and are managed on the Recipes tab — see useInventoryCalcs.
-        const salesRecipes = {}
-        ;(recRetailRes || []).forEach(r => {
-          if (!salesRecipes[r.recipe_product_name]) salesRecipes[r.recipe_product_name] = {}
-          salesRecipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
-        })
-
         // Product master (read-only from lakehouse). isActive default TRUE —
         // dim_product rows with NULL is_active are live items (menu-manager
-        // applies the same COALESCE).
+        // applies the same COALESCE). Built BEFORE recipes so fact rows can be
+        // keyed onto canonical dim_product spellings via product_id.
         const toDimBool = v => v === 1 || v === true || v === 'true' || v === '1'
         const dimProducts = (prodRes || []).filter(p => p.productRu).map(p => ({
           productId: p.productId != null ? Number(p.productId) : null,
@@ -364,6 +376,24 @@ export function ConfigProvider({ children }) {
           basePrice: p.basePrice != null ? Number(p.basePrice) : null,
           cost: p.cost != null ? Number(p.cost) : null,
         }))
+        const recipeKeyFor = buildRecipeKeyResolver(dimProducts)
+
+        const recipes = {}
+        recRes.forEach(r => {
+          const key = recipeKeyFor(r)
+          if (!recipes[key]) recipes[key] = {}
+          recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
+        })
+
+        // Retail (drink) recipes drive POS-sales-based consumption for PO
+        // suggestions. Production recipes (WHS-made items) stay in config.recipes
+        // and are managed on the Recipes tab — see useInventoryCalcs.
+        const salesRecipes = {}
+        ;(recRetailRes || []).forEach(r => {
+          const key = recipeKeyFor(r)
+          if (!salesRecipes[key]) salesRecipes[key] = {}
+          salesRecipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
+        })
 
         setConfigState({
           ingredients,
@@ -1083,7 +1113,12 @@ export function ConfigProvider({ children }) {
               ).catch(console.error)
             })
             queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
-            lhPush(settings, LH_PUSH.recipeReplace(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: next.ingredients?.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`, amt: Number(amt) }))))
+            // Attach the dim_product id (product_id-matched recipes): normalize
+            // match against the catalog; NULL when the product isn't in dim yet.
+            const dimHit = (next.dimProducts || []).find(p => p.productRu === product)
+            const dimHitNorm = dimHit ? null : (next.dimProducts || []).find(p => normNameKey(p.productRu) === normNameKey(product) && p.isActive)
+            const dimMatch = dimHit || dimHitNorm || null
+            lhPush(settings, LH_PUSH.recipeReplace(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: next.ingredients?.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`, amt: Number(amt) })), dimMatch?.productId ?? null))
           }
         }
         const nextProducts = new Set(Object.keys(next.recipes))
@@ -1148,15 +1183,32 @@ export function ConfigProvider({ children }) {
       })
       saveToStorage(COOK_UNIT_PAY_KEY, unitPayUpdate)
     }
+    const toDimBool = v => v === 1 || v === true || v === 'true' || v === '1'
+    const dimProducts = (prodRes || []).filter(p => p.productRu).map(p => ({
+      productId: p.productId != null ? Number(p.productId) : null,
+      productRu: p.productRu,
+      parentProductId: p.parentProductId != null ? Number(p.parentProductId) : null,
+      parentProductEn: (p.parentProductEn || '').trim(),
+      variant: p.variant || 'Standard',
+      category: (p.category || '').trim() || 'Uncategorized',
+      subcategory: (p.subcategory || '').trim(),
+      isActive: p.isActive == null ? true : toDimBool(p.isActive),
+      isModifier: toDimBool(p.isModifier),
+      basePrice: p.basePrice != null ? Number(p.basePrice) : null,
+      cost: p.cost != null ? Number(p.cost) : null,
+    }))
+    const recipeKeyFor = buildRecipeKeyResolver(dimProducts)
     const recipes = {}
     recRes.forEach(r => {
-      if (!recipes[r.recipe_product_name]) recipes[r.recipe_product_name] = {}
-      recipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
+      const key = recipeKeyFor(r)
+      if (!recipes[key]) recipes[key] = {}
+      recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
     })
     const salesRecipes = {}
     ;(recRetailRes || []).forEach(r => {
-      if (!salesRecipes[r.recipe_product_name]) salesRecipes[r.recipe_product_name] = {}
-      salesRecipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
+      const key = recipeKeyFor(r)
+      if (!salesRecipes[key]) salesRecipes[key] = {}
+      salesRecipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
     })
     setConfigState(prev => ({
       ...prev,
@@ -1164,21 +1216,7 @@ export function ConfigProvider({ children }) {
       salesRecipes,
       // dimProduct fetch failed → keep whatever we already have; fresh rows →
       // normalize with the same rules as the initial load.
-      ...(prodRes ? {
-        dimProducts: (prodRes || []).filter(p => p.productRu).map(p => ({
-          productId: p.productId != null ? Number(p.productId) : null,
-          productRu: p.productRu,
-          parentProductId: p.parentProductId != null ? Number(p.parentProductId) : null,
-          parentProductEn: (p.parentProductEn || '').trim(),
-          variant: p.variant || 'Standard',
-          category: (p.category || '').trim() || 'Uncategorized',
-          subcategory: (p.subcategory || '').trim(),
-          isActive: p.isActive == null ? true : (p.isActive === 1 || p.isActive === '1'),
-          isModifier: p.isModifier === 1 || p.isModifier === '1',
-          basePrice: p.basePrice != null ? Number(p.basePrice) : null,
-          cost: p.cost != null ? Number(p.cost) : null,
-        })),
-      } : {}),
+      ...(prodRes ? { dimProducts } : {}),
       ...(unitPayUpdate ? { unitPay: unitPayUpdate } : {})
     }))
   }, [])
