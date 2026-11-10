@@ -419,7 +419,7 @@ function SuppliersTab() {
 
 // ─── Product Row (catalog + legacy) ──────────────────────────────────────────
 
-function ProductRow({ name, variant, dim, selected, indent, recipeCount, soldRecently, unitPay, onSelect }) {
+function ProductRow({ name, variant, dim, selected, indent, recipeCount, soldAsBadge, soldRecently, unitPay, onSelect }) {
   const { t } = useLanguage()
   return (
     <button onClick={onSelect}
@@ -436,11 +436,16 @@ function ProductRow({ name, variant, dim, selected, indent, recipeCount, soldRec
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <div className="flex items-center gap-2 min-w-0">
             {variant && <span className="text-[10px] text-gray-400 truncate">{variant}</span>}
-            {recipeCount > 0
-              ? <span className="text-xs text-green-600 whitespace-nowrap">
-                  {recipeCount !== 1 ? t('recipes.ingredientsCount', { count: recipeCount }) : t('recipes.ingredientCount', { count: recipeCount })}
+            {soldAsBadge
+              ? <span title={t('recipes.whsMadeBadge')}
+                  className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 whitespace-nowrap">
+                  {t('recipes.whsMadeBadge')}
                 </span>
-              : <span className="text-xs text-amber-500 whitespace-nowrap">{t('recipes.noRecipeYet')}</span>
+              : recipeCount > 0
+                ? <span className="text-xs text-green-600 whitespace-nowrap">
+                    {recipeCount !== 1 ? t('recipes.ingredientsCount', { count: recipeCount }) : t('recipes.ingredientCount', { count: recipeCount })}
+                  </span>
+                : <span className="text-xs text-amber-500 whitespace-nowrap">{t('recipes.noRecipeYet')}</span>
             }
           </div>
           <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -516,6 +521,21 @@ function RecipesTab() {
     const d = soldDates[name]
     return d != null && d >= weekAgo
   }
+
+  // ── WHS-made products (two-echelon) ────────────────────────────────────────
+  // A product with a retail "sold as" recipe (e.g. Моти Манго → «Моти манго»
+  // finished good ×1) is produced at the warehouse and transferred to stores.
+  // Its sale decrements the finished good, never raw materials — the raw
+  // transformation happened once at production. Production recipes for such
+  // products are a Warehouse-app concern and are NOT displayed in this tab.
+  const soldAsFor = (name) => {
+    const r = config.salesRecipes?.[name]
+    return r && Object.keys(r).length > 0 ? r : null
+  }
+  const soldAsText = (soldAs) => Object.entries(soldAs).map(([id, qty]) => {
+    const ing = allIngredients.find(i => i.id === Number(id))
+    return `«${ing?.name || `#${id}`}» ×${qty}`
+  }).join(', ')
 
   // Active-only: inactive dim_product rows are maintained in menu-manager;
   // this tab always shows the live menu.
@@ -600,6 +620,9 @@ function RecipesTab() {
   const selectedProductUnit = allIngredients.find(i => i.name === selected)?.unit || 'ед.'
   const selectedDim = dimRows.find(p => p.productRu === selected) || null
   const selectedIsOrphan = useCatalog && !catalogNames.has(selected) && Object.keys(selectedRecipe).length > 0
+  // WHS-made product? Its production recipe is hidden (managed in the
+  // Warehouse app); the detail panel shows a "sold as" note instead.
+  const selectedSoldAs = selected ? soldAsFor(selected) : null
 
   const startEditing = () => {
     const draft = {}
@@ -790,6 +813,7 @@ function RecipesTab() {
                           selected={selected === p.productRu}
                           indent={hasVariants}
                           recipeCount={Object.values(config.recipes[p.productRu] ?? {}).reduce((n, v) => n + (v > 0 ? 1 : 0), 0)}
+                          soldAsBadge={Boolean(soldAsFor(p.productRu))}
                           soldRecently={soldRecently(p.productRu)}
                           unitPay={config.unitPay?.[p.productRu]}
                           onSelect={() => handleSelectProduct(p.productRu)}
@@ -805,6 +829,7 @@ function RecipesTab() {
                     dim={null}
                     selected={selected === p.productRu}
                     recipeCount={Object.values(config.recipes[p.productRu] ?? {}).reduce((n, v) => n + (v > 0 ? 1 : 0), 0)}
+                    soldAsBadge={Boolean(soldAsFor(p.productRu))}
                     soldRecently={soldRecently(p.productRu)}
                     unitPay={config.unitPay?.[p.productRu]}
                     onSelect={() => handleSelectProduct(p.productRu)}
@@ -870,7 +895,7 @@ function RecipesTab() {
                     {t('recipes.saveChanges')}
                   </button>
                 </>
-              ) : !selectedIsOrphan && (
+              ) : !selectedIsOrphan && !selectedSoldAs && (
                 <button onClick={startEditing}
                   className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
                   {t('recipes.modify')}
@@ -920,7 +945,22 @@ function RecipesTab() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {draftIngredients.length === 0 && !adding ? (
+            {selectedSoldAs ? (
+              /* WHS-made product: production recipe is hidden — it is managed
+                 in the Warehouse & Production app. Show what the sale consumes. */
+              <div className="px-5 py-8">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 max-w-md">
+                  <p className="text-xs font-mono font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+                    {t('recipes.whsMadeBadge')}
+                  </p>
+                  <p className="text-sm text-indigo-900 leading-relaxed">
+                    {selectedIsOrphan
+                      ? t('recipes.whsMadeOrphan')
+                      : t('recipes.whsMadeNote', { ingredient: soldAsText(selectedSoldAs) })}
+                  </p>
+                </div>
+              </div>
+            ) : draftIngredients.length === 0 && !adding ? (
               <div className="px-5 py-10 text-center">
                 <p className="text-sm text-gray-400 mb-3">{t('recipes.noIngredientsYet')}</p>
                 <button onClick={() => { setEditing(true); setAdding(true) }}
