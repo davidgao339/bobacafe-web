@@ -259,30 +259,41 @@ def main():
 
     # 3. Extract Databricks Product Catalog
     print("\n[Step 3/9] Fetching product catalog from workspace.gold.dim_product...")
-    db_products = run_databricks_sql("SELECT product_id, parent_product_id, product_ru FROM workspace.gold.dim_product")
+    db_products = run_databricks_sql("SELECT product_id, parent_product_id, product_ru, is_active FROM workspace.gold.dim_product")
     print(f"  Loaded {len(db_products)} products from Databricks.")
-    
-    # Build product name lookup map (normalized)
+
+    # Build product name lookup map: case/whitespace-insensitive keys
+    # (spelling drift like 'Бабл-ти  Лаймовый' or 'моти манго' vs 'Моти Манго'),
+    # preferring ACTIVE rows so folded dedup duplicates lose gracefully.
+    def _key(name):
+        return re.sub(r"\s+", " ", str(name or '').lower().replace('ё', 'е')).strip()
+
     prod_lookup = {}
     for p in db_products:
-        p_ru = p.get('product_ru', '').strip()
-        if p_ru:
-            prod_lookup[p_ru.lower()] = {
-                "product_id": int(p['product_id']),
-                "parent_product_id": int(p['parent_product_id']),
-                "product_name": p_ru
-            }
+        p_ru = (p.get('product_ru') or '').strip()
+        if not p_ru:
+            continue
+        info = {
+            "product_id": int(p['product_id']),
+            "parent_product_id": int(p['parent_product_id']),
+            "product_name": p_ru,
+            "_active": bool(p.get('is_active', True)),
+        }
+        existing = prod_lookup.get(_key(p_ru))
+        if existing is None or (info["_active"] and not existing["_active"]):
+            prod_lookup[_key(p_ru)] = info
 
-    # Add custom name aliases for 10 known slight name differences
+    # Custom name aliases for known slight name differences
     prod_aliases = {
         "корн-дог сыр": "корн-дог с сыром",
         "моти банан-шоколад": "моти банан в шоколаде",
+        "блинчики нутелла (2шт)": "блинчики с нутеллой (2шт)",
         "желтый какаду (шарики не включены)": "желтый какаду",
         "красный шторм коктейль": "красный шторм",
     }
     for alias_src, alias_dst in prod_aliases.items():
-        if alias_dst in prod_lookup and alias_src not in prod_lookup:
-            prod_lookup[alias_src] = prod_lookup[alias_dst]
+        if _key(alias_dst) in prod_lookup and _key(alias_src) not in prod_lookup:
+            prod_lookup[_key(alias_src)] = prod_lookup[_key(alias_dst)]
 
     # ─── TABLE 1: dim_stores ─────────────────────────────────────────────────
     print("\n[Step 4/9] Creating and loading dim_stores...")
@@ -360,8 +371,7 @@ def main():
             try:
                 rates = json.loads(setting["value"])
                 for pname, rate in rates.items():
-                    norm = pname.strip().lower()
-                    prod_info = prod_lookup.get(norm, {})
+                    prod_info = prod_lookup.get(_key(pname), {})
                     p_id = prod_info.get("product_id")
                     parent_p_id = prod_info.get("parent_product_id")
                     cook_pay_rows.append([pname, p_id, parent_p_id, float(rate)])
@@ -399,7 +409,7 @@ def main():
         except Exception:
             continue
         
-        prod_info = prod_lookup.get(pname.lower(), {})
+        prod_info = prod_lookup.get(_key(pname), {})
         p_id = prod_info.get("product_id")
         parent_p_id = prod_info.get("parent_product_id")
 

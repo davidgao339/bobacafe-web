@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Deduplicate workspace.gold.dim_product rows that differ only by formatting
-(letter case, double spaces). Canonical row choice:
-  1. product_ru that a production recipe in fact_recipe_ingredients is keyed on
-  2. else the spelling used most often in POS transactions (exact match)
-  3. else lowest product_id
+(letter case, double spaces) and rekey fact_recipe_ingredients onto the
+canonical dim_product spellings.
+
+CANONICAL SPELLINGS ARE EXPLICIT below (review before --apply), matching the
+menu-manager naming standard: Title Case, single spaces, English parent name.
 
 Folding per duplicate pair (dup -> canonical):
   - fact_recipe_ingredients: recipe_product_name = canonical (production + retail)
@@ -12,6 +13,10 @@ Folding per duplicate pair (dup -> canonical):
   - dim_product dup row itself: is_active = false (history keeps pointing at it)
   - inventory_tabular.dim_cook_unit_pay: product_name remap (skipped if the
     canonical row already has a pay rate)
+
+Recipe-key renames (fact_recipe_ingredients) are applied for keys that a dim
+row simply renamed (e.g. Кorн-дог сыр -> Корн-дог с сыром). 'Тапиока в шариках'
+has NO dim row yet — add it in menu-manager, then run this script again.
 
 Default is DRY RUN (plans only). Pass --apply to execute.
 """
@@ -23,6 +28,33 @@ sys.stdout.reconfigure(encoding='utf-8')
 ROOT = Path(__file__).resolve().parent.parent
 SECRETS = ROOT / ".streamlit" / "secrets.toml"
 APPLY = "--apply" in sys.argv
+
+# ── explicit canonical mapping (normalized lower-key → keep row) ─────────────
+# Review carefully — these spellings become the master throughout the stack.
+CANON = {
+    "моти сливочный":          (217, "Моти Сливочный"),
+    "моти рафаэлло":           (253, "Моти Рафаэлло"),
+    "вишневая кислинка лимонад": (70, "Вишневая кислинка Лимонад"),
+    "айс латте лаванда":       (181, "Айс Латте Лаванда"),
+    "бабл-ти лаймовый (чай)":  (99, "Бабл-ти Лаймовый (чай)"),
+}
+# parent_product_en fixes for kept rows whose English parent got dirty
+KEEP_PARENT_FIX = {
+    181: "Ice Latte Lavender",
+}
+
+# fact_recipe_ingredients keys that renamed / case-fixed in the catalog
+REKEY_RECIPE_KEYS = {
+    "моти манго":            "Моти Манго",
+    "моти нутелла":          "Моти Нутелла",
+    "моти орео":             "Моти Орео",
+    "моти лесные ягоды":     "Моти Лесные ягоды",
+    "блинчики нутелла (2шт)": "Блинчики с нутеллой (2шт)",
+    "корн-дог сыр":          "Корн-дог с сыром",
+    "моти банан-шоколад":    "Моти Банан в шоколаде",
+}
+# keys that cannot be rekeyed automatically — require adding the product to dim
+PENDING_DIM_ADDITIONS = ["тапиока в шариках"]
 
 token = warehouse_id = None
 for line in SECRETS.read_text(encoding="utf-8").splitlines():
@@ -65,43 +97,57 @@ def norm(name):
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
-# ── 1. Find duplicate groups ─────────────────────────────────────────────────
+# ── 1. Find duplicate groups (explicit mapping drives canonical choice) ──────
 products = sql("""
     SELECT product_id, product_ru, parent_product_id, parent_product_en, variant,
            category, subcategory, is_active, is_modifier, base_price, cost
     FROM workspace.gold.dim_product
     WHERE product_ru IS NOT NULL
-""")
-groups = {}
+""") or []
+by_id = {int(p["product_id"]): p for p in products}
+by_norm = {}
 for p in products:
-    groups.setdefault(norm(p["product_ru"]), []).append(p)
-dup_groups = {k: v for k, v in groups.items()
-              if len(v) > 1 and len({p["product_ru"].strip() for p in v}) > 1}
-
-# production-recipe keys guide the canonical choice
-prod_recipe_keys = {r["recipe_product_name"] for r in sql(
-    "SELECT DISTINCT recipe_product_name FROM workspace.inventory_tabular.fact_recipe_ingredients WHERE recipe_type = 'production'")}
-# exact-spelling POS usage counts (not normalized)
-pos_counts = {t["product"]: int(t["n"]) for t in sql(
-    "SELECT product, COUNT(*) AS n FROM workspace.default.transactions WHERE COALESCE(is_return, false) = false GROUP BY product")}
+    by_norm.setdefault(norm(p["product_ru"]), []).append(p)
 
 actions = []
-for key, grp in dup_groups.items():
-    def rank(p):
-        has_prod_recipe = p["product_ru"] in prod_recipe_keys
-        return (0 if has_prod_recipe else 1,
-                -pos_counts.get(p["product_ru"], 0),
-                int(p["product_id"]))
-    grp = sorted(grp, key=rank)
-    keep, dups = grp[0], grp[1:]
-    actions.append((key, keep, dups))
+missing_canon = []
+for key, (keep_id, keep_ru) in CANON.items():
+    if keep_id not in by_id:
+        raise RuntimeError(f"CANON references missing product_id {keep_id} ({keep_ru})")
+    keep = by_id[keep_id]
+    if keep["product_ru"].strip() != keep_ru:
+        raise RuntimeError(f"CANON product_ru mismatch for id {keep_id}: table has '{keep['product_ru']}'")
+    dups = [p for p in by_norm.get(key, []) if int(p["product_id"]) != keep_id]
+    if not dups:
+        actions.append((key, keep, []))  # already folded, nothing to do
+    else:
+        actions.append((key, keep, dups))
 
-print(f"duplicate groups: {len(actions)}")
+# prod-recipe keys sanity: which rekey targets exist?
+prod_recipe_keys = {r["recipe_product_name"] for r in sql(
+    "SELECT DISTINCT recipe_product_name FROM workspace.inventory_tabular.fact_recipe_ingredients WHERE recipe_type = 'production'")}
+all_recipe_keys = {r["recipe_product_name"] for r in sql(
+    "SELECT DISTINCT recipe_product_name FROM workspace.inventory_tabular.fact_recipe_ingredients")}
+
+print(f"duplicate groups handled: {len(actions)}")
 for key, keep, dups in actions:
-    print(f"  [{key}] canonical: id={keep['product_id']} '{keep['product_ru']}' "
-          f"({pos_counts.get(keep['product_ru'], 0)} tx"
-          f"{', production recipe' if keep['product_ru'] in prod_recipe_keys else ''})"
-          f" <- folds {[(d['product_id'], d['product_ru']) for d in dups]}")
+    print(f"  [{key}] canonical: id={keep['product_id']} '{keep['product_ru']}'"
+          + (" — already folded" if not dups else f" <- folds {[(d['product_id'], d['product_ru']) for d in dups]}"))
+
+print("\nrecipe-key renames:")
+for src_norm, tgt in REKEY_RECIPE_KEYS.items():
+    hits = [k for k in all_recipe_keys if norm(k) == src_norm]
+    print(f"  {hits or src_norm!r} -> '{tgt}'"
+          + ("" if hits else "  (no fact rows use this key — nothing to do)"))
+    if hits and tgt not in by_norm and norm(tgt) not in by_norm:
+        missing_canon.append(tgt)
+
+for key in PENDING_DIM_ADDITIONS:
+    if key not in by_norm:
+        print(f"  PENDING: recipe key '{key}' has no dim_product row — ADD IN MENU-MANAGER first")
+
+if missing_canon:
+    raise RuntimeError(f"rekey targets missing from dim_product: {missing_canon}")
 
 if not APPLY:
     print("\nDRY RUN — nothing executed. Re-run with --apply to execute.")
@@ -159,24 +205,120 @@ for key, keep, dups in actions:
         exec_stmt(f"""UPDATE workspace.gold.dim_product
             SET is_active = false WHERE product_id = {dup_id}""")
 
+# 2e. parent_product_en tidy-up for retained canonical rows
+for pid, parent_en in KEEP_PARENT_FIX.items():
+    exec_stmt(f"""UPDATE workspace.gold.dim_product
+        SET parent_product_en = '{esc(parent_en)}' WHERE product_id = {pid}""")
+
+# 2f. recipe-key renames: production + retail rows still keyed on old spellings.
+# If the target spelling already exists (dual-writes created both), keep the
+# TARGET's rows and only migrate ingredient_ids the target doesn't have yet.
+print("\nrecipe-key renames:")
+for src_norm, tgt in REKEY_RECIPE_KEYS.items():
+    keys = [k for k in all_recipe_keys if norm(k) == src_norm]
+    for k in keys:
+        tgt_ids = {r["ingredient_id"] for r in sql(f"""
+            SELECT ingredient_id FROM workspace.inventory_tabular.fact_recipe_ingredients
+            WHERE recipe_product_name = '{esc(tgt)}'""")}
+        src_rows = sql(f"""
+            SELECT ingredient_id, COUNT(*) AS n
+            FROM workspace.inventory_tabular.fact_recipe_ingredients
+            WHERE recipe_product_name = '{esc(k)}'
+            GROUP BY ingredient_id""")
+        moved = dropped = 0
+        for row in src_rows:
+            ing = row["ingredient_id"]
+            n = int(row["n"])
+            if ing in tgt_ids:
+                exec_stmt(f"""DELETE FROM workspace.inventory_tabular.fact_recipe_ingredients
+                    WHERE recipe_product_name = '{esc(k)}' AND ingredient_id = {ing}""")
+                dropped += n
+            else:
+                exec_stmt(f"""UPDATE workspace.inventory_tabular.fact_recipe_ingredients
+                    SET recipe_product_name = '{esc(tgt)}'
+                    WHERE recipe_product_name = '{esc(k)}' AND ingredient_id = {ing}""")
+                moved += n
+        print(f"  '{k}' -> '{tgt}' ({moved} rows migrated, {dropped} duplicates of existing target rows dropped)")
+        all_recipe_keys.discard(k); all_recipe_keys.add(tgt)
+
+# ── 2g. Attach fact rows to dim_product by product_id ────────────────────────
+# Canonical rows for the whole catalog: recipes match the ACTIVE dim spelling.
+# Retired spellings (dup rows / renames) have no id to earn — they get NULLed
+# so validation stays honest. Idempotent: re-runs converge.
+pre = sql("""
+    SELECT f.recipe_type AS recipe_type, COUNT(*) AS rows_total,
+           SUM(CASE WHEN f.product_id IS NULL THEN 1 ELSE 0 END) AS rows_without_id,
+           SUM(CASE WHEN p.product_id IS NULL OR p.product_id != f.product_id THEN 1 ELSE 0 END) AS rows_mismatched
+    FROM workspace.inventory_tabular.fact_recipe_ingredients f
+    LEFT JOIN (SELECT product_id, product_ru FROM workspace.gold.dim_product
+               WHERE COALESCE(is_active, true)) p
+           ON f.recipe_product_name = p.product_ru
+    GROUP BY f.recipe_type
+""")
+print("\nfact_recipe_ingredients.product_id state before backfill:")
+for r in pre:
+    print(f"  [{r['recipe_type']}] rows={r['rows_total']} without_id={r['rows_without_id']} mismatched={r['rows_mismatched']}")
+
+exec_stmt("""
+MERGE INTO workspace.inventory_tabular.fact_recipe_ingredients f
+USING (
+    SELECT product_id, parent_product_id, product_ru
+    FROM workspace.gold.dim_product
+    WHERE COALESCE(is_active, true)
+) p
+ON f.recipe_product_name = p.product_ru
+WHEN MATCHED THEN UPDATE
+    SET f.product_id = p.product_id, f.parent_product_id = p.parent_product_id
+WHEN NOT MATCHED THEN UPDATE
+    SET f.product_id = NULL, f.parent_product_id = NULL
+""")
+
 # ── 3. Validation ────────────────────────────────────────────────────────────
 still = sql("""
     SELECT lower(trim(product_ru)) AS k, COUNT(*) AS n
     FROM workspace.gold.dim_product
-    WHERE product_ru IS NOT NULL AND is_modifier = false
+    WHERE product_ru IS NOT NULL
+      AND COALESCE(is_active, true)
+      AND is_modifier = false
     GROUP BY lower(trim(product_ru))
     HAVING COUNT(*) > 1
 """)
 orphans = sql("""
-    SELECT recipe_type, COUNT(*) AS unmatched
+    SELECT r.recipe_product_name AS key, r.recipe_type AS recipe_type
     FROM (SELECT DISTINCT recipe_product_name, recipe_type
           FROM workspace.inventory_tabular.fact_recipe_ingredients) r
-    LEFT JOIN workspace.gold.dim_product p ON r.recipe_product_name = p.product_ru
-    WHERE p.product_id IS NULL
-    GROUP BY recipe_type
+    LEFT JOIN (SELECT product_id, product_ru, is_active FROM workspace.gold.dim_product) p
+           ON r.recipe_product_name = p.product_ru
+    WHERE (p.product_id IS NULL OR NOT COALESCE(p.is_active, true))
+    ORDER BY r.recipe_type, r.recipe_product_name
 """)
-print("\nvalidation — remaining same-normalized dup groups:", len(still))
+post = sql("""
+    SELECT f.recipe_type AS recipe_type, COUNT(*) AS rows_total,
+           SUM(CASE WHEN f.product_id IS NULL THEN 1 ELSE 0 END) AS rows_without_id
+    FROM workspace.inventory_tabular.fact_recipe_ingredients f
+    GROUP BY f.recipe_type
+""")
+
+activity = sql("""
+    SELECT recipe_product_name AS key, COUNT(DISTINCT recipe_type) AS types
+    FROM workspace.inventory_tabular.fact_recipe_ingredients
+    WHERE recipe_type = 'production'
+    GROUP BY recipe_product_name
+""")
+mapped_prods = {p["product_ru"] for p in products if (str(p.get("is_active") or "true").lower() in ("true", "1"))}
+
+print("\nvalidation — active dim_product same-normalized dup groups:", len(still))
 for r in still:
     print("  ", r)
-print("orphan recipe keys after cleanup:", orphans)
+print("fact_recipe_ingredients.product_id after backfill:")
+for r in post:
+    print(f"  [{r['recipe_type']}] rows={r['rows_total']} without_id={r['rows_without_id']}")
+print("production recipes NOT keyed on an ACTIVE dim_product spelling:")
+for r in orphans:
+    if r["recipe_type"] == "production":
+        print(f"  [{r['recipe_type']}] {r['key']}  (retail pseudo-products below are expected)")
+    else:
+        print(f"  [{r['recipe_type']}] {r['key']}")
+print(f"production recipe keys total: {len(activity)}; "
+      f"expected 12/13 matched until 'Тапиока в шариках' is added in menu-manager")
 print("done")
