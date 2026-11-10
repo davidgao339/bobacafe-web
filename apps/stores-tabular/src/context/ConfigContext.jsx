@@ -42,7 +42,7 @@ function rowsToSales(rows) {
 // Statement API returns every value as a string; coerce numerics/booleans so
 // lakehouse rows match what queryD1 (Cloudflare worker) would have returned.
 const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
-const _BOOL = new Set(['is_active', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
+const _BOOL = new Set(['is_active', 'isActive', 'is_modifier', 'isModifier', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
 function coerceLhRows(rows) {
   return (rows || []).map(r => {
     const out = {}
@@ -151,6 +151,7 @@ export function ConfigProvider({ children }) {
     ingredients: DEFAULT_INGREDIENTS,
     recipes: DEFAULT_RECIPES,
     salesRecipes: DEFAULT_RECIPES,
+    dimProducts: [],
     unitPay: loadFromStorage(COOK_UNIT_PAY_KEY) || {},
     suppliers: [],
     _nextIngId: 1,
@@ -209,7 +210,7 @@ export function ConfigProvider({ children }) {
         const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
         const lh = qk => fetchLh(settings.token, settings.warehouseId, qk).then(coerceLhRows)
 
-        const [storesRes, aliasesRes, ingRes, recRes, recRetailRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes] = useLh
+        const [storesRes, aliasesRes, ingRes, recRes, recRetailRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes, prodRes] = useLh
           ? await Promise.all([
               lh('stores'),
               Promise.resolve([]),
@@ -223,6 +224,10 @@ export function ConfigProvider({ children }) {
               lh('auditHeaders'),
               lh('auditCounts'),
               lh('cookUnitPay'),
+              // Product master is best-effort: a gold-schema permission error
+              // must not take down the whole load — the Recipes tab falls
+              // back to its legacy sales-derived universe.
+              lh('dimProduct').catch(() => []),
             ])
           : await Promise.all([
               queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
@@ -236,7 +241,9 @@ export function ConfigProvider({ children }) {
               queryD1('SELECT * FROM fact_purchase_order_lines ORDER BY po_id, line_index ASC'),
               queryD1('SELECT audit_id AS id, store_id AS storeId, store_code AS storeCode, audit_date AS date, audit_timestamp AS timestamp, status FROM fact_audit_headers ORDER BY audit_date DESC, audit_timestamp DESC'),
               queryD1('SELECT audit_id, ingredient_id, count_quantity FROM fact_audit_counts'),
-              queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
+              queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => []),
+              // No dim_product in D1 — Recipes tab falls back to sales cache
+              Promise.resolve([]),
             ])
 
         const CANONICAL_UI_STORE_NAMES = {
@@ -332,10 +339,29 @@ export function ConfigProvider({ children }) {
           salesRecipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
         })
 
+        // Product master (read-only from lakehouse). isActive default TRUE —
+        // dim_product rows with NULL is_active are live items (menu-manager
+        // applies the same COALESCE).
+        const toDimBool = v => v === 1 || v === true || v === 'true' || v === '1'
+        const dimProducts = (prodRes || []).filter(p => p.productRu).map(p => ({
+          productId: p.productId != null ? Number(p.productId) : null,
+          productRu: p.productRu,
+          parentProductId: p.parentProductId != null ? Number(p.parentProductId) : null,
+          parentProductEn: (p.parentProductEn || '').trim(),
+          variant: p.variant || 'Standard',
+          category: (p.category || '').trim() || 'Uncategorized',
+          subcategory: (p.subcategory || '').trim(),
+          isActive: p.isActive == null ? true : toDimBool(p.isActive),
+          isModifier: toDimBool(p.isModifier),
+          basePrice: p.basePrice != null ? Number(p.basePrice) : null,
+          cost: p.cost != null ? Number(p.cost) : null,
+        }))
+
         setConfigState({
           ingredients,
           recipes,
           salesRecipes,
+          dimProducts,
           unitPay,
           suppliers: suppRes,
           _nextIngId: Math.max(0, ...ingredients.map(i => i.id)) + 1,
@@ -1091,16 +1117,19 @@ export function ConfigProvider({ children }) {
 
   const refreshRecipes = useCallback(async () => {
     const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
-    const [recRes, recRetailRes, payRes] = useLh
+    const [recRes, recRetailRes, payRes, prodRes] = useLh
       ? await Promise.all([
           fetchLh(settings.token, settings.warehouseId, 'recipes').then(coerceLhRows),
           fetchLh(settings.token, settings.warehouseId, 'recipesRetail').then(coerceLhRows),
           fetchLh(settings.token, settings.warehouseId, 'cookUnitPay').then(coerceLhRows),
+          // Same best-effort contract as the initial load
+          fetchLh(settings.token, settings.warehouseId, 'dimProduct').then(coerceLhRows).catch(() => null),
         ])
       : await Promise.all([
           queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
           queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
-          queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
+          queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => []),
+          Promise.resolve(null),
         ])
     let unitPayUpdate = null
     if (payRes && payRes.length > 0) {
@@ -1124,6 +1153,23 @@ export function ConfigProvider({ children }) {
       ...prev,
       recipes,
       salesRecipes,
+      // dimProduct fetch failed → keep whatever we already have; fresh rows →
+      // normalize with the same rules as the initial load.
+      ...(prodRes ? {
+        dimProducts: (prodRes || []).filter(p => p.productRu).map(p => ({
+          productId: p.productId != null ? Number(p.productId) : null,
+          productRu: p.productRu,
+          parentProductId: p.parentProductId != null ? Number(p.parentProductId) : null,
+          parentProductEn: (p.parentProductEn || '').trim(),
+          variant: p.variant || 'Standard',
+          category: (p.category || '').trim() || 'Uncategorized',
+          subcategory: (p.subcategory || '').trim(),
+          isActive: p.isActive == null ? true : (p.isActive === 1 || p.isActive === '1'),
+          isModifier: p.isModifier === 1 || p.isModifier === '1',
+          basePrice: p.basePrice != null ? Number(p.basePrice) : null,
+          cost: p.cost != null ? Number(p.cost) : null,
+        })),
+      } : {}),
       ...(unitPayUpdate ? { unitPay: unitPayUpdate } : {})
     }))
   }, [])

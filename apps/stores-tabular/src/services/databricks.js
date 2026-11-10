@@ -81,6 +81,10 @@ export const LH_QUERIES = {
   auditCounts: `SELECT audit_id, ingredient_id, count_quantity FROM ${T('fact_audit_counts')}`,
   suppliers: `SELECT DISTINCT supplier_id AS id, supplier_name AS name FROM ${T('dim_ingredients')} WHERE supplier_id IS NOT NULL ORDER BY id ASC`,
   cookUnitPay: `SELECT product_name, pay_rate FROM ${T('dim_cook_unit_pay')}`,
+  // Product master (gold schema): canonical catalog the Recipes tab treats as
+  // its product universe. Read-only from this app — recipes write to
+  // fact_recipe_ingredients only; dim_product stays managed in menu-manager.
+  dimProduct: `SELECT product_id AS productId, product_ru AS productRu, parent_product_id AS parentProductId, parent_product_en AS parentProductEn, variant, category, subcategory, is_active AS isActive, is_modifier AS isModifier, base_price AS basePrice, cost FROM workspace.gold.dim_product ORDER BY parent_product_en, variant, product_ru`,
 }
 
 // ── Push helpers (spec §3): idempotent MERGEs so re-saves never duplicate ────

@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment } from 'react'
+import { useState, useRef, Fragment, useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useConfig } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -417,10 +417,53 @@ function SuppliersTab() {
   )
 }
 
+// ─── Product Row (catalog + legacy) ──────────────────────────────────────────
+
+function ProductRow({ name, variant, dim, selected, indent, recipeCount, soldRecently, unitPay, onSelect }) {
+  const { t } = useLanguage()
+  return (
+    <button onClick={onSelect}
+      className={`w-full text-left border-b transition-colors ${
+        selected ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-gray-50'
+      } pr-4 ${indent ? 'pl-9' : 'pl-4'}`}>
+      <div className="py-1.5">
+        <div className="flex items-center gap-1.5">
+          <p className={`text-sm truncate leading-snug ${selected ? 'font-semibold text-gray-900' : 'font-medium text-gray-800'}`}>{name}</p>
+          {dim && dim.isActive === false && (
+            <span className="text-[9px] px-1 rounded bg-gray-200 text-gray-500 whitespace-nowrap">off</span>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            {variant && <span className="text-[10px] text-gray-400 truncate">{variant}</span>}
+            {recipeCount > 0
+              ? <span className="text-xs text-green-600 whitespace-nowrap">
+                  {recipeCount !== 1 ? t('recipes.ingredientsCount', { count: recipeCount }) : t('recipes.ingredientCount', { count: recipeCount })}
+                </span>
+              : <span className="text-xs text-amber-500 whitespace-nowrap">{t('recipes.noRecipeYet')}</span>
+            }
+          </div>
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            {dim && (
+              <span title={soldRecently ? t('recipes.catalog') : t('recipes.noRecentSales')}
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${soldRecently ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+            )}
+            {unitPay > 0 && (
+              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                ₽{unitPay}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
 // ─── Recipes Tab ──────────────────────────────────────────────────────────────
 
 function RecipesTab() {
-  const { config, sales, posWaste, setConfig, saveUnitPay } = useConfig()
+  const { config, sales, posWaste, setConfig, saveUnitPay, lhConnected } = useConfig()
   const { t } = useLanguage()
   const [search,    setSearch]    = useState('')
   const [filter,    setFilter]    = useState('all')
@@ -434,31 +477,125 @@ function RecipesTab() {
   const [ingOpen,    setIngOpen]    = useState(false)
   const [creating,   setCreating]   = useState(false)
   const [newIngDef,  setNewIngDef]  = useState({ name: '', unit: '' })
-  // Product universe = products seen in POS (sales + waste within the sales
-  // cache window) plus every product that already has a recipe, so configured
-  // items always appear regardless of cache age. Ingredient names are raw
-  // materials, NOT products - listing them here was the pre-migration bug
-  // (showed ~116 items with most "missing").
-  const salesProducts = new Set(sales.map(s => s.product))
-  const wasteProducts = new Set(posWaste.map(s => s.product))
-  const allProducts   = [...new Set([...salesProducts, ...wasteProducts, ...Object.keys(config.recipes)])].sort()
+  // ── Product universe ────────────────────────────────────────────────────────
+  // Primary source: workspace.gold.dim_product (lakehouse product master,
+  // read-only here — this tab never writes to dim_product; recipes write to
+  // fact_recipe_ingredients only, keyed by the POS text name product_ru).
+  // Fallback when the lakehouse is offline or dim_product failed to load: the
+  // legacy universe — POS names seen in the sales/waste cache plus products
+  // that already have a recipe. Ingredient names are raw materials, NOT
+  // products — listing them here was the pre-migration bug (~116 items, most
+  // "missing").
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
+  const dimRows      = (config.dimProducts ?? []).filter(p => p.productRu)
+  const useCatalog   = dimRows.length > 0
+  const catalogNames = useMemo(() => new Set(dimRows.map(p => p.productRu)), [dimRows])
 
-  const hasRecipe     = (p) => Object.values(config.recipes[p] ?? {}).some(q => q > 0)
+  // Orphan recipes: keys in fact_recipe_ingredients that belong to no
+  // dim_product entry — exactly the dirty-data surface this fixes.
+  const orphanNames = useMemo(
+    () => Object.keys(config.recipes).filter(p => !catalogNames.has(p)).sort(),
+    [config.recipes, catalogNames]
+  )
 
-  const displayed = allProducts.filter(p => {
-    if (search && !p.toLowerCase().includes(search.toLowerCase())) return false
-    if (filter === 'has_recipe' && !hasRecipe(p)) return false
-    if (filter === 'no_recipe'  &&  hasRecipe(p)) return false
+  // POS coverage from the sales cache (badge only — never drives the list).
+  const soldDates = {}
+  for (const s of [...sales, ...posWaste]) {
+    const d = soldDates[s.product]
+    if (!d || s.date > d) soldDates[s.product] = s.date
+  }
+  const weekAgo = (() => {
+    const d = new Date(); d.setDate(d.getDate() - 7)
+    return d.toISOString().slice(0, 10)
+  })()
+
+  const hasRecipe = (name) => Object.values(config.recipes[name] ?? {}).some(q => q > 0)
+  const soldRecently = (name) => {
+    const d = soldDates[name]
+    return d != null && d >= weekAgo
+  }
+
+  // Active-only: inactive dim_product rows are maintained in menu-manager;
+  // this tab always shows the live menu.
+  const groups = useMemo(() => {
+    if (!useCatalog) return []
+    const map = new Map()
+    for (const p of dimRows.filter(p => p.isActive)) {
+      const key = p.parentProductEn ? `p:${p.parentProductEn.toLowerCase()}` : `s:${p.productRu}`
+      if (!map.has(key)) {
+        map.set(key, { key, name: p.parentProductEn || p.productRu, category: p.category || 'Uncategorized', children: [] })
+      }
+      map.get(key).children.push(p)
+    }
+    for (const g of map.values()) {
+      g.children.sort((a, b) => String(a.variant).localeCompare(String(b.variant)) || a.productRu.localeCompare(b.productRu))
+    }
+    return [...map.values()].sort((a, b) =>
+      a.category.localeCompare(b.category, undefined, { sensitivity: 'base' }) ||
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  }, [dimRows, useCatalog])
+
+  // Legacy universe (lakehouse offline / dim_product unavailable)
+  const legacyProducts = useMemo(() => {
+    if (useCatalog) return []
+    const seen = [...new Set([...sales.map(s => s.product), ...posWaste.map(s => s.product), ...orphanNames, ...Object.keys(config.recipes)])]
+      .sort()
+    return seen.map(name => ({ productRu: name, parentProductEn: '', variant: 'Standard', category: null, isActive: true, isModifier: false }))
+  }, [useCatalog, sales, posWaste, config.recipes, orphanNames])
+
+  const categories = useMemo(
+    () => [...new Set(groups.map(g => g.category))].sort(),
+    [groups]
+  )
+
+  const q = search.trim().toLowerCase()
+
+  const inFilter = (p) => {
+    if (filter === 'has_recipe' && !hasRecipe(p.productRu)) return false
+    if (filter === 'no_recipe'  &&  hasRecipe(p.productRu)) return false
+    if (filter === 'no_recent_sales' && soldRecently(p.productRu)) return false
     return true
+  }
+
+  const displayedGroups = groups
+    .filter(g => categoryFilter === 'all' || g.category === categoryFilter)
+    .map(g => ({
+      ...g,
+      children: g.children.filter(c => {
+        if (q && !c.productRu.toLowerCase().includes(q) && !g.name.toLowerCase().includes(q)) return false
+        return inFilter(c)
+      }),
+    }))
+    .filter(g => g.children.length > 0)
+
+  const displayedOrphans = orphanNames.filter(o => !q || o.toLowerCase().includes(q))
+
+  // Legacy flat list keeps its own filter shape
+  const legacyDisplayed = legacyProducts.filter(p => {
+    if (q && !p.productRu.toLowerCase().includes(q)) return false
+    return inFilter(p)
   })
 
-  const noRecipeCount = allProducts.filter(p => !hasRecipe(p)).length
+  const listProducts = useCatalog
+    ? displayedGroups.flatMap(g => g.children)
+    : legacyDisplayed
+  const visibleCount = filter === 'orphans' ? displayedOrphans.length : listProducts.length
+
+  const totalProducts = useCatalog
+    ? groups.reduce((n, g) => n + g.children.length, 0)
+    : legacyProducts.length
+  const noRecipeCount = useCatalog
+    ? groups.reduce((n, g) => n + g.children.filter(c => !hasRecipe(c.productRu)).length, 0)
+    : legacyDisplayed.filter(p => !hasRecipe(p.productRu)).length
 
   const selectedRecipe    = config.recipes[selected] ?? {}
   const recipeIngredients = config.ingredients.filter(i => (selectedRecipe[i.id] ?? 0) > 0)
   const unusedIngredients = config.ingredients.filter(i => !((selectedRecipe[i.id] ?? 0) > 0))
   const selectedProductUnit = config.ingredients.find(i => i.name === selected)?.unit || 'ед.'
+  const selectedDim = dimRows.find(p => p.productRu === selected) || null
+  const selectedIsOrphan = useCatalog && !catalogNames.has(selected) && Object.keys(selectedRecipe).length > 0
 
   const startEditing = () => {
     const draft = {}
@@ -532,11 +669,32 @@ function RecipesTab() {
     setEditing(false)
     setDraftQtys({})
     setDraftUnitPay(config.unitPay?.[p] != null ? String(config.unitPay[p]) : '')
+    setConfirmDelete(false)
     setAdding(false)
     setCreating(false)
     setNewIng({ ingredientId: '', qty: '' })
     setNewIngDef({ name: '', unit: '' })
     resetIngPicker()
+  }
+
+  const deleteRecipe = (name) => {
+    setConfig(prev => {
+      if (!prev.recipes[name]) return prev
+      const recipes = { ...prev.recipes }
+      delete recipes[name]
+      return { ...prev, recipes }
+    })
+    setSelected(null)
+    setConfirmDelete(false)
+  }
+
+  // Two-click guard: first click arms, second click deletes.
+  const deleteRecipeFlow = () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+    deleteRecipe(selected)
   }
 
   // In editing mode, show ingredients currently in draft (may differ from saved)
@@ -550,54 +708,109 @@ function RecipesTab() {
       {/* Left: product list (hidden on mobile if selected) */}
       <div className={`w-full md:w-72 flex-shrink-0 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white ${selected ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-gray-100 space-y-2">
+          {!useCatalog && (
+            <p className={`text-[11px] leading-snug px-2 py-1.5 rounded border mb-1 ${
+              lhConnected ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-50 text-gray-500 border-gray-200'
+            }`}>
+              {lhConnected ? t('recipes.catalogNoData') : t('recipes.catalogOffline')}
+            </p>
+          )}
           <input type="text" placeholder={t('recipes.searchPlaceholder')} value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <div className="flex gap-1">
-            {[['all', t('common.all')], ['has_recipe', t('recipes.hasRecipe')], ['no_recipe', t('recipes.noRecipeFilter')]].map(([id, label]) => (
+          <div className="flex gap-1 flex-wrap">
+          {/* Orphans chip only makes sense once the catalog is loaded — in the
+              legacy fallback every product is "not in catalog" by definition. */}
+          {[['all', t('common.all')], ['has_recipe', t('recipes.hasRecipe')], ['no_recipe', t('recipes.noRecipeFilter')], ['no_recent_sales', t('recipes.filterNoRecentSales')], ...(useCatalog ? [['orphans', t('recipes.chipOrphans')]] : [])].map(([id, label]) => (
               <button key={id} onClick={() => setFilter(id)}
-                className={`flex-1 py-1 text-xs rounded font-medium transition-colors ${
-                  filter === id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}>
+                className={id === 'orphans'
+                  ? `w-full px-2 py-1 text-xs rounded font-medium transition-colors ${
+                      filter === id ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600/70 hover:bg-rose-100'
+                    }`
+                  : `flex-1 min-w-fit px-2 py-1 text-xs rounded font-medium transition-colors ${
+                      filter === id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}>
                 {label}
               </button>
             ))}
           </div>
+          {useCatalog && (
+            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+              className="w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+              <option value="all">{t('common.all')} · {t('recipes.catalog')}</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
         </div>
 
         <div className="overflow-y-auto flex-1">
-          {displayed.length === 0
+          {filter === 'orphans' ? (
+            <Fragment>
+              <div className="px-3 py-2 bg-rose-50/60 border-b border-rose-100">
+                <p className="text-[11px] leading-snug text-rose-700/90">
+                  {t('recipes.orphanListHint')}
+                </p>
+              </div>
+              {displayedOrphans.length === 0
+                ? <p className="px-4 py-8 text-sm text-gray-400 text-center">{t('recipes.noMatch')}</p>
+                : displayedOrphans.map(o => (
+                    <button key={o} onClick={() => handleSelectProduct(o)}
+                      className={`w-full text-left px-4 py-3 border-b border-rose-100 transition-colors ${
+                        selected === o ? 'bg-rose-50 border-l-4 border-l-rose-500' : 'hover:bg-rose-50/50'
+                      }`}>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <p className="text-sm font-medium text-gray-800 truncate leading-snug">{o}</p>
+                        {!useCatalog && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200 whitespace-nowrap">{t('recipes.notInCatalog')}</span>}
+                      </div>
+                    </button>
+                  ))}
+            </Fragment>
+          ) : visibleCount === 0
             ? <p className="px-4 py-8 text-sm text-gray-400 text-center">{t('recipes.noMatch')}</p>
-            : displayed.map(p => {
-                const count = Object.values(config.recipes[p] ?? {}).filter(q => q > 0).length
-                return (
-                  <button key={p} onClick={() => handleSelectProduct(p)}
-                    className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${
-                      selected === p ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-gray-50'
-                    }`}>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium text-gray-800 truncate leading-snug">{p}</p>
-                    </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      {count > 0
-                        ? <p className="text-xs text-green-600">{count !== 1 ? t('recipes.ingredientsCount', { count }) : t('recipes.ingredientCount', { count })}</p>
-                        : <p className="text-xs text-amber-500">{t('recipes.noRecipeYet')}</p>
-                      }
-                      {config.unitPay?.[p] > 0 && (
-                        <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
-                          ₽{config.unitPay[p]}
-                        </span>
+            : useCatalog
+              ? displayedGroups.map(g => {
+                  const hasVariants = g.children.length > 1
+                  return (
+                    <Fragment key={g.key}>
+                      {hasVariants && (
+                        <div className="px-4 pt-2 pb-1 bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
+                          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide truncate">{g.name}</p>
+                        </div>
                       )}
-                    </div>
-                  </button>
-                )
-              })
-          }
+                      {g.children.map(p => (
+                        <ProductRow
+                          key={p.productRu}
+                          name={p.productRu}
+                          variant={hasVariants ? p.variant : null}
+                          dim={p}
+                          selected={selected === p.productRu}
+                          indent={hasVariants}
+                          recipeCount={Object.values(config.recipes[p.productRu] ?? {}).reduce((n, v) => n + (v > 0 ? 1 : 0), 0)}
+                          soldRecently={soldRecently(p.productRu)}
+                          unitPay={config.unitPay?.[p.productRu]}
+                          onSelect={() => handleSelectProduct(p.productRu)}
+                        />
+                      ))}
+                    </Fragment>
+                  )
+                })
+              : legacyDisplayed.map(p => (
+                  <ProductRow
+                    key={p.productRu}
+                    name={p.productRu}
+                    dim={null}
+                    selected={selected === p.productRu}
+                    recipeCount={Object.values(config.recipes[p.productRu] ?? {}).reduce((n, v) => n + (v > 0 ? 1 : 0), 0)}
+                    soldRecently={soldRecently(p.productRu)}
+                    unitPay={config.unitPay?.[p.productRu]}
+                    onSelect={() => handleSelectProduct(p.productRu)}
+                  />
+                ))}
         </div>
 
         <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400">{displayed.length} / {allProducts.length}</p>
+            <p className="text-xs text-gray-400">{visibleCount} / {totalProducts}</p>
             {noRecipeCount > 0 && <p className="text-xs text-amber-500">{t('recipes.missing', { count: noRecipeCount })}</p>}
           </div>
         </div>
@@ -606,21 +819,42 @@ function RecipesTab() {
       {/* Right: recipe viewer / editor */}
       {selected ? (
         <div className={`flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white ${!selected ? 'hidden md:flex' : 'flex'}`}>
-          <div className={`px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${editing ? 'bg-blue-50' : 'bg-gray-50'}`}>
+          <div className={`px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${editing ? 'bg-blue-50' : selectedIsOrphan ? 'bg-rose-50' : 'bg-gray-50'}`}>
             <div className="flex items-center gap-3">
               <button onClick={() => setSelected(null)} className="md:hidden text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
               </button>
               <div>
-                <h3 className="font-semibold text-gray-900">{selected}</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-gray-900">{selected}</h3>
+                  {selectedIsOrphan && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                      {t('recipes.notInCatalog')}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {editing
-                    ? 'Editing Production Recipe'
-                    : 'Viewing Production Recipe'}
+                  {selectedDim
+                    ? [selectedDim.category, selectedDim.variant].filter(Boolean).join(' · ') + ` · ${t('recipes.parentProductEnShort')}: ${selectedDim.parentProductEn || '—'}`
+                    : selectedIsOrphan
+                      ? t('recipes.orphanHint')
+                      : editing
+                        ? 'Editing Production Recipe'
+                        : 'Viewing Production Recipe'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+              {selectedIsOrphan && !editing && (
+                <button onClick={deleteRecipeFlow}
+                  className={`text-xs px-3 py-1.5 border rounded-lg transition-colors ${
+                    confirmDelete
+                      ? 'border-red-600 bg-red-600 text-white hover:bg-red-700'
+                      : 'border-red-200 text-red-600 hover:bg-red-50'
+                  }`}>
+                  {confirmDelete ? '✓ ' + t('common.confirm') : t('recipes.deleteRecipe')}
+                </button>
+              )}
               {editing ? (
                 <>
                   <button onClick={cancelEditing}
@@ -632,7 +866,7 @@ function RecipesTab() {
                     {t('recipes.saveChanges')}
                   </button>
                 </>
-              ) : (
+              ) : !selectedIsOrphan && (
                 <button onClick={startEditing}
                   className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
                   {t('recipes.modify')}
