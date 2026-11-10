@@ -54,7 +54,20 @@ REKEY_RECIPE_KEYS = {
     "моти банан-шоколад":    "Моти Банан в шоколаде",
 }
 # keys that cannot be rekeyed automatically — require adding the product to dim
-PENDING_DIM_ADDITIONS = ["тапиока в шариках"]
+PENDING_DIM_ADDITIONS = []  # none left: NEW_DIM_ROWS below adds the missing one
+
+# New dim_product rows inserted (idempotent, only if product_ru absent),
+# following menu-manager's import_unmapped_to_dim_product conventions:
+# variant Standard, category Uncategorized, is_active true, parent_* = own name.
+NEW_DIM_ROWS = [
+    {
+        "product_ru": "Тапиока в шариках",
+        "variant": "Standard",
+        "category": "Uncategorized",
+        "subcategory": "New POS Item",
+        "is_modifier": True,
+    },
+]
 
 token = warehouse_id = None
 for line in SECRETS.read_text(encoding="utf-8").splitlines():
@@ -96,6 +109,28 @@ def norm(name):
     s = str(name).lower().replace("ё", "е")
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
+# ── 0. Insert NEW_DIM_ROWS (menu-manager conventions, idempotent) ────────────
+if APPLY and NEW_DIM_ROWS:
+    for row in NEW_DIM_ROWS:
+        exists = sql(f"SELECT COUNT(*) AS n FROM workspace.gold.dim_product WHERE product_ru = '{row['product_ru']}'")
+        if int(exists[0]["n"]) == 0:
+            mod = "true" if row["is_modifier"] else "false"
+            exec_stmt(f"""
+                INSERT INTO workspace.gold.dim_product (
+                    product_id, parent_product_id, product_ru, parent_product_en, parent_product_ru,
+                    variant, category, subcategory, is_modifier, is_active, base_price, cost, updated_at
+                )
+                SELECT
+                    (SELECT COALESCE(MAX(product_id), 0) + 1 FROM workspace.gold.dim_product) AS product_id,
+                    (SELECT COALESCE(MAX(parent_product_id), 0) + 1 FROM workspace.gold.dim_product) AS parent_product_id,
+                    '{row['product_ru']}', '{row['product_ru']}', '{row['product_ru']}',
+                    '{row['variant']}', '{row['category']}', '{row['subcategory']}',
+                    {mod}, true, 0.0, 0.0, current_timestamp()
+            """)
+            print(f"dim_product: added '{row['product_ru']}'")
+        else:
+            print(f"dim_product: '{row['product_ru']}' already exists — skipped")
 
 # ── 1. Find duplicate groups (explicit mapping drives canonical choice) ──────
 products = sql("""
@@ -215,7 +250,10 @@ for pid, parent_en in KEEP_PARENT_FIX.items():
 # TARGET's rows and only migrate ingredient_ids the target doesn't have yet.
 print("\nrecipe-key renames:")
 for src_norm, tgt in REKEY_RECIPE_KEYS.items():
-    keys = [k for k in all_recipe_keys if norm(k) == src_norm]
+    # exclude the target itself — normalized matching must never self-match,
+    # otherwise the canonical rows get treated as "duplicates of the target"
+    # and deleted (regression caught by validation 2026-11-09)
+    keys = [k for k in all_recipe_keys if norm(k) == src_norm and k != tgt]
     for k in keys:
         tgt_ids = {r["ingredient_id"] for r in sql(f"""
             SELECT ingredient_id FROM workspace.inventory_tabular.fact_recipe_ingredients
@@ -259,6 +297,8 @@ print("\nfact_recipe_ingredients.product_id state before backfill:")
 for r in pre:
     print(f"  [{r['recipe_type']}] rows={r['rows_total']} without_id={r['rows_without_id']} mismatched={r['rows_mismatched']}")
 
+# id assignment (only sets matched rows; NULLing unmapped spellings is the
+# second MERGE below because Delta rejects WHEN NOT MATCHED THEN UPDATE)
 exec_stmt("""
 MERGE INTO workspace.inventory_tabular.fact_recipe_ingredients f
 USING (
@@ -267,10 +307,26 @@ USING (
     WHERE COALESCE(is_active, true)
 ) p
 ON f.recipe_product_name = p.product_ru
-WHEN MATCHED THEN UPDATE
-    SET f.product_id = p.product_id, f.parent_product_id = p.parent_product_id
-WHEN NOT MATCHED THEN UPDATE
-    SET f.product_id = NULL, f.parent_product_id = NULL
+WHEN MATCHED AND (f.product_id IS NULL OR f.product_id != p.product_id
+                  OR f.parent_product_id IS NULL OR f.parent_product_id != p.parent_product_id)
+THEN UPDATE SET f.product_id = p.product_id, f.parent_product_id = p.parent_product_id
+""")
+
+# NULL out ids of spellings that no active dim row claims (renamed-away keys,
+# write-in pseudo-products) so validation stays honest
+exec_stmt(f"""
+MERGE INTO workspace.inventory_tabular.fact_recipe_ingredients f
+USING (
+    SELECT DISTINCT f2.recipe_product_name
+    FROM workspace.inventory_tabular.fact_recipe_ingredients f2
+    WHERE NOT EXISTS (
+        SELECT 1 FROM workspace.gold.dim_product p
+        WHERE p.product_ru = f2.recipe_product_name
+          AND COALESCE(p.is_active, true))
+) u
+ON f.recipe_product_name = u.recipe_product_name
+WHEN MATCHED AND (f.product_id IS NOT NULL OR f.parent_product_id IS NOT NULL)
+THEN UPDATE SET f.product_id = NULL, f.parent_product_id = NULL
 """)
 
 # ── 3. Validation ────────────────────────────────────────────────────────────
