@@ -810,6 +810,9 @@
             } else if (activeApp === 'audit') {
                 if (pin === (_P.quick_count || '1234')) {
                     sessionStorage.setItem('audit_role', 'quick_count');
+                    // Barista session: drop any stale 30-day manager TTL so the
+                    // audit app cannot reopen the manager suite over it
+                    localStorage.removeItem('audit_role_info');
                 } else {
                     localStorage.setItem('audit_role_info', JSON.stringify({ role: 'manager', expires: Date.now() + 30 * 86400000 }));
                     sessionStorage.setItem('audit_role', 'manager');

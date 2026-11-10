@@ -42,7 +42,14 @@ export default function App() {
     const urlRole = params.get('role');
     if (urlRole === 'quick_count' || urlRole === 'manager') return urlRole;
 
-    // 2. Check session / local storage
+    // 2. Session storage FIRST — it is always the freshest login signal (the
+    //    portal keypad sets it right before navigating here). A stale 30-day
+    //    manager TTL in localStorage must never override an explicit barista
+    //    session (bug: entering 1234 opened the manager suite).
+    const sessionRole = sessionStorage.getItem('audit_role');
+    if (sessionRole === 'quick_count' || sessionRole === 'manager') return sessionRole;
+
+    // 3. Local storage (manager 30-day convenience session)
     try {
       const stored = localStorage.getItem('audit_role_info');
       if (stored) {
@@ -51,7 +58,7 @@ export default function App() {
         localStorage.removeItem('audit_role_info');
       }
     } catch {}
-    return sessionStorage.getItem('audit_role') || null;
+    return null;
   });
 
   const [activeTab, setActiveTab] = useState('count'); // 'count' | 'history'
@@ -122,6 +129,8 @@ export default function App() {
     if (p === PIN_BARISTA) {
       setRole('quick_count');
       sessionStorage.setItem('audit_role', 'quick_count');
+      // A barista session must clear any stale 30-day manager TTL
+      localStorage.removeItem('audit_role_info');
       return true;
     }
     if (p === PIN_MANAGER || (window.BC_PINS && (p === window.BC_PINS.master || p === window.BC_PINS.inv_admin))) {
