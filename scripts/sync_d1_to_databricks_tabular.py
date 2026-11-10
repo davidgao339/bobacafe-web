@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding='utf-8')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from echelon_semantics import classify_item, link_product, build_product_index, LINK_CLASSES
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 SECRETS_FILE = ROOT_DIR / ".streamlit" / "secrets.toml"
@@ -228,6 +230,89 @@ def batch_insert(table_name: str, columns: list, rows: list, batch_size: int = 5
         inserted += len(batch)
         print(f"  [{table_name}] Inserted {inserted}/{total} rows...")
 
+# ─── 6a: MERGE-BASED LOADER (Phase 6 of lh-only-reads plan) ──────────────────
+# Truncate-reload is no longer safe: the tabular apps write rows directly to
+# the Lakehouse, and CREATE OR REPLACE TABLE wipes them nightly. MERGE upserts
+# keep app-authored rows alive; D1 data still refreshes everything it carries.
+
+def _merge_condition(keys):
+    """ON t.k = s.k pairs; NULLable single keys use equality only."""
+    return " AND ".join(f"t.{k} = src.{k}" for k in keys)
+
+def batch_merge(table_name: str, columns: list, rows: list, merge_keys: list, batch_size: int = 400):
+    if not rows:
+        print(f"  No rows to merge into {table_name}")
+        return 0
+    total = len(rows)
+    merged = 0
+    # Databricks MERGE rejects a column alias list directly on the USING
+    # relation ("COLUMN_ALIASES_NOT_ALLOWED"), so wrap VALUES in a subquery
+    # and expose named columns via the SELECT list instead.
+    proj = ", ".join(f"col{n + 1} AS {name}" for n, name in enumerate(columns))
+    for i in range(0, total, batch_size):
+        batch = rows[i:i + batch_size]
+        values_list = []
+        for row in batch:
+            values_list.append("(" + ", ".join(sql_escape(v) for v in row) + ")")
+        on = _merge_condition(merge_keys)
+        sql = (
+            f"MERGE INTO {table_name} AS t USING "
+            f"(SELECT {proj} FROM (VALUES {', '.join(values_list)}) AS v) AS src "
+            f"ON {on} "
+            f"WHEN MATCHED THEN UPDATE SET * "
+            f"WHEN NOT MATCHED THEN INSERT *"
+        )
+        run_databricks_sql(sql)
+        merged += len(batch)
+        print(f"  [{table_name}] Merged {merged}/{total} rows...")
+    return merged
+
+def delete_children_by_parents(table_name: str, parent_col: str, parent_values: list, batch_size: int = 400):
+    """Exact-refresh helper for fact children fully derived from a parent blob
+    (audit counts, PO lines, recipe rows): delete all rows whose parent key is
+    part of tonight's D1 dataset, then re-insert from D1. Parent rows that only
+    exist LH-side (app-authored, not yet in D1) are never deleted."""
+    if not parent_values:
+        return
+    for i in range(0, len(parent_values), batch_size):
+        batch = parent_values[i:i + batch_size]
+        vals = ", ".join(sql_escape(v) for v in batch)
+        run_databricks_sql(f"DELETE FROM {table_name} WHERE {parent_col} IN ({vals})")
+
+def delete_facts_by_composite_parents(table_name: str, pairs: list, batch_size: int = 300):
+    """DELETE WHERE (recipe_product_name, recipe_type) matches tonight's set."""
+    if not pairs:
+        return
+    for i in range(0, len(pairs), batch_size):
+        batch = pairs[i:i + batch_size]
+        vals = ", ".join(f"({sql_escape(a)}, {sql_escape(b)})" for a, b in batch)
+        run_databricks_sql(
+            f"DELETE FROM {table_name} WHERE EXISTS ("
+            f" SELECT 1 FROM (VALUES {vals}) AS v(recipe_product_name, recipe_type)"
+            f" WHERE v.recipe_product_name = {table_name}.recipe_product_name"
+            f"   AND v.recipe_type = {table_name}.recipe_type)")
+
+def delete_recipe_rows_by_identity(table_name: str, parents: list, prod_lookup, key_fn, pid_to_name):
+    """6c Gap A: identity-keyed recipe refresh.
+
+    For each D1 (raw_name, type) parent that resolves to a dim_product:
+      - delete rows spelling the product ANY way under that type — raw D1
+        spelling, canonical dim spelling, and LH-authored variants attached to
+        the same product_id (app pushes are product_id-attached).
+    Unresolved parents refresh by exact raw spelling only.
+    """
+    for raw_name, rtype in parents:
+        prod_info = prod_lookup.get(key_fn(raw_name), {})
+        p_id = prod_info.get("product_id")
+        canon = pid_to_name.get(p_id) if p_id is not None else None
+        cond = f"recipe_product_name = {sql_escape(raw_name)}"
+        if canon and canon != raw_name:
+            cond += f" OR recipe_product_name = {sql_escape(canon)}"
+        if p_id is not None:
+            cond += f" OR product_id = {int(p_id)}"
+        run_databricks_sql(
+            f"DELETE FROM {table_name} WHERE recipe_type = {sql_escape(rtype)} AND ({cond})")
+
 # ─── MAIN MIGRATION PIPELINE ─────────────────────────────────────────────────
 
 def main():
@@ -249,7 +334,16 @@ def main():
     d1_pos = query_d1("SELECT * FROM purchase_orders")
     d1_txs = query_d1("SELECT * FROM transactions")
     d1_settings = query_d1("SELECT * FROM settings")
+    # App-maintained dim columns live only in the D1 dim mirror (apps write
+    # cost_per_unit on edit, last_purchase_cost/date on PO receive). The legacy
+    # blob does not carry them.
+    try:
+        d1_dim_costs = {int(r["ingredient_id"]): r for r in
+                        query_d1("SELECT ingredient_id, cost_per_unit, last_purchase_cost, last_purchase_date FROM dim_ingredients")}
+    except Exception:
+        d1_dim_costs = {}
     print(f"  D1 ingredients:     {len(d1_ingredients)} rows")
+    print(f"  D1 dim cost rows:   {len(d1_dim_costs)} rows")
     print(f"  D1 suppliers:       {len(d1_suppliers)} rows")
     print(f"  D1 recipes:         {len(d1_recipes)} rows")
     print(f"  D1 audits:          {len(d1_audits)} rows")
@@ -315,7 +409,7 @@ def main():
     supplier_map = {int(s["id"]): s["name"] for s in d1_suppliers if s.get("id")}
     table_ingredients = f"{TARGET_SCHEMA}.dim_ingredients"
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_ingredients} (
+    CREATE TABLE IF NOT EXISTS {table_ingredients} (
         ingredient_id INT,
         ingredient_name STRING,
         unit STRING,
@@ -324,12 +418,44 @@ def main():
         supplier_name STRING,
         is_warehouse_only BOOLEAN,
         is_hidden BOOLEAN,
-        cost_per_unit DOUBLE
+        cost_per_unit DOUBLE,
+        last_purchase_cost DOUBLE,
+        last_purchase_date STRING,
+        item_class STRING,
+        product_id INT
     ) USING DELTA
     """)
+    # 6c pre-existing tables lack the app-maintained dim cost columns — add
+    # them best-effort (Delta ADD COLUMN is idempotent-safe to retry).
+    for col_sql in (
+        f"ALTER TABLE {table_ingredients} ADD COLUMN last_purchase_cost DOUBLE",
+        f"ALTER TABLE {table_ingredients} ADD COLUMN last_purchase_date STRING",
+    ):
+        try:
+            run_databricks_sql(col_sql)
+        except Exception:
+            pass
     
     ingredient_rows = []
     ing_name_map = {}
+    # Two-echelon classification: usage refs from D1 recipes (same evidence the
+    # ending fact counts in LH carry), then the shared semantic module decides.
+    prod_refs_map, retail_refs_map = {}, {}
+    for r in d1_recipes:
+        rtype = (r.get("type") or "retail")
+        try:
+            mapping = json.loads(r.get("ingredient_mapping") or "{}")
+        except Exception:
+            continue
+        ref_map = prod_refs_map if rtype == "production" else (retail_refs_map if rtype == "retail" else None)
+        if ref_map is None:
+            continue
+        for ing_id_str in mapping:
+            try:
+                ref_map[int(ing_id_str)] = ref_map.get(int(ing_id_str), 0) + 1
+            except Exception:
+                continue
+    prod_index_active, prod_index_any = build_product_index(db_products)
     for ing in d1_ingredients:
         ing_id = int(ing["id"])
         name = ing["name"].strip()
@@ -340,19 +466,38 @@ def main():
         supp_name = supplier_map.get(supp_id)
         wh_only = bool(ing.get("warehouseOnly", 0))
         hidden = bool(ing.get("hidden", 0))
-        ingredient_rows.append([ing_id, name, unit, ptype, supp_id, supp_name, wh_only, hidden, None])
+        item_class, _dead = classify_item(
+            name, ptype,
+            'true' if wh_only else 'false',
+            prod_refs_map.get(ing_id, 0),
+            retail_refs_map.get(ing_id, 0),
+        )
+        item_pid, _src = (link_product(name, prod_index_active, prod_index_any)
+                          if item_class in LINK_CLASSES
+                          else (None, 'n/a'))
+        if item_pid is None and item_class in LINK_CLASSES:
+            item_pid = None   # no forced link; nightly DQ report surfaces gaps
+        dim_costs = d1_dim_costs.get(ing_id, {})
+        cpu = dim_costs.get("cost_per_unit")
+        lpc = dim_costs.get("last_purchase_cost")
+        lpd = dim_costs.get("last_purchase_date")
+        ingredient_rows.append([ing_id, name, unit, ptype, supp_id, supp_name, wh_only, hidden,
+                                float(cpu) if cpu is not None and str(cpu) != '' else None,
+                                float(lpc) if lpc is not None and str(lpc) != '' else None,
+                                lpd, item_class, item_pid])
 
-    batch_insert(
+    batch_merge(
         table_ingredients,
-        ["ingredient_id", "ingredient_name", "unit", "product_type", "supplier_id", "supplier_name", "is_warehouse_only", "is_hidden", "cost_per_unit"],
-        ingredient_rows
+        ["ingredient_id", "ingredient_name", "unit", "product_type", "supplier_id", "supplier_name", "is_warehouse_only", "is_hidden", "cost_per_unit", "last_purchase_cost", "last_purchase_date", "item_class", "product_id"],
+        ingredient_rows,
+        merge_keys=["ingredient_id"]
     )
 
     # ─── TABLE 3: dim_cook_unit_pay ──────────────────────────────────────────
     print("\n[Step 6/9] Creating and loading dim_cook_unit_pay...")
     table_cook_pay = f"{TARGET_SCHEMA}.dim_cook_unit_pay"
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_cook_pay} (
+    CREATE TABLE IF NOT EXISTS {table_cook_pay} (
         product_name STRING,
         product_id INT,
         parent_product_id INT,
@@ -375,13 +520,14 @@ def main():
             except Exception as e:
                 print(f"  Warning: failed to parse cook_unit_pay: {e}")
 
-    batch_insert(table_cook_pay, ["product_name", "product_id", "parent_product_id", "pay_rate"], cook_pay_rows)
+    batch_merge(table_cook_pay, ["product_name", "product_id", "parent_product_id", "pay_rate"], cook_pay_rows,
+                merge_keys=["product_name"])
 
     # ─── TABLE 4: fact_recipe_ingredients (Unrolled BOM) ────────────────────
     print("\n[Step 7/9] Creating and loading fact_recipe_ingredients...")
     table_recipes = f"{TARGET_SCHEMA}.fact_recipe_ingredients"
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_recipes} (
+    CREATE TABLE IF NOT EXISTS {table_recipes} (
         recipe_product_name STRING,
         product_id INT,
         parent_product_id INT,
@@ -394,6 +540,12 @@ def main():
     """)
 
     recipe_rows = []
+    pid_to_name = {}
+    for p in db_products:
+        p_ru = (p.get('product_ru') or '').strip()
+        p_id = p.get('product_id')
+        if p_ru and p_id is not None and int(p_id) not in pid_to_name:
+            pid_to_name[int(p_id)] = p_ru
     for r in d1_recipes:
         pname = r.get("product_name", "").strip()
         rtype = r.get("type", "retail")
@@ -412,15 +564,30 @@ def main():
         p_id = prod_info.get("product_id")
         parent_p_id = prod_info.get("parent_product_id")
 
+        # 6c Gap A: canonicalize the recipe spelling LH-side. D1 rows keep
+        # legacy spellings forever; the app keys recipes on canonical dim
+        # names (product_id-attached), so one product must never exist under
+        # two spellings in the Lakehouse. No dim match → keep raw D1 spelling
+        # (pseudo-products like 'Списание - …').
+        canon_name = pid_to_name.get(p_id, pname) if p_id is not None else pname
+
         for ing_id_str, amt in mapping.items():
             try:
                 ing_id = int(ing_id_str)
                 amt_val = float(amt)
                 ing_name = ing_name_map.get(ing_id, f"Ingredient #{ing_id}")
-                recipe_rows.append([pname, p_id, parent_p_id, ing_id, ing_name, amt_val, rtype, hidden])
+                recipe_rows.append([canon_name, p_id, parent_p_id, ing_id, ing_name, amt_val, rtype, hidden])
             except Exception:
                 continue
 
+    # Recipes are fully derived per product identity — refresh exactly, keep
+    # LH-only product recipes untouched (app-authored, absent from D1).
+    # Identity-keyed (6c Gap A): a refresh deletes ALL spellings of the same
+    # product (raw D1 spelling, canonical dim spelling, and any LH-authored
+    # variant carrying the same product_id) before reinserting canonical rows.
+    recipe_parents = sorted(set((r.get("product_name", "").strip(), r.get("type", "retail"))
+                                for r in d1_recipes if r.get("product_name", "").strip()))
+    delete_recipe_rows_by_identity(table_recipes, recipe_parents, prod_lookup, _key, pid_to_name)
     batch_insert(
         table_recipes,
         ["recipe_product_name", "product_id", "parent_product_id", "ingredient_id", "ingredient_name", "amount_per_serving", "recipe_type", "is_hidden"],
@@ -433,7 +600,7 @@ def main():
     table_audit_counts = f"{TARGET_SCHEMA}.fact_audit_counts"
 
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_audit_headers} (
+    CREATE TABLE IF NOT EXISTS {table_audit_headers} (
         audit_id STRING,
         store_id INT,
         store_code STRING,
@@ -444,7 +611,7 @@ def main():
     """)
 
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_audit_counts} (
+    CREATE TABLE IF NOT EXISTS {table_audit_counts} (
         audit_id STRING,
         store_id INT,
         audit_date STRING,
@@ -486,8 +653,16 @@ def main():
             except Exception:
                 continue
 
-    batch_insert(table_audit_headers, ["audit_id", "store_id", "store_code", "audit_date", "audit_timestamp", "status"], audit_headers_rows)
-    batch_insert(table_audit_counts, ["audit_id", "store_id", "audit_date", "ingredient_id", "ingredient_name", "count_quantity"], audit_counts_rows)
+    # Audit counts are fully derived per audit id — refresh exactly; LH-only
+    # audits (app-authored, absent in D1) are untouched.
+    batch_merge(table_audit_headers,
+                ["audit_id", "store_id", "store_code", "audit_date", "audit_timestamp", "status"],
+                audit_headers_rows, merge_keys=["audit_id"])
+    audit_ids = [a.get("id") for a in d1_audits if a.get("id")]
+    delete_children_by_parents(table_audit_counts, "audit_id", audit_ids)
+    batch_insert(table_audit_counts,
+                 ["audit_id", "store_id", "audit_date", "ingredient_id", "ingredient_name", "count_quantity"],
+                 audit_counts_rows)
 
     # ─── TABLE 7 & 8: fact_purchase_orders & fact_purchase_order_lines ───────
     print("\n[Step 9/9] Creating and loading fact_purchase_orders & fact_purchase_order_lines...")
@@ -495,7 +670,7 @@ def main():
     table_po_lines = f"{TARGET_SCHEMA}.fact_purchase_order_lines"
 
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_pos} (
+    CREATE TABLE IF NOT EXISTS {table_pos} (
         po_id STRING,
         order_type STRING,
         store_id INT,
@@ -511,8 +686,9 @@ def main():
     """)
 
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_po_lines} (
+    CREATE TABLE IF NOT EXISTS {table_po_lines} (
         po_id STRING,
+        line_index INT,
         ingredient_id INT,
         ingredient_name STRING,
         is_custom_item BOOLEAN,
@@ -523,6 +699,10 @@ def main():
         total_cost DOUBLE
     ) USING DELTA
     """)
+    try:
+        run_databricks_sql(f"ALTER TABLE {table_po_lines} ADD COLUMN line_index INT")
+    except Exception:
+        pass
 
     po_headers_rows = []
     po_lines_rows = []
@@ -562,15 +742,15 @@ def main():
 
         raw_items = []
         if isinstance(parsed, list):
-            for it in parsed:
-                raw_items.append((it, False))
+            for idx, it in enumerate(parsed):
+                raw_items.append((it, False, idx))
         elif isinstance(parsed, dict):
-            for reg in parsed.get("regular", []):
-                raw_items.append((reg, False))
-            for cust in parsed.get("custom", []):
-                raw_items.append((cust, True))
+            for idx, reg in enumerate(parsed.get("regular", [])):
+                raw_items.append((reg, False, idx))
+            for idx, cust in enumerate(parsed.get("custom", [])):
+                raw_items.append((cust, True, 1000 + idx))
 
-        for it, is_cust in raw_items:
+        for it, is_cust, line_idx in raw_items:
             try:
                 ordered = float(it.get("ordered") or 0)
                 received = float(it.get("received") or 0)
@@ -591,26 +771,31 @@ def main():
 
                 unit_cost = float(it.get("unitCost") or it.get("unit_cost") or it.get("cost") or it.get("price") or 0.0)
                 total_cost = round(received * unit_cost, 2)
-                po_lines_rows.append([po_id, ing_id, ing_name, is_custom, ordered, received, unit, unit_cost, total_cost])
+                # 6c Gap B: line_index matches D1/app semantics exactly
+                # (regular lines 0..n, custom lines 1000+idx).
+                po_lines_rows.append([po_id, line_idx, ing_id, ing_name, is_custom, ordered, received, unit, unit_cost, total_cost])
             except Exception:
                 continue
 
-    batch_insert(
-        table_pos,
-        ["po_id", "order_type", "store_id", "store_code", "from_store_id", "to_store_id", "status", "received_date", "received_at", "created_date", "sent_date"],
-        po_headers_rows
-    )
+    # POs: headers MERGE by id; lines fully derived per po (custom items have
+    # NULL ingredient_id → no stable composite key) — delete+insert per po_id,
+    # keeping LH-only POs untouched.
+    batch_merge(table_pos,
+                ["po_id", "order_type", "store_id", "store_code", "from_store_id", "to_store_id", "status", "received_date", "received_at", "created_date", "sent_date"],
+                po_headers_rows, merge_keys=["po_id"])
+    po_ids = [po.get("id") for po in d1_pos if po.get("id")]
+    delete_children_by_parents(table_po_lines, "po_id", po_ids)
     batch_insert(
         table_po_lines,
-        ["po_id", "ingredient_id", "ingredient_name", "is_custom_item", "ordered_quantity", "received_quantity", "unit", "unit_cost", "total_cost"],
+        ["po_id", "line_index", "ingredient_id", "ingredient_name", "is_custom_item", "ordered_quantity", "received_quantity", "unit", "unit_cost", "total_cost"],
         po_lines_rows
     )
 
     # ─── TABLE 9: fact_inventory_transactions ────────────────────────────────
-    print("\n[Step 10/10] Creating and loading fact_inventory_transactions...")
+    print("\n[Step 10/10] Merging fact_inventory_transactions (append-only ledger)...")
     table_tx = f"{TARGET_SCHEMA}.fact_inventory_transactions"
     run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_tx} (
+    CREATE TABLE IF NOT EXISTS {table_tx} (
         transaction_id STRING,
         store_id INT,
         store_code STRING,
@@ -641,43 +826,50 @@ def main():
         reason = t.get("reason")
         tx_rows.append([t_id, store_id, store_code, t_date, t_time, t_type, ing_id, ing_name, qty, po_id, reason])
 
-    batch_insert(
+    batch_merge(
         table_tx,
         ["transaction_id", "store_id", "store_code", "transaction_date", "transaction_timestamp", "transaction_type", "ingredient_id", "ingredient_name", "quantity", "po_id", "reason"],
-        tx_rows
+        tx_rows,
+        merge_keys=["transaction_id"]
     )
 
     # ─── TABLE 10: fact_inventory_balance ───────────────────────────────────
-    print("\n[Step 10/10] Syncing fact_inventory_balance...")
+    # Derived cache from D1; the app computes balances from views, so this is
+    # best-effort: if D1's balance table is absent/renamed the pipeline must
+    # NOT abort before the cost views deploy.
+    print("\n[Step 10/10] Syncing fact_inventory_balance (best-effort)...")
     table_balance = f"{TARGET_SCHEMA}.fact_inventory_balance"
-    run_databricks_sql(f"""
-    CREATE OR REPLACE TABLE {table_balance} (
-        store_id INT,
-        ingredient_id INT,
-        current_quantity DOUBLE,
-        unit STRING,
-        last_audit_id STRING,
-        last_audit_date STRING,
-        last_updated_at TIMESTAMP
-    ) USING DELTA
-    """)
-    d1_balances = query_d1("SELECT store_id, ingredient_id, current_quantity, unit, last_audit_id, last_audit_date, last_updated_at FROM fact_inventory_balance")
-    balance_rows = []
-    for b in d1_balances:
-        balance_rows.append([
-            b["store_id"],
-            b["ingredient_id"],
-            b["current_quantity"],
-            b["unit"],
-            b["last_audit_id"],
-            b["last_audit_date"],
-            b["last_updated_at"]
-        ])
-    batch_insert(
-        table_balance,
-        ["store_id", "ingredient_id", "current_quantity", "unit", "last_audit_id", "last_audit_date", "last_updated_at"],
-        balance_rows
-    )
+    try:
+        run_databricks_sql(f"""
+        CREATE OR REPLACE TABLE {table_balance} (
+            store_id INT,
+            ingredient_id INT,
+            current_quantity DOUBLE,
+            unit STRING,
+            last_audit_id STRING,
+            last_audit_date STRING,
+            last_updated_at TIMESTAMP
+        ) USING DELTA
+        """)
+        d1_balances = query_d1("SELECT store_id, ingredient_id, current_quantity, unit, last_audit_id, last_audit_date, last_updated_at FROM fact_inventory_balance")
+        balance_rows = []
+        for b in d1_balances:
+            balance_rows.append([
+                b["store_id"],
+                b["ingredient_id"],
+                b["current_quantity"],
+                b["unit"],
+                b["last_audit_id"],
+                b["last_audit_date"],
+                b["last_updated_at"]
+            ])
+        batch_insert(
+            table_balance,
+            ["store_id", "ingredient_id", "current_quantity", "unit", "last_audit_id", "last_audit_date", "last_updated_at"],
+            balance_rows
+        )
+    except Exception as e:
+        print(f"  ⚠ fact_inventory_balance skipped ({str(e)[:200]}) — views below still deploy")
 
     # ─── TABLE 11 & 12: REAL-TIME WAC & RECIPE COGS VIEWS ────────────────────
     print("\n[Step 11/11] Ensuring real-time WAC & Recipe COGS views are active...")
@@ -742,32 +934,14 @@ def main():
     LEFT JOIN last_po lp ON i.ingredient_id = lp.ingredient_id
     """)
 
-    view_cogs = f"{TARGET_SCHEMA}.view_product_recipe_cogs"
-    run_databricks_sql(f"""
-    CREATE OR REPLACE VIEW {view_cogs} AS
-    SELECT 
-        p.product_ru,
-        p.parent_product_id,
-        p.parent_product_en,
-        p.category,
-        p.variant,
-        p.is_active,
-        p.base_price,
-        ROUND(SUM(r.amount_per_serving * w.effective_unit_cost), 2) AS calculated_cogs,
-        ROUND(p.base_price - SUM(r.amount_per_serving * w.effective_unit_cost), 2) AS gross_profit,
-        ROUND(
-            (p.base_price - SUM(r.amount_per_serving * w.effective_unit_cost)) / NULLIF(p.base_price, 0) * 100, 
-            1
-        ) AS gross_margin_pct
-    FROM workspace.gold.dim_product p
-    JOIN {table_recipes} r 
-      ON r.product_id IS NOT NULL AND r.product_id = p.product_id
-    JOIN {view_wac} w 
-      ON r.ingredient_id = w.ingredient_id
-    GROUP BY 
-        p.product_ru, p.parent_product_id, p.parent_product_en, 
-        p.category, p.variant, p.is_active, p.base_price
-    """)
+    # Two-echelon costing engine (Level 0/1 cost DAG + Level 2 POS COGS).
+    # SQL lives in scripts/lakehouse_sql/ — the single source of truth shared
+    # with scripts/two_echelon_phase5_costing.py, so the nightly sync always
+    # deploys the current engine instead of a stale inline copy.
+    cost_sql_dir = Path(__file__).resolve().parent / "lakehouse_sql"
+    for sql_name in ("view_item_unit_cost.sql", "view_product_recipe_cogs.sql"):
+        run_databricks_sql((cost_sql_dir / sql_name).read_text(encoding="utf-8"))
+        print(f"  deployed {sql_name}")
 
     # ─── FINAL AUDIT & RECONCILIATION SUMMARY ────────────────────────────────
     print("\n" + "=" * 70)

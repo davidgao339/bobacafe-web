@@ -235,10 +235,9 @@ export function ConfigProvider({ children }) {
   useEffect(() => {
     async function loadFromD1() {
       try {
-        // Swappable data source (settings.dataSource): 'lakehouse' reads all
-        // tabs directly from the lakehouse so D1 becomes an optional cache;
-        // 'd1' (default) keeps the local Cloudflare D1 path.
-        const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
+        // 6c: Lakehouse is THE read path — no toggle. D1 remains only as a
+        // bootstrap when credentials aren't configured yet (first run).
+        const useLh = Boolean(settings?.token && settings?.warehouseId)
         const lh = qk => fetchLh(settings.token, settings.warehouseId, qk).then(coerceLhRows)
 
         const [storesRes, aliasesRes, ingRes, recRes, recRetailRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes, prodRes] = useLh
@@ -340,9 +339,12 @@ export function ConfigProvider({ children }) {
           saveToStorage(COOK_UNIT_PAY_KEY, unitPay)
         }
 
-        // Stores app: only store-visible ingredients (what WHS produces/ships); warehouse-only excluded
-        // from the store-facing list — but Recipes still consumes WHS-only raw
-        // materials, so the full dim_ingredients rides along in allIngredients.
+        // Stores app: store-visible ingredients per the two-echelon class model —
+        // finished / intermediate / store_only / dual_use. Items lacking a class
+        // (D1-sourced rows, pre-classification data) fall back to the legacy
+        // is_warehouse_only hint. Recipes keeps consuming the full list incl.
+        // WHS-only raws, so the full dim_ingredients rides along in allIngredients.
+        const STORE_VISIBLE_CLASSES = ['finished', 'intermediate', 'store_only', 'dual_use']
         const allIngredients = ingRes.map(i => ({
           id: i.id,
           name: i.name,
@@ -352,11 +354,13 @@ export function ConfigProvider({ children }) {
           supplierName: i.supplierName,
           hidden: Boolean(i.hidden),
           warehouseOnly: Boolean(i.warehouseOnly),
+          itemClass: i.itemClass || null,
           costPerUnit: i.costPerUnit != null ? Number(i.costPerUnit) : (i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0),
           lastPurchaseCost: i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0,
           wacCost30d: i.wacCost30d != null ? Number(i.wacCost30d) : 0,
         }))
-        const ingredients = allIngredients.filter(i => !i.warehouseOnly)
+        const ingredients = allIngredients.filter(i =>
+          i.itemClass != null ? STORE_VISIBLE_CLASSES.includes(i.itemClass) : !i.warehouseOnly)
 
         // Product master (read-only from lakehouse). isActive default TRUE —
         // dim_product rows with NULL is_active are live items (menu-manager
@@ -1104,6 +1108,17 @@ export function ConfigProvider({ children }) {
       if (next.recipes !== prev.recipes) {
         for (const [product, mapping] of Object.entries(next.recipes)) {
           if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product])) {
+            // Two-echelon guard: a production BOM must never consume its own
+            // output (self-reference = the degenerate cycle). Retail recipes
+            // for finished SKUs legitimately deplete themselves and are exempt.
+            const selfIngId = Object.keys(mapping).find(ingId => {
+              const ing = next.ingredients?.find(i => String(i.id) === String(ingId))
+              return ing && normNameKey(ing.name) === normNameKey(product)
+            })
+            if (selfIngId != null) {
+              console.error(`Recipe cycle blocked: production recipe '${product}' would consume itself (ingredient ${selfIngId})`)
+              continue
+            }
             queryD1(`DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = ? AND recipe_type = 'production'`, [product]).catch(console.error)
             Object.entries(mapping).forEach(([ingId, amt]) => {
               const ing = next.ingredients?.find(i => String(i.id) === String(ingId))
@@ -1160,7 +1175,8 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const refreshRecipes = useCallback(async () => {
-    const useLh = settings?.dataSource === 'lakehouse' && settings?.token && settings?.warehouseId
+    // 6c: Lakehouse is THE read path — no toggle.
+    const useLh = Boolean(settings?.token && settings?.warehouseId)
     const [recRes, recRetailRes, payRes, prodRes] = useLh
       ? await Promise.all([
           fetchLh(settings.token, settings.warehouseId, 'recipes').then(coerceLhRows),
@@ -1475,7 +1491,7 @@ export function ConfigProvider({ children }) {
       stores, visibleStores, suppressedStores, selectedStore, setSelectedStore, selectedStoreCode, toggleStoreVisibility: () => {},
       settings, saveSettings, updateOzonMapping, refreshSales,
       lhBalances, lhBalancesByStore, lhConnected: Boolean(settings?.token && settings?.warehouseId),
-      dataSource: settings?.dataSource || 'd1',
+      dataSource: 'lakehouse',
       reportFrom, reportTo,
       exportConfig, importConfig,
       addSupplier, updateSupplier, deleteSupplier,

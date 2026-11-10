@@ -24,9 +24,10 @@ export async function fetchDatabricksSales(token, warehouseId, fromDate, toDate)
 
   const cleanStatement = statement.replace(/\s+/g, ' ').trim()
 
-  const apiPath = import.meta.env.DEV
-    ? '/databricks-proxy/api/2.0/sql/statements'
-    : BACKUP_BASE
+  // The worker serves the Databricks proxy at ROOT (POST / → statements API);
+  // there is no /databricks-proxy/… route (it 404s on the vite dev server).
+  // Absolute URL — the worker serves CORS.
+  const apiPath = BACKUP_BASE
     
   let lastErr
   for (let i = 0; i < 5; i++) {

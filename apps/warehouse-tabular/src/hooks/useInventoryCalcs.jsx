@@ -3,7 +3,7 @@ import { useConfig } from '../context/ConfigContext'
 import { roundOrderQty } from '@inventory/utils/productTypes'
 
 export function useCalcs() {
-  const { config, sales, posWaste, data, stores } = useConfig()
+  const { config, sales, posWaste, data, stores, lhBalancesByStore } = useConfig()
 
   return useMemo(() => {
     const { ingredients, recipes } = config
@@ -209,6 +209,12 @@ export function useCalcs() {
     const getAdjDelta = (store, ingredientId) => adjDelta[store]?.[ingredientId] || 0
     
     const estimateCurrentStock = (store, ingredientId) => {
+      // View-prioritized: view_whs_stock (via lhBalancesByStore) is the
+      // authoritative current on-hand (audit + movements, maintained in the
+      // lakehouse). The local audit+tx+po calc below is only a fallback for
+      // pairs the view doesn't cover.
+      const viewed = lhBalancesByStore?.[store]?.[ingredientId]
+      if (viewed != null) return r1(viewed)
       const lastIngAudit = sortedAuditsByStore[store]?.filter(a => a.counts[ingredientId] != null)[0]
       const base = lastIngAudit?.counts[ingredientId] ?? 0
       return r1(base - (salesSinceLastAudit[store]?.[ingredientId] || 0) + (txSinceLastAudit[store]?.[ingredientId] || 0) + (poSinceLastAudit[store]?.[ingredientId] || 0))
@@ -299,5 +305,5 @@ export function useCalcs() {
       getActualConsumed, getUnexplainedVariance, getVariancePct,
       getVarianceWindow, getIngredientVarianceWindow, getLastAudit,
     }
-  }, [config, sales, data])
+  }, [config, sales, data, lhBalancesByStore])
 }

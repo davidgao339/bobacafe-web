@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '@inventory/data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
+import { LH_PUSH, runDatabricksSql, esc, fetchLh, fetchCurrentInventory } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '@inventory/components/SyncErrorToast'
 
@@ -36,6 +37,79 @@ function rowsToSales(rows) {
       quantity: Math.round(parseFloat(r.qty ?? r.quantity ?? 0)),
     }))
     .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// Fire-and-forget lakehouse push (spec §3, phase 6b). D1 write above is already
+// saved, so a failed push is logged and healed by the nightly MERGE sync.
+// Idempotent MERGEs mean a re-save never duplicates.
+function lhPush(settings, sqls) {
+  if (!settings?.token || !settings?.warehouseId || !sqls?.length) return
+  sqls.reduce((p, s) => p.then(() => runDatabricksSql(settings.token, settings.warehouseId, s)), Promise.resolve())
+    .catch(err => console.error('LH push failed (D1 write already saved):', err))
+}
+
+// Normalized PO lines (regular + custom) for lakehouse pushes
+function buildPoLines(po, ingredients) {
+  const reg = (po.lines || [])
+    .filter(l => (Number(l.ordered) || 0) > 0 || (Number(l.received) || 0) > 0)
+    .map(l => {
+      const ing = ingredients.find(i => i.id === l.ingredientId)
+      const unitCost = l.unitCost != null ? Number(l.unitCost) : (ing?.costPerUnit ?? ing?.lastPurchaseCost ?? 0)
+      return {
+        ingredientId: l.ingredientId, name: l.name || ing?.name || `Item #${l.ingredientId}`,
+        unit: l.unit || ing?.unit || '', isCustom: false,
+        ordered: Number(l.ordered) || 0, received: Number(l.received) || 0, unitCost,
+        totalCost: l.totalCost != null ? Number(l.totalCost) : unitCost * (Number(l.received) || Number(l.ordered) || 0),
+      }
+    })
+  const cust = (po.customLines || []).map(c => ({
+    ingredientId: null, name: c.name || 'One-off item', unit: c.unit || 'шт', isCustom: true,
+    ordered: Number(c.ordered) || 0, received: Number(c.received) || 0,
+    unitCost: c.unitCost != null ? Number(c.unitCost) : 0,
+    totalCost: c.totalCost != null ? Number(c.totalCost) : 0,
+  }))
+  return [...reg, ...cust]
+}
+
+// Normalized name key (recipe self-reference guard against the two-echelon DAG)
+function normNameKey(s) {
+  return String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+// Canonical recipe key resolution (product_id matched) — same rules as the
+// stores app; sync canonicalizes spellings LH-side (6c Gap A).
+function buildRecipeKeyResolver(dimProducts) {
+  const byId = new Map()
+  const byNorm = new Map()
+  for (const p of dimProducts || []) {
+    if (!p.productRu) continue
+    if (p.productId != null && !byId.has(Number(p.productId))) byId.set(Number(p.productId), p.productRu)
+    const k = normNameKey(p.productRu)
+    const prev = byNorm.get(k)
+    if (!prev || (p.isActive && !prev.isActive)) byNorm.set(k, p)
+  }
+  return row => {
+    if (row.product_id != null && byId.has(Number(row.product_id))) return byId.get(Number(row.product_id))
+    const hit = byNorm.get(normNameKey(row.recipe_product_name))
+    return (hit && hit.isActive) ? hit.productRu : row.recipe_product_name
+  }
+}
+
+// Statement API returns every value as a string; coerce numerics/booleans so
+// lakehouse rows match what queryD1 (Cloudflare worker) would have returned.
+const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'product_id', 'parent_product_id', 'productId', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
+const _BOOL = new Set(['is_active', 'isActive', 'is_modifier', 'isModifier', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
+function coerceLhRows(rows) {
+  return (rows || []).map(r => {
+    const out = {}
+    for (const [k, v] of Object.entries(r)) {
+      if (v === null || v === undefined) { out[k] = v; continue }
+      if (_BOOL.has(k)) { out[k] = (v === true || v === 'true' || v === 1 || v === '1') ? 1 : 0; continue }
+      if (_NUM.has(k)) { const n = Number(v); out[k] = Number.isFinite(n) ? n : v; continue }
+      out[k] = v
+    }
+    return out
+  })
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -96,10 +170,12 @@ async function idbRemove(key) {
 const ConfigContext = createContext(null)
 
 export function ConfigProvider({ children }) {
-  // Initialize with empty defaults, will populate from D1
+  // Initialize with empty defaults, will populate from the lakehouse
   const [config, setConfigState] = useState(() => ({
     ingredients: DEFAULT_INGREDIENTS,
     recipes: DEFAULT_RECIPES,
+    // Product master (read-only, lakehouse gold.dim_product): canonical recipe keys
+    dimProducts: [],
     unitPay: loadFromStorage(COOK_UNIT_PAY_KEY) || {},
     suppliers: [],
     _nextIngId: 1,
@@ -135,23 +211,46 @@ export function ConfigProvider({ children }) {
     return storeMapsRef.current.idToCode[storeId] || ''
   }, [])
 
-  // ─── D1 Tabular Data Loading ──────────────────────────────────────────────
+  // ─── Lakehouse Data Loading (6c: the read path; D1 only as no-credentials bootstrap)
   useEffect(() => {
-    async function loadFromD1() {
+    async function loadFromLh() {
       try {
-        const [storesRes, aliasesRes, ingRes, recRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes] = await Promise.all([
-          queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
-          queryD1('SELECT * FROM dim_store_aliases'),
-          queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
-          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
-          queryD1('SELECT * FROM suppliers'),
-          queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
-          queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
-          queryD1('SELECT * FROM fact_purchase_order_lines ORDER BY po_id, line_index ASC'),
-          queryD1('SELECT audit_id AS id, store_id AS storeId, store_code AS storeCode, audit_date AS date, audit_timestamp AS timestamp, status FROM fact_audit_headers ORDER BY audit_date DESC, audit_timestamp DESC'),
-          queryD1('SELECT audit_id, ingredient_id, count_quantity FROM fact_audit_counts'),
-          queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
-        ])
+        const useLh = Boolean(settings?.token && settings?.warehouseId)
+        const lh = qk => fetchLh(settings.token, settings.warehouseId, qk).then(coerceLhRows)
+
+        const [storesRes, aliasesRes, ingRes, recRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes, prodRes] = useLh
+          ? await Promise.all([
+              lh('stores'),
+              Promise.resolve([]),
+              lh('ingredients'),
+              lh('recipes'),
+              lh('suppliers'),
+              lh('transactions'),
+              lh('purchaseOrders'),
+              lh('poLines'),
+              lh('auditHeaders'),
+              lh('auditCounts'),
+              lh('cookUnitPay'),
+              // Product master is best-effort: a gold-schema permission error
+              // must not take down the whole load — the Recipes tab falls
+              // back to its legacy sales-derived universe.
+              lh('dimProduct').catch(() => []),
+            ])
+          : await Promise.all([
+              queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
+              queryD1('SELECT * FROM dim_store_aliases'),
+              queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
+              queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+              queryD1('SELECT * FROM suppliers'),
+              queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
+              queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
+              queryD1('SELECT * FROM fact_purchase_order_lines ORDER BY po_id, line_index ASC'),
+              queryD1('SELECT audit_id AS id, store_id AS storeId, store_code AS storeCode, audit_date AS date, audit_timestamp AS timestamp, status FROM fact_audit_headers ORDER BY audit_date DESC, audit_timestamp DESC'),
+              queryD1('SELECT audit_id, ingredient_id, count_quantity FROM fact_audit_counts'),
+              queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => []),
+              // No dim_product in D1 — Recipes tab falls back to sales cache
+              Promise.resolve([]),
+            ])
 
         const CANONICAL_UI_STORE_NAMES = {
           1: 'НОВО КП',
@@ -217,20 +316,42 @@ export function ConfigProvider({ children }) {
           supplierName: i.supplierName,
           hidden: Boolean(i.hidden),
           warehouseOnly: Boolean(i.warehouseOnly),
+          itemClass: i.itemClass || null,
           costPerUnit: i.costPerUnit != null ? Number(i.costPerUnit) : (i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0),
           lastPurchaseCost: i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0,
           wacCost30d: i.wacCost30d != null ? Number(i.wacCost30d) : 0,
         }))
 
+        // Product master (read-only from lakehouse). isActive default TRUE —
+        // dim_product rows with NULL is_active are live items. Built BEFORE
+        // recipes so fact rows key onto canonical dim_product spellings.
+        const toDimBool = v => v === 1 || v === true || v === 'true' || v === '1'
+        const dimProducts = (prodRes || []).filter(p => p.productRu).map(p => ({
+          productId: p.productId != null ? Number(p.productId) : null,
+          productRu: p.productRu,
+          parentProductId: p.parentProductId != null ? Number(p.parentProductId) : null,
+          parentProductEn: (p.parentProductEn || '').trim(),
+          variant: p.variant || 'Standard',
+          category: (p.category || '').trim() || 'Uncategorized',
+          subcategory: (p.subcategory || '').trim(),
+          isActive: p.isActive == null ? true : toDimBool(p.isActive),
+          isModifier: toDimBool(p.isModifier),
+          basePrice: p.basePrice != null ? Number(p.basePrice) : null,
+          cost: p.cost != null ? Number(p.cost) : null,
+        }))
+        const recipeKeyFor = buildRecipeKeyResolver(dimProducts)
+
         const recipes = {}
         recRes.forEach(r => {
-          if (!recipes[r.recipe_product_name]) recipes[r.recipe_product_name] = {}
-          recipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
+          const key = recipeKeyFor(r)
+          if (!recipes[key]) recipes[key] = {}
+          recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
         })
 
         setConfigState({
           ingredients,
           recipes,
+          dimProducts,
           unitPay,
           suppliers: suppRes,
           _nextIngId: Math.max(0, ...ingredients.map(i => i.id)) + 1,
@@ -340,13 +461,38 @@ export function ConfigProvider({ children }) {
 
         setIsD1Loaded(true)
       } catch (err) {
-        console.error("Failed to load tabular data from D1:", err)
+        console.error("Failed to load tabular data from the lakehouse:", err)
         alert(`Could not load tabular database. Running empty. Error: ${err.message}`)
         setIsD1Loaded(true)
       }
     }
-    loadFromD1()
+    loadFromLh()
   }, [])
+
+  // ─── WHS on-hand pull: echelon-enforced view, view-prioritized estimates ──
+  const [lhAllRows, setLhAllRows] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    setLhAllRows(null)
+    if (!settings?.token || !settings?.warehouseId) return
+    fetchCurrentInventory(settings.token, settings.warehouseId)
+      .then(rows => { if (!cancelled) setLhAllRows(rows || []) })
+      .catch(err => console.error('Lakehouse WHS balances fetch failed', err))
+    return () => { cancelled = true }
+  }, [settings?.token, settings?.warehouseId])
+
+  // Numeric on-hand per UI store name → ingredient_id → current_on_hand.
+  // WHS view has no store_code column — it IS the warehouse echelon, so key
+  // everything under the app's 'Warehouse' store name directly.
+  const lhBalancesByStore = useMemo(() => {
+    if (!lhAllRows) return null
+    const out = {}
+    ;(lhAllRows || []).forEach(r => {
+      const n = Number(r.current_on_hand)
+      ;(out['Warehouse'] ??= {})[r.ingredient_id] = Number.isFinite(n) ? n : 0
+    })
+    return out
+  }, [lhAllRows, isD1Loaded])
 
   // Async load sales cache from IDB
   useEffect(() => {
@@ -425,6 +571,16 @@ export function ConfigProvider({ children }) {
         }
       })
 
+      // 2b. Lakehouse push (spec §3): idempotent MERGE + counts replace
+      lhPush(settings, [
+        LH_PUSH.auditHeader({ auditId, storeId, storeCode, date, ts }),
+        ...LH_PUSH.auditCountsReplace(auditId, storeId, date, Object.entries(mergedCounts).map(([ingId, qty]) => ({
+          ingredientId: Number(ingId),
+          name: config.ingredients.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`,
+          qty: Number(qty),
+        }))),
+      ])
+
       // 3. Legacy audits table sync
       if (existing) {
         queryD1(`UPDATE audits SET counts = ?, timestamp = ? WHERE id = ?`, [JSON.stringify(mergedCounts), ts, existing.id]).catch(console.error)
@@ -446,6 +602,7 @@ export function ConfigProvider({ children }) {
     queryD1(`DELETE FROM fact_audit_headers WHERE audit_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM fact_audit_counts WHERE audit_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM audits WHERE id = ?`, [id]).catch(console.error)
+    lhPush(settings, [LH_PUSH.del('fact_audit_headers', `audit_id = '${id}'`), LH_PUSH.del('fact_audit_counts', `audit_id = '${id}'`)])
     setDataState(prev => ({ ...prev, audits: prev.audits.filter(a => a.id !== id) }))
   }, [])
 
@@ -466,6 +623,11 @@ export function ConfigProvider({ children }) {
       })
 
       queryD1(`UPDATE audits SET counts = ? WHERE id = ?`, [JSON.stringify(counts), id]).catch(console.error)
+      lhPush(settings, LH_PUSH.auditCountsReplace(id, audit.storeId, audit.date, Object.entries(counts).map(([ingId, qty]) => ({
+        ingredientId: Number(ingId),
+        name: config.ingredients.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`,
+        qty: Number(qty),
+      }))))
       return {
         ...prev,
         audits: prev.audits.map(a => a.id === id ? { ...a, counts } : a),
@@ -482,6 +644,7 @@ export function ConfigProvider({ children }) {
       `INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [newTx.id, storeId, storeCode, newTx.date, newTx.timestamp, newTx.type, newTx.ingredientId, newTx.ingredientName || '', newTx.quantity, newTx.poId || null, newTx.reason || null]
     ).catch(console.error)
+    lhPush(settings, [LH_PUSH.tx({ id: newTx.id, storeId, storeCode, date: newTx.date, ts: newTx.timestamp, type: newTx.type, ingredientId: newTx.ingredientId, ingredientName: newTx.ingredientName || '', qty: newTx.quantity, poId: newTx.poId, reason: newTx.reason })])
 
     queryD1(
       `INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
@@ -497,6 +660,7 @@ export function ConfigProvider({ children }) {
       toDelete.forEach(d => {
         queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [d.id]).catch(console.error)
         queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error)
+        lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${d.id}'`)])
       })
       return { ...prev, transactions: prev.transactions.filter(t => t.poId !== poId || t.type !== 'production') }
     })
@@ -508,6 +672,7 @@ export function ConfigProvider({ children }) {
       toDelete.forEach(d => {
         queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [d.id]).catch(console.error)
         queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error)
+        lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${d.id}'`)])
       })
       
       newTransactions.forEach(tx => {
@@ -517,6 +682,7 @@ export function ConfigProvider({ children }) {
           `INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [tx.id, storeId, storeCode, tx.date, tx.timestamp, tx.type, tx.ingredientId, tx.ingredientName || '', tx.quantity, tx.poId || null, tx.reason || null]
         ).catch(console.error)
+        lhPush(settings, [LH_PUSH.tx({ id: tx.id, storeId, storeCode, date: tx.date, ts: tx.timestamp, type: tx.type, ingredientId: tx.ingredientId, ingredientName: tx.ingredientName || '', qty: tx.quantity, poId: tx.poId, reason: tx.reason })])
 
         queryD1(
           `INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, reason, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
@@ -543,6 +709,7 @@ export function ConfigProvider({ children }) {
       toDelete.forEach(d => {
         queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [d.id]).catch(console.error)
         queryD1(`DELETE FROM transactions WHERE id = ?`, [d.id]).catch(console.error)
+        lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${d.id}'`)])
       })
       
       return { ...prev, transactions: prev.transactions.filter(t => t.id !== id && !isPairedLeg(t)) }
@@ -577,6 +744,12 @@ export function ConfigProvider({ children }) {
         po.supplierId || null
       ]
     ).catch(console.error)
+
+    // 1b. Lakehouse push (spec §3)
+    lhPush(settings, [
+      LH_PUSH.po({ poId: po.id, orderType, storeId, storeCode, fromStoreId, toStoreId, status: po.status || 'draft', receivedDate: po.receivedDate || (po.receivedAt ? po.receivedAt.split('T')[0] : null), receivedAt: po.receivedAt, createdDate: po.createdDate, sentDate: po.sentDate }),
+      ...LH_PUSH.poLinesReplace(po.id, buildPoLines(po, config.ingredients)),
+    ])
 
     // 2. D1 fact_purchase_order_lines
     queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [po.id]).catch(console.error)
@@ -685,6 +858,12 @@ export function ConfigProvider({ children }) {
         ]
       ).catch(console.error)
 
+      // 1b. Lakehouse push (spec §3)
+      lhPush(settings, [
+        LH_PUSH.po({ poId: id, orderType, storeId, storeCode, fromStoreId, toStoreId, status: updatedPo.status, receivedDate: updatedPo.receivedDate || (updatedPo.receivedAt ? updatedPo.receivedAt.split('T')[0] : null), receivedAt: updatedPo.receivedAt, createdDate: updatedPo.createdDate, sentDate: updatedPo.sentDate }),
+        ...(changes.lines || changes.customLines ? LH_PUSH.poLinesReplace(id, buildPoLines(updatedPo, config.ingredients)) : []),
+      ])
+
       // 2. If lines or customLines changed, update fact_purchase_order_lines
       if (changes.lines || changes.customLines) {
         queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [id]).catch(console.error)
@@ -748,6 +927,7 @@ export function ConfigProvider({ children }) {
           oldTxns.forEach(t => {
             queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [t.id]).catch(console.error)
             queryD1(`DELETE FROM transactions WHERE id = ?`, [t.id]).catch(console.error)
+            lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${t.id}'`)])
           })
           
           newTxns = newTxns.filter(t => t.poId !== id)
@@ -773,6 +953,10 @@ export function ConfigProvider({ children }) {
 
                 queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx1.id, tx1.store, tx1.date, tx1.type, tx1.ingredientId, tx1.quantity, tx1.poId, tx1.timestamp]).catch(console.error)
                 queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx2.id, tx2.store, tx2.date, tx2.type, tx2.ingredientId, tx2.quantity, tx2.poId, tx2.timestamp]).catch(console.error)
+                lhPush(settings, [
+                  LH_PUSH.tx({ id: tx1.id, storeId: fromId, storeCode: resolveStoreCode(fromId), date: tx1.date, ts: tx1.timestamp, type: tx1.type, ingredientId: tx1.ingredientId, ingredientName: l.name || '', qty: tx1.quantity, poId: tx1.poId }),
+                  LH_PUSH.tx({ id: tx2.id, storeId: toId, storeCode: resolveStoreCode(toId), date: tx2.date, ts: tx2.timestamp, type: tx2.type, ingredientId: tx2.ingredientId, ingredientName: l.name || '', qty: tx2.quantity, poId: tx2.poId }),
+                ])
                 
                 newTxns.push(tx1, tx2)
               }
@@ -796,6 +980,7 @@ export function ConfigProvider({ children }) {
     queryD1(`DELETE FROM fact_inventory_transactions WHERE po_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM purchase_orders WHERE id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM transactions WHERE poId = ?`, [id]).catch(console.error)
+    lhPush(settings, [LH_PUSH.del('fact_purchase_orders', `po_id = '${id}'`), LH_PUSH.del('fact_purchase_order_lines', `po_id = '${id}'`), LH_PUSH.del('fact_inventory_transactions', `po_id = '${id}'`)])
     
     setDataState(prev => ({
       ...prev,
@@ -809,6 +994,10 @@ export function ConfigProvider({ children }) {
     queryD1(`UPDATE purchase_orders SET receivedAt = ? WHERE id = ?`, [receivedAt, id]).catch(console.error)
     queryD1(`UPDATE fact_inventory_transactions SET transaction_date = ?, transaction_timestamp = ? WHERE po_id = ?`, [receivedDate, receivedAt, id]).catch(console.error)
     queryD1(`UPDATE transactions SET date = ? WHERE poId = ?`, [receivedDate, id]).catch(console.error)
+    lhPush(settings, [
+      LH_PUSH.upd('fact_purchase_orders', `received_date = '${esc(receivedDate)}', received_at = '${esc(receivedAt)}'`, `po_id = '${id}'`),
+      LH_PUSH.upd('fact_inventory_transactions', `transaction_date = '${esc(receivedDate)}', transaction_timestamp = '${esc(receivedAt)}'`, `po_id = '${id}'`),
+    ])
     
     setDataState(prev => ({
       ...prev,
@@ -826,6 +1015,7 @@ export function ConfigProvider({ children }) {
     queryD1(`UPDATE purchase_orders SET status = 'sent', receivedAt = NULL WHERE id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM fact_inventory_transactions WHERE po_id = ?`, [id]).catch(console.error)
     queryD1(`DELETE FROM transactions WHERE poId = ?`, [id]).catch(console.error)
+    lhPush(settings, [LH_PUSH.upd('fact_purchase_orders', `status = 'sent', received_date = NULL, received_at = NULL`, `po_id = '${id}'`), LH_PUSH.del('fact_inventory_transactions', `po_id = '${id}'`)])
     
     setDataState(prev => ({
       ...prev,
@@ -846,6 +1036,16 @@ export function ConfigProvider({ children }) {
       if (next.recipes !== prev.recipes) {
         for (const [product, mapping] of Object.entries(next.recipes)) {
           if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product])) {
+            // Two-echelon guard: a production BOM must never consume its own
+            // output (self-reference = the degenerate cycle).
+            const selfIngId = Object.keys(mapping).find(ingId => {
+              const ing = next.ingredients?.find(i => String(i.id) === String(ingId))
+              return ing && normNameKey(ing.name) === normNameKey(product)
+            })
+            if (selfIngId != null) {
+              console.error(`Recipe cycle blocked: production recipe '${product}' would consume itself (ingredient ${selfIngId})`)
+              continue
+            }
             queryD1(`DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = ? AND recipe_type = 'production'`, [product]).catch(console.error)
             Object.entries(mapping).forEach(([ingId, amt]) => {
               const ing = next.ingredients?.find(i => String(i.id) === String(ingId))
@@ -855,6 +1055,12 @@ export function ConfigProvider({ children }) {
               ).catch(console.error)
             })
             queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
+            // Attach the dim_product id (product_id-matched recipes): normalize
+            // match against the catalog; NULL when the product isn't in dim yet.
+            const dimHit = (next.dimProducts || []).find(p => p.productRu === product)
+            const dimHitNorm = dimHit ? null : (next.dimProducts || []).find(p => normNameKey(p.productRu) === normNameKey(product) && p.isActive)
+            const dimMatch = dimHit || dimHitNorm || null
+            lhPush(settings, LH_PUSH.recipeReplace(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: next.ingredients?.find(i => String(i.id) === String(ingId))?.name || `Item #${ingId}`, amt: Number(amt) })), dimMatch?.productId ?? null))
           }
         }
         const nextProducts = new Set(Object.keys(next.recipes))
@@ -862,6 +1068,7 @@ export function ConfigProvider({ children }) {
           if (!nextProducts.has(product)) {
             queryD1(`DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = ? AND recipe_type = 'production'`, [product]).catch(console.error)
             queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'production'`, [product]).catch(console.error)
+            lhPush(settings, [LH_PUSH.del('fact_recipe_ingredients', `recipe_product_name = '${esc(product)}' AND recipe_type = 'production'`)])
           }
         }
       }
@@ -877,6 +1084,7 @@ export function ConfigProvider({ children }) {
             ).catch(console.error)
             queryD1(`INSERT OR REPLACE INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
               [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0]).catch(console.error)
+            lhPush(settings, [LH_PUSH.ingredient(ing)])
           }
         }
         const nextIds = new Set(next.ingredients.map(i => i.id))
@@ -884,6 +1092,7 @@ export function ConfigProvider({ children }) {
           if (!nextIds.has(oldIng.id)) {
             queryD1(`DELETE FROM dim_ingredients WHERE ingredient_id = ?`, [oldIng.id]).catch(console.error)
             queryD1(`DELETE FROM ingredients WHERE id = ?`, [oldIng.id]).catch(console.error)
+            lhPush(settings, [LH_PUSH.del('dim_ingredients', `ingredient_id = ${oldIng.id}`)])
           }
         }
       }
@@ -893,10 +1102,20 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const refreshRecipes = useCallback(async () => {
-    const [recRes, payRes] = await Promise.all([
-      queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
-      queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => [])
-    ])
+    // 6c: Lakehouse is THE read path — no toggle.
+    const useLh = Boolean(settings?.token && settings?.warehouseId)
+    const [recRes, payRes, prodRes] = useLh
+      ? await Promise.all([
+          fetchLh(settings.token, settings.warehouseId, 'recipes').then(coerceLhRows),
+          fetchLh(settings.token, settings.warehouseId, 'cookUnitPay').then(coerceLhRows),
+          // Same best-effort contract as the initial load
+          fetchLh(settings.token, settings.warehouseId, 'dimProduct').then(coerceLhRows).catch(() => null),
+        ])
+      : await Promise.all([
+          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+          queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => []),
+          Promise.resolve(null),
+        ])
     let unitPayUpdate = null
     if (payRes && payRes.length > 0) {
       unitPayUpdate = {}
@@ -905,14 +1124,33 @@ export function ConfigProvider({ children }) {
       })
       saveToStorage(COOK_UNIT_PAY_KEY, unitPayUpdate)
     }
+    const toDimBool = v => v === 1 || v === true || v === 'true' || v === '1'
+    const dimProducts = (prodRes || []).filter(p => p.productRu).map(p => ({
+      productId: p.productId != null ? Number(p.productId) : null,
+      productRu: p.productRu,
+      parentProductId: p.parentProductId != null ? Number(p.parentProductId) : null,
+      parentProductEn: (p.parentProductEn || '').trim(),
+      variant: p.variant || 'Standard',
+      category: (p.category || '').trim() || 'Uncategorized',
+      subcategory: (p.subcategory || '').trim(),
+      isActive: p.isActive == null ? true : toDimBool(p.isActive),
+      isModifier: toDimBool(p.isModifier),
+      basePrice: p.basePrice != null ? Number(p.basePrice) : null,
+      cost: p.cost != null ? Number(p.cost) : null,
+    }))
+    const recipeKeyFor = buildRecipeKeyResolver(dimProducts)
     const recipes = {}
     recRes.forEach(r => {
-      if (!recipes[r.recipe_product_name]) recipes[r.recipe_product_name] = {}
-      recipes[r.recipe_product_name][r.ingredient_id] = Number(r.amount_per_serving) || 0
+      const key = recipeKeyFor(r)
+      if (!recipes[key]) recipes[key] = {}
+      recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
     })
     setConfigState(prev => ({
       ...prev,
       recipes,
+      // dimProduct fetch failed → keep whatever we already have; fresh rows →
+      // normalize with the same rules as the initial load.
+      ...(prodRes ? { dimProducts } : {}),
       ...(unitPayUpdate ? { unitPay: unitPayUpdate } : {})
     }))
   }, [])
@@ -924,9 +1162,11 @@ export function ConfigProvider({ children }) {
       if (!isNaN(numRate) && numRate >= 0) {
         nextUnitPay[productName] = numRate
         queryD1("INSERT OR REPLACE INTO dim_cook_unit_pay (product_name, pay_rate) VALUES (?, ?)", [productName, numRate]).catch(console.error)
+        lhPush(settings, [LH_PUSH.cookPay(productName, numRate)])
       } else {
         delete nextUnitPay[productName]
         queryD1("DELETE FROM dim_cook_unit_pay WHERE product_name = ?", [productName]).catch(console.error)
+        lhPush(settings, [LH_PUSH.cookPay(productName, null)])
       }
       saveToStorage(COOK_UNIT_PAY_KEY, nextUnitPay)
       queryD1("INSERT OR REPLACE INTO settings (key, value) VALUES ('cook_unit_pay', ?)", [JSON.stringify(nextUnitPay)]).catch(console.error)
@@ -1141,6 +1381,7 @@ export function ConfigProvider({ children }) {
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, toggleStoreVisibility: () => {},
       settings, saveSettings, updateOzonMapping, refreshSales,
+      lhBalancesByStore, lhConnected: Boolean(settings?.token && settings?.warehouseId),
       reportFrom, reportTo,
       exportConfig, importConfig,
       addSupplier, updateSupplier, deleteSupplier,

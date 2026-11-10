@@ -9,7 +9,6 @@ export default function SettingsModal({ onClose }) {
   const { settings, saveSettings } = useConfig()
   const [token, setToken] = useState(settings?.token || '')
   const [warehouseId, setWarehouseId] = useState(settings?.warehouseId || '959d56e804ae9b36')
-  const [dataSource, setDataSource] = useState(settings?.dataSource || 'd1')
   const [testing, setTesting] = useState(false)
   const [error, setError] = useState(null)
   const [ok, setOk] = useState(false)
@@ -18,7 +17,7 @@ export default function SettingsModal({ onClose }) {
     setTesting(true); setError(null); setOk(false)
     try {
       await runDatabricksSql(token.trim(), warehouseId.trim(), 'SELECT 1 AS ok')
-      saveSettings({ token: token.trim(), warehouseId: warehouseId.trim(), dataSource })
+      saveSettings({ token: token.trim(), warehouseId: warehouseId.trim() })
       setOk(true)
       setTimeout(() => window.location.reload(), 600)
     } catch (err) {
@@ -34,8 +33,8 @@ export default function SettingsModal({ onClose }) {
         <div>
           <h2 className="text-lg font-bold text-gray-900">Подключение к Lakehouse</h2>
           <p className="text-xs text-gray-500 mt-1">
-            После сохранения остатки и журнал (Ledger) берутся из lakehouse
-            (view_current_inventory / view_inventory_events_last_audit), а не из локального D1.
+            Все данные (остатки, журнал, каталог, документы) читаются напрямую из Databricks
+            (view_store_stock / view_inventory_events_last_audit). D1 используется только для записи-зеркала.
           </p>
         </div>
         <div>
@@ -47,22 +46,6 @@ export default function SettingsModal({ onClose }) {
           <label className="block text-sm font-medium text-gray-700 mb-1">SQL Warehouse ID</label>
           <input value={warehouseId} onChange={e => setWarehouseId(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Источник данных</label>
-          <div className="flex gap-2">
-            <button onClick={() => setDataSource('d1')}
-              className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${dataSource === 'd1' ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-              D1 (кэш, быстро)
-            </button>
-            <button onClick={() => setDataSource('lakehouse')}
-              className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${dataSource === 'lakehouse' ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-              Lakehouse (прямой)
-            </button>
-          </div>
-          <p className="text-[11px] text-gray-400 mt-1">
-            Lakehouse: все экраны читают напрямую из Databricks (D1 для чтения не нужен). Запись пока идёт в D1.
-          </p>
         </div>
         {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">{error}</p>}
         {ok && <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2">Подключение проверено — обновление…</p>}
