@@ -70,15 +70,26 @@ function LoginScreen({ onLogin }) {
 
 function AppRoot() {
   // Stores app uses its own auth key so it stays independent of the warehouse app on the same origin
-  const [role, setRole] = useState(() => localStorage.getItem('storesRole') || null)
+  // Session storage FIRST — freshest login signal wins; a stale persistent
+  // admin entry in localStorage must never shadow a store (employee) session.
+  const [role, setRole] = useState(() => sessionStorage.getItem('storesRole') || localStorage.getItem('storesRole') || null)
 
   const handleLogin = (newRole) => {
-    localStorage.setItem('storesRole', newRole)
+    sessionStorage.setItem('storesRole', newRole)
+    if (newRole === 'admin') {
+      // Admin keeps the persistent convenience session
+      localStorage.setItem('storesRole', newRole)
+    } else {
+      // Employee roles are tab sessions and must clear any stale persistent
+      // admin entry on this device
+      localStorage.removeItem('storesRole')
+    }
     setRole(newRole)
   }
 
   const handleLogout = () => {
     localStorage.removeItem('storesRole')
+    sessionStorage.removeItem('storesRole')
     setRole(null)
   }
 

@@ -33,10 +33,10 @@ export default function App() {
 function LoginScreen({ onLogin }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
-  const PINS = { 
-    admin: window.BC_PINS?.inv_admin || window.BC_PINS?.master || '7530', 
+  const PINS = {
+    admin: window.BC_PINS?.inv_admin || window.BC_PINS?.master || '7530',
     warehouse: window.BC_PINS?.warehouse || '8888',
-    cook: window.BC_PINS?.cook || '3344'
+    cook: window.BC_PINS?.cook || '1234'
   }
 
   const submit = () => {
@@ -73,10 +73,21 @@ function LoginScreen({ onLogin }) {
 }
 
 function AppRoot() {
-  const [role, setRole] = useState(() => localStorage.getItem('whRole') || sessionStorage.getItem('whRole') || null)
+  // Session storage FIRST — freshest login signal wins; a stale persistent
+  // admin entry in localStorage must never shadow a cook/warehouse session
+  // (same bug class as the audit app's 1234-vs-manager shadowing).
+  const [role, setRole] = useState(() => sessionStorage.getItem('whRole') || localStorage.getItem('whRole') || null)
 
   const handleLogin = (newRole) => {
-    localStorage.setItem('whRole', newRole)
+    sessionStorage.setItem('whRole', newRole)
+    if (newRole === 'admin') {
+      // Admin keeps the persistent convenience session
+      localStorage.setItem('whRole', newRole)
+    } else {
+      // Employee roles (cook/warehouse) are tab sessions and must clear any
+      // stale persistent admin entry on this device
+      localStorage.removeItem('whRole')
+    }
     setRole(newRole)
   }
 

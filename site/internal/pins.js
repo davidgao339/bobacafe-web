@@ -13,6 +13,6 @@ window.BC_PINS = {
   inv_manager:   '9876',  // inventory app — manager role (tab session)
   quick_count:   '1234',  // inventory app — quick count (branch baristas)
   warehouse:     '8888',  // warehouse & production app — warehouse manager
-  cook:          '3344',  // warehouse & production app — cook role
+  cook:          '1234',  // warehouse & production app — cook role
 };
 

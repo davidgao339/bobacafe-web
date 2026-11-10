@@ -720,7 +720,7 @@
         'warehouse': {
             url:    '/internal/warehouse/',
             pin:    _P.warehouse || '8888',
-            pins:   [_P.warehouse || '8888', _P.cook || '3344'],
+            pins:   [_P.warehouse || '8888', _P.cook || '1234'],
             label:  'Warehouse & Production',
             labelRu: 'Склад и производство',
             icon:   '📦',
@@ -800,11 +800,16 @@
         if (allowed.includes(pin)) {
             sessionStorage.setItem(SESSION_PREFIX + activeApp, '1');
             if (activeApp === 'warehouse') {
-                if (pin === (_P.cook || '3344')) {
-                    localStorage.setItem('whRole', 'cook');
+                if (pin === (_P.cook || '1234')) {
+                    // Employee roles are tab sessions and must not inherit a
+                    // stale persistent admin entry on this device
+                    sessionStorage.setItem('whRole', 'cook');
+                    localStorage.removeItem('whRole');
                 } else if (pin === (_P.warehouse || '8888')) {
-                    localStorage.setItem('whRole', 'warehouse');
+                    sessionStorage.setItem('whRole', 'warehouse');
+                    localStorage.removeItem('whRole');
                 } else {
+                    sessionStorage.setItem('whRole', 'admin');
                     localStorage.setItem('whRole', 'admin');
                 }
             } else if (activeApp === 'audit') {

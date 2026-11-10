@@ -738,7 +738,7 @@
         'warehouse': {
             url:    '/internal/warehouse/',
             pin:    _P.warehouse || '8888',
-            pins:   [_P.warehouse || '8888', _P.cook || '3344'],
+            pins:   [_P.warehouse || '8888', _P.cook || '1234'],
             label:  'Warehouse & Production',
             labelRu: 'Склад и производство',
             icon:   '📦',
@@ -746,7 +746,7 @@
         'warehouse-tabular': {
             url:    '/internal/warehouse-tabular/',
             pin:    _P.warehouse || '8888',
-            pins:   [_P.warehouse || '8888', _P.cook || '3344'],
+            pins:   [_P.warehouse || '8888', _P.cook || '1234'],
             label:  'Warehouse & Purchase Order',
             labelRu: 'Склад и заказы',
             icon:   '📦',
@@ -834,22 +834,32 @@
         if (allowed.includes(pin)) {
             sessionStorage.setItem(SESSION_PREFIX + activeApp, '1');
             if (activeApp === 'warehouse' || activeApp === 'warehouse-tabular') {
-                if (pin === (_P.cook || '3344')) {
-                    localStorage.setItem('whRole', 'cook');
+                if (pin === (_P.cook || '1234')) {
+                    // Employee roles are tab sessions and must not inherit a
+                    // stale persistent admin entry on this device
+                    sessionStorage.setItem('whRole', 'cook');
+                    localStorage.removeItem('whRole');
                 } else if (pin === (_P.warehouse || '8888')) {
-                    localStorage.setItem('whRole', 'warehouse');
+                    sessionStorage.setItem('whRole', 'warehouse');
+                    localStorage.removeItem('whRole');
                 } else {
+                    sessionStorage.setItem('whRole', 'admin');
                     localStorage.setItem('whRole', 'admin');
                 }
             } else if (activeApp === 'stores-tabular') {
                 if (pin === (_P.warehouse || '8888')) {
-                    localStorage.setItem('storesRole', 'store');
+                    sessionStorage.setItem('storesRole', 'store');
+                    localStorage.removeItem('storesRole');
                 } else {
+                    sessionStorage.setItem('storesRole', 'admin');
                     localStorage.setItem('storesRole', 'admin');
                 }
             } else if (activeApp === 'audit') {
                 if (pin === (_P.quick_count || '1234')) {
                     sessionStorage.setItem('audit_role', 'quick_count');
+                    // Barista session: drop any stale 30-day manager TTL so the
+                    // audit app cannot reopen the manager suite over it
+                    localStorage.removeItem('audit_role_info');
                 } else {
                     localStorage.setItem('audit_role_info', JSON.stringify({ role: 'manager', expires: Date.now() + 30 * 86400000 }));
                     sessionStorage.setItem('audit_role', 'manager');
