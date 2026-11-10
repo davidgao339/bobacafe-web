@@ -265,6 +265,11 @@ def main():
     # Build product name lookup map: case/whitespace-insensitive keys
     # (spelling drift like 'Бабл-ти  Лаймовый' or 'моти манго' vs 'Моти Манго'),
     # preferring ACTIVE rows so folded dedup duplicates lose gracefully.
+    # NOTE: no alias table here by design — bronze
+    # (workspace.default.transactions) is rewritten to canonical spellings by
+    # scripts/normalize_bronze_product_names.py; spellings that still miss dim
+    # are REPORTED below (they loaded with NULL product ids) so drift is
+    # visible the morning after a POS typo, not hidden behind an alias.
     def _key(name):
         return re.sub(r"\s+", " ", str(name or '').lower().replace('ё', 'е')).strip()
 
@@ -283,17 +288,7 @@ def main():
         if existing is None or (info["_active"] and not existing["_active"]):
             prod_lookup[_key(p_ru)] = info
 
-    # Custom name aliases for known slight name differences
-    prod_aliases = {
-        "корн-дог сыр": "корн-дог с сыром",
-        "моти банан-шоколад": "моти банан в шоколаде",
-        "блинчики нутелла (2шт)": "блинчики с нутеллой (2шт)",
-        "желтый какаду (шарики не включены)": "желтый какаду",
-        "красный шторм коктейль": "красный шторм",
-    }
-    for alias_src, alias_dst in prod_aliases.items():
-        if _key(alias_dst) in prod_lookup and _key(alias_src) not in prod_lookup:
-            prod_lookup[_key(alias_src)] = prod_lookup[_key(alias_dst)]
+    unresolved_product_names = {}  # name -> row count; reported after the load
 
     # ─── TABLE 1: dim_stores ─────────────────────────────────────────────────
     print("\n[Step 4/9] Creating and loading dim_stores...")
@@ -372,6 +367,8 @@ def main():
                 rates = json.loads(setting["value"])
                 for pname, rate in rates.items():
                     prod_info = prod_lookup.get(_key(pname), {})
+                    if not prod_info:
+                        unresolved_product_names[pname] = unresolved_product_names.get(pname, 0) + 1
                     p_id = prod_info.get("product_id")
                     parent_p_id = prod_info.get("parent_product_id")
                     cook_pay_rows.append([pname, p_id, parent_p_id, float(rate)])
@@ -410,6 +407,8 @@ def main():
             continue
         
         prod_info = prod_lookup.get(_key(pname), {})
+        if not prod_info:
+            unresolved_product_names[pname] = unresolved_product_names.get(pname, 0) + 1
         p_id = prod_info.get("product_id")
         parent_p_id = prod_info.get("parent_product_id")
 
@@ -762,7 +761,7 @@ def main():
         ) AS gross_margin_pct
     FROM workspace.gold.dim_product p
     JOIN {table_recipes} r 
-      ON LOWER(TRIM(p.product_ru)) = LOWER(TRIM(r.recipe_product_name))
+      ON r.product_id IS NOT NULL AND r.product_id = p.product_id
     JOIN {view_wac} w 
       ON r.ingredient_id = w.ingredient_id
     GROUP BY 
@@ -774,6 +773,17 @@ def main():
     print("\n" + "=" * 70)
     print("MIGRATION COMPLETED! RUNNING RECONCILIATION VERIFICATION...")
     print("=" * 70)
+
+    # Drift report: product names from D1 that resolved to no active dim row.
+    # With bronze normalized these should only ever be API contract changes /
+    # genuinely unknown spellings — if this list is non-empty, a name is
+    # missing from dim_product or POS/menu started writing a new spelling.
+    if unresolved_product_names:
+        print("\n⚠ UNRESOLVED product names (loaded with NULL product_id) — resolve in dim_product/menu:")
+        for name, cnt in sorted(unresolved_product_names.items(), key=lambda x: -x[1]):
+            print(f"  {name!r} (x{cnt})")
+    else:
+        print("\n✓ All product names resolved to dim_product ids (0 unresolved)")
 
     tables_to_verify = [
         "dim_stores",
