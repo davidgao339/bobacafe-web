@@ -291,7 +291,8 @@ def main():
     audit_h_count = query_d1("SELECT COUNT(*) as c FROM fact_audit_headers")[0]["c"]
     print(f"  ✓ fact_audit_headers: {audit_h_count} rows seeded")
 
-    # Seed fact_audit_counts (filtering out 0 counts)
+    # Seed fact_audit_counts (explicit 0 counts kept: zero = counted, nothing left;
+    # absence of a row = not counted)
     query_d1("""
     INSERT OR REPLACE INTO fact_audit_counts (audit_id, store_id, audit_date, ingredient_id, ingredient_name, count_quantity)
     SELECT 
@@ -305,7 +306,7 @@ def main():
     JOIN json_each(a.counts) j
     LEFT JOIN dim_store_aliases sa ON TRIM(a.store) = sa.alias_name
     LEFT JOIN ingredients i ON CAST(j.key AS INTEGER) = i.id
-    WHERE json_valid(a.counts) AND CAST(j.value AS REAL) > 0
+    WHERE json_valid(a.counts) AND json_type(j.value) IN ('integer', 'real')
     """)
     audit_c_count = query_d1("SELECT COUNT(*) as c FROM fact_audit_counts")[0]["c"]
     print(f"  ✓ fact_audit_counts: {audit_c_count} rows seeded")
@@ -461,7 +462,7 @@ def main():
             COALESCE((SELECT ingredient_name FROM dim_ingredients WHERE ingredient_id = CAST(j.key AS INTEGER)), 'Ingredient #' || j.key),
             CAST(j.value AS REAL)
         FROM json_each(NEW.counts) j
-        WHERE json_valid(NEW.counts) AND CAST(j.value AS REAL) > 0;
+        WHERE json_valid(NEW.counts) AND json_type(j.value) IN ('integer', 'real');
     END
     """)
 
@@ -490,7 +491,7 @@ def main():
             COALESCE((SELECT ingredient_name FROM dim_ingredients WHERE ingredient_id = CAST(j.key AS INTEGER)), 'Ingredient #' || j.key),
             CAST(j.value AS REAL)
         FROM json_each(NEW.counts) j
-        WHERE json_valid(NEW.counts) AND CAST(j.value AS REAL) > 0;
+        WHERE json_valid(NEW.counts) AND json_type(j.value) IN ('integer', 'real');
     END
     """)
 

@@ -191,7 +191,7 @@ function CountTab({ store, date, setDate }) {
                       </div>
                       <div className="flex items-center justify-between mt-1 pt-2 border-t border-gray-50">
                         <span className="text-xs text-gray-500 font-medium">{product.unit}</span>
-                        <input type="number" min="0" step="0.1" placeholder="0" value={val}
+                        <input type="number" min="0" step="0.1" placeholder="—" value={val}
                           onChange={e => handleChange(product.id, e.target.value)}
                           className="w-24 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums text-right font-semibold bg-gray-50 focus:bg-white" />
                       </div>

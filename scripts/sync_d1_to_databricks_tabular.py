@@ -646,8 +646,9 @@ def main():
             try:
                 ing_id = int(ing_id_str)
                 qty_val = float(qty)
-                # Filter zero counts strictly
-                if qty_val > 0:
+                # Keep explicit 0 counts: a zero row means "counted, nothing left".
+                # Absence of a row (not a zero) means "not counted" — NULL semantics.
+                if qty_val >= 0:
                     ing_name = ing_name_map.get(ing_id, f"Ingredient #{ing_id}")
                     audit_counts_rows.append([audit_id, store_id, audit_date, ing_id, ing_name, qty_val])
             except Exception:

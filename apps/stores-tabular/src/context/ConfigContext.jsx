@@ -474,7 +474,9 @@ export function ConfigProvider({ children }) {
         const countsByAudit = {}
         audCountsRes.forEach(c => {
           if (!countsByAudit[c.audit_id]) countsByAudit[c.audit_id] = {}
-          countsByAudit[c.audit_id][c.ingredient_id] = Number(c.count_quantity) || 0
+          // Zero = counted, nothing left; a NULL count_quantity (shouldn't exist,
+        // but be safe) must not masquerade as a counted zero.
+        countsByAudit[c.audit_id][c.ingredient_id] = c.count_quantity == null ? null : Number(c.count_quantity)
         })
 
         const audits = audHeadersRes.map(h => ({
@@ -630,11 +632,12 @@ export function ConfigProvider({ children }) {
         [auditId, storeId, storeCode, date, ts]
       ).catch(console.error)
 
-      // 2. D1 fact_audit_counts
+      // 2. D1 fact_audit_counts — explicit 0 counts ARE written (zero = counted,
+      // nothing left); absence of a row = not counted (NULL semantics).
       const mergedCounts = existing ? { ...existing.counts, ...counts } : counts
       queryD1(`DELETE FROM fact_audit_counts WHERE audit_id = ?`, [auditId]).catch(console.error)
       Object.entries(mergedCounts).forEach(([ingId, qty]) => {
-        if (Number(qty) > 0) {
+        if (Number.isFinite(Number(qty))) {
           const ing = config.ingredients.find(i => String(i.id) === String(ingId))
           queryD1(
             `INSERT INTO fact_audit_counts (audit_id, store_id, audit_date, ingredient_id, ingredient_name, count_quantity) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -685,7 +688,8 @@ export function ConfigProvider({ children }) {
 
       queryD1(`DELETE FROM fact_audit_counts WHERE audit_id = ?`, [id]).catch(console.error)
       Object.entries(counts).forEach(([ingId, qty]) => {
-        if (Number(qty) > 0) {
+        // Explicit 0 counts ARE written (zero = counted, nothing left).
+        if (Number.isFinite(Number(qty))) {
           const ing = config.ingredients.find(i => String(i.id) === String(ingId))
           queryD1(
             `INSERT INTO fact_audit_counts (audit_id, store_id, audit_date, ingredient_id, ingredient_name, count_quantity) VALUES (?, ?, ?, ?, ?, ?)`,

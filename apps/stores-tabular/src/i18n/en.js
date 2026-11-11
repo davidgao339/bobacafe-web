@@ -113,7 +113,7 @@ const en = {
   'audit.clearAll':          'Clear all',
   'audit.fillFromLast':      'Fill from last audit',
   'audit.saveAudit':         'Save Audit',
-  'audit.unfilledNote':      'Unfilled rows are saved as not counted',
+  'audit.unfilledNote':      'Blank = not counted (ignored). Enter 0 only when nothing is left',
   'audit.savedFor':          'Audit saved for {{store}}',
   'audit.existingWarning':   'An audit for {{store}} on {{date}} already exists — saving will merge your new counts into it.',
   'audit.noAuditsYet':       'No audits recorded yet',
