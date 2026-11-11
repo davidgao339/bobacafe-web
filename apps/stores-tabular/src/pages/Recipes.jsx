@@ -516,11 +516,17 @@ function RecipesTab() {
     return d.toISOString().slice(0, 10)
   })()
 
-  const hasRecipe = (name) => productionRecipeFor(name) != null || soldAsFor(name) != null
+  const hasRecipe = (name) =>
+    productionRecipeFor(name) != null || soldAsFor(name) != null || retailRecipeFor(name) != null
   const soldRecently = (name) => {
     const d = soldDates[name]
     return d != null && d >= weekAgo
   }
+
+  // Recipe editor works on the FULL dim_ingredients list (allIngredients):
+  // production consumes warehouse-only raw materials (flour, cream cheese…),
+  // so the store-facing filtered list would hide most of the recipe.
+  const allIngredients = config.allIngredients?.length ? config.allIngredients : config.ingredients
 
   // ── Two-echelon recipe visibility ──────────────────────────────────────────
   // Production recipe = the product is manufactured at the warehouse (WHS).
@@ -529,13 +535,24 @@ function RecipesTab() {
   // A retail recipe WITHOUT production = ordinary in-store drink: a sale
   // consumes the recipe's ingredients directly at the store (read-only here —
   // retail recipes are authored in the manager inventory app).
+  // A retail recipe whose lines are ALL finished goods is a sold-as marker
+  // (WHS-made product transferred to stores), even if the production recipe
+  // is missing — such products must not display as in-store drinks.
+  const isSoldAsMarker = (r) => Object.keys(r).every(id => {
+    const ing = allIngredients.find(i => i.id === Number(id))
+    return ing?.itemClass === 'finished'
+  })
   const productionRecipeFor = (name) => {
     const r = config.recipes?.[name]
     return r && Object.values(r).some(q => q > 0) ? r : null
   }
   const soldAsFor = (name) => {
     const r = config.salesRecipes?.[name]
-    return r && Object.keys(r).length > 0 ? r : null
+    return r && Object.keys(r).length > 0 && isSoldAsMarker(r) ? r : null
+  }
+  const retailRecipeFor = (name) => {
+    const r = config.salesRecipes?.[name]
+    return r && Object.keys(r).length > 0 && !isSoldAsMarker(r) ? r : null
   }
   const soldAsText = (soldAs) => Object.entries(soldAs).map(([id, qty]) => {
     const ing = allIngredients.find(i => i.id === Number(id))
@@ -544,7 +561,7 @@ function RecipesTab() {
   const recipeCountFor = (name) => {
     const prod = productionRecipeFor(name)
     if (prod) return Object.values(prod).filter(q => q > 0).length
-    const retail = soldAsFor(name)
+    const retail = retailRecipeFor(name)
     return retail ? Object.keys(retail).length : 0
   }
 
@@ -621,17 +638,14 @@ function RecipesTab() {
     ? groups.reduce((n, g) => n + g.children.filter(c => !hasRecipe(c.productRu)).length, 0)
     : legacyDisplayed.filter(p => !hasRecipe(p.productRu)).length
 
-  // Recipe editor works on the FULL dim_ingredients list (allIngredients):
-  // production consumes warehouse-only raw materials (flour, cream cheese…),
-  // so the store-facing filtered list would hide most of the recipe.
-  const allIngredients = config.allIngredients?.length ? config.allIngredients : config.ingredients
   const selectedRecipe    = config.recipes[selected] ?? {}
   const selectedProduction = selected ? productionRecipeFor(selected) : null
   const selectedSoldAs = selected ? soldAsFor(selected) : null
-  // Display recipe: WHS-made products show a note instead of their hidden
-  // production recipe (displayRecipe stays empty); ordinary drinks show their
-  // retail (in-store) recipe.
-  const displayRecipe = selectedProduction ? {} : (selectedSoldAs ?? {})
+  const selectedRetail = selected ? retailRecipeFor(selected) : null
+  // Display recipe: WHS-made products (production recipe, or a sold-as marker
+  // in lieu of one) show a note instead; ordinary drinks show their retail
+  // (in-store) recipe.
+  const displayRecipe = (selectedProduction || selectedSoldAs) ? {} : (selectedRetail ?? {})
   const recipeIngredients = allIngredients.filter(i => (displayRecipe[i.id] ?? 0) > 0)
   const unusedIngredients = allIngredients.filter(i => !((displayRecipe[i.id] ?? 0) > 0))
   const selectedProductUnit = allIngredients.find(i => i.name === selected)?.unit || 'ед.'
@@ -827,7 +841,7 @@ function RecipesTab() {
                           selected={selected === p.productRu}
                           indent={hasVariants}
                           recipeCount={recipeCountFor(p.productRu)}
-                          soldAsBadge={Boolean(productionRecipeFor(p.productRu))}
+                          soldAsBadge={Boolean(productionRecipeFor(p.productRu) || soldAsFor(p.productRu))}
                           soldRecently={soldRecently(p.productRu)}
                           unitPay={config.unitPay?.[p.productRu]}
                           onSelect={() => handleSelectProduct(p.productRu)}
@@ -843,7 +857,7 @@ function RecipesTab() {
                     dim={null}
                     selected={selected === p.productRu}
                     recipeCount={recipeCountFor(p.productRu)}
-                    soldAsBadge={Boolean(productionRecipeFor(p.productRu))}
+                    soldAsBadge={Boolean(productionRecipeFor(p.productRu) || soldAsFor(p.productRu))}
                     soldRecently={soldRecently(p.productRu)}
                     unitPay={config.unitPay?.[p.productRu]}
                     onSelect={() => handleSelectProduct(p.productRu)}
@@ -875,7 +889,7 @@ function RecipesTab() {
                       {t('recipes.notInCatalog')}
                     </span>
                   )}
-                  {selectedSoldAs && !selectedProduction && (
+                  {selectedRetail && !selectedProduction && (
                     <span title={t('recipes.viewingRetail')}
                       className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
                       {t('recipes.retailBadge')}
@@ -887,7 +901,7 @@ function RecipesTab() {
                     ? [selectedDim.category, selectedDim.variant].filter(Boolean).join(' · ') + ` · ${t('recipes.parentProductEnShort')}: ${selectedDim.parentProductEn || '—'}`
                     : selectedIsOrphan
                       ? t('recipes.orphanHint')
-                      : selectedSoldAs && !selectedProduction
+                      : selectedRetail && !selectedProduction
                         ? t('recipes.viewingRetail')
                         : editing
                           ? 'Editing Production Recipe'
@@ -967,7 +981,7 @@ function RecipesTab() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {selectedProduction ? (
+            {(selectedProduction || selectedSoldAs) ? (
               /* WHS-made product: production recipe is hidden — it is managed
                  in the Warehouse & Production app. Show what the sale consumes. */
               <div className="px-5 py-8">
@@ -982,6 +996,9 @@ function RecipesTab() {
                         ? t('recipes.whsMadeNote', { ingredient: soldAsText(selectedSoldAs) })
                         : t('recipes.whsMadePlain')}
                   </p>
+                  {selectedSoldAs && !selectedProduction && !selectedIsOrphan && (
+                    <p className="text-xs text-amber-700 mt-2">{t('recipes.whsProdMissing')}</p>
+                  )}
                 </div>
               </div>
             ) : draftIngredients.length === 0 && !adding ? (

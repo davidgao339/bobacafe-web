@@ -213,6 +213,7 @@ const en = {
   'recipes.whsMadePlain':     'This product is produced at the warehouse (WHS) — its production recipe is managed in the Warehouse & Production app.',
   'recipes.viewingRetail':    'In-store sales recipe — read-only',
   'recipes.retailBadge':      'in-store · read-only',
+  'recipes.whsProdMissing':   'Its production recipe is not defined yet — warehouse production costing will be incomplete. Define it in the Warehouse & Production app.',
   'recipes.noRecipeFilter':   'No recipe',
   'recipes.noMatch':          'No products match',
   'recipes.missing':          '{{count}} missing',
