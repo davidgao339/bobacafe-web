@@ -403,6 +403,25 @@ const en = {
   'recipes.unitPay':            'Cook Pay Rate',
   'recipes.unitPayHint':        'Piece-rate paid to cook per 1 unit produced',
   'recipes.noRate':             'No rate set',
+
+  // Recipes tab — two-echelon rework (dim_product catalog, retail reference)
+  'recipes.whsMadeBadge':       'WHS · warehouse',
+  'recipes.whsMadeNote':        'Stores sell this product as the finished good {{ingredient}} — a store sale decrements that finished good only, never the raw materials. The production recipe below is how the warehouse makes it.',
+  'recipes.whsMadeOrphan':      'Stores sell this product as a warehouse-made finished good, but the production recipe is not in the dim_product catalog. Fix the product_ru spelling in menu-manager to link it.',
+  'recipes.whsProdMissing':     'No production recipe yet — define it here so the warehouse can produce this product.',
+  'recipes.viewingRetail':      'In-store sales recipe — read-only reference',
+  'recipes.retailBadge':        'in-store · reference',
+  'recipes.catalog':            'Catalog: dim_product',
+  'recipes.catalogOffline':     'Lakehouse not connected — showing the legacy POS-cache product list. Connect the lakehouse in ⚙ Settings to work from the managed dim_product catalog.',
+  'recipes.catalogNoData':      'dim_product not loaded (check your lakehouse token permissions for workspace.gold) — showing the legacy POS-cache product list.',
+  'recipes.noRecentSales':      'No sales in the last 7 days',
+  'recipes.filterNoRecentSales': 'Stale',
+  'recipes.chipOrphans':        'Not in catalog',
+  'recipes.notInCatalog':       'Not in dim_product',
+  'recipes.orphanHint':         'Recipe is saved and live. It links to the catalog automatically once this product is added to dim_product in menu-manager — the new product_ru must exactly match this POS name.',
+  'recipes.orphanListHint':     'POS names with no dim_product entry. Fix in menu-manager: add the product with product_ru exactly matching the POS name, and the recipe links automatically — no recipe changes needed.',
+  'recipes.deleteRecipe':       'Delete recipe',
+  'recipes.parentProductEnShort': 'Catalog group',
 }
 
 export default en

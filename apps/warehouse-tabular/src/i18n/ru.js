@@ -403,6 +403,25 @@ const ru = {
   'recipes.unitPay':            'Оплата повару за единицу',
   'recipes.unitPayHint':        'Сдельная оплата повару за 1 ед. произведённой продукции',
   'recipes.noRate':             'Ставка не задана',
+
+  // Recipes tab — two-echelon rework (dim_product catalog, retail reference)
+  'recipes.whsMadeBadge':       'WHS · склад',
+  'recipes.whsMadeNote':        'Магазины продают этот продукт как готовый {{ingredient}} — продажа в магазине списывает только этот готовый продукт, сырьё не затрагивает. Производственный рецепт ниже — то, как склад это производит.',
+  'recipes.whsMadeOrphan':      'Магазины продают этот продукт как складской готовый продукт, но производственный рецепт не связан с каталогом dim_product. Исправьте написание product_ru в menu-manager, чтобы связать.',
+  'recipes.whsProdMissing':     'Производственный рецепт пока не задан — задайте его здесь, чтобы склад мог производить этот продукт.',
+  'recipes.viewingRetail':      'Рецепт продажи (в магазине) — справочный, только просмотр',
+  'recipes.retailBadge':        'магазин · справочно',
+  'recipes.catalog':            'Каталог: dim_product',
+  'recipes.catalogOffline':     'Lakehouse не подключён — показан прежний список из кэша продаж POS. Подключите lakehouse в ⚙ Настройках, чтобы работать с управляемым каталогом dim_product.',
+  'recipes.catalogNoData':      'dim_product не загружен (проверьте права токена lakehouse на workspace.gold) — показан прежний список из кэша продаж POS.',
+  'recipes.noRecentSales':      'Нет продаж за последние 7 дней',
+  'recipes.filterNoRecentSales': 'Без продаж',
+  'recipes.chipOrphans':        'Не в каталоге',
+  'recipes.notInCatalog':       'Нет в dim_product',
+  'recipes.orphanHint':         'Рецепт сохранён и работает. Он привяжется к каталогу автоматически, как только этот продукт добавят в dim_product в menu-manager — новый product_ru должен точно совпадать с этим названием в POS.',
+  'recipes.orphanListHint':     'Названия POS, которых нет в dim_product. Исправляется в menu-manager: добавьте продукт с product_ru, точно совпадающим с названием POS, — рецепт привяжется автоматически, сам рецепт менять не нужно.',
+  'recipes.deleteRecipe':       'Удалить рецепт',
+  'recipes.parentProductEnShort': 'Группа каталога',
 }
 
 export default ru

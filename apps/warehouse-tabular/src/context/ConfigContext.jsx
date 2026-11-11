@@ -173,7 +173,13 @@ export function ConfigProvider({ children }) {
   // Initialize with empty defaults, will populate from the lakehouse
   const [config, setConfigState] = useState(() => ({
     ingredients: DEFAULT_INGREDIENTS,
+    // Full dim_ingredients list (warehouse sees everything incl. WHS-only raws).
+    // Recipes editor consumes this; equals `ingredients` in the warehouse app.
+    allIngredients: DEFAULT_INGREDIENTS,
     recipes: DEFAULT_RECIPES,
+    // Retail (in-store) recipes: drink recipes + sold-as markers, read-only
+    // reference on the Recipes tab; drives POS-sales consumption elsewhere.
+    salesRecipes: DEFAULT_RECIPES,
     // Product master (read-only, lakehouse gold.dim_product): canonical recipe keys
     dimProducts: [],
     unitPay: loadFromStorage(COOK_UNIT_PAY_KEY) || {},
@@ -218,12 +224,13 @@ export function ConfigProvider({ children }) {
         const useLh = Boolean(settings?.token && settings?.warehouseId)
         const lh = qk => fetchLh(settings.token, settings.warehouseId, qk).then(coerceLhRows)
 
-        const [storesRes, aliasesRes, ingRes, recRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes, prodRes] = useLh
+        const [storesRes, aliasesRes, ingRes, recRes, recRetailRes, suppRes, txRes, posRes, linesRes, audHeadersRes, audCountsRes, payRes, prodRes] = useLh
           ? await Promise.all([
               lh('stores'),
               Promise.resolve([]),
               lh('ingredients'),
               lh('recipes'),
+              lh('recipesRetail'),
               lh('suppliers'),
               lh('transactions'),
               lh('purchaseOrders'),
@@ -241,6 +248,7 @@ export function ConfigProvider({ children }) {
               queryD1('SELECT * FROM dim_store_aliases'),
               queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
               queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+              queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
               queryD1('SELECT * FROM suppliers'),
               queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
               queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
@@ -348,9 +356,22 @@ export function ConfigProvider({ children }) {
           recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
         })
 
+        // Retail (in-store) recipes: drinks consumed directly at a store, plus
+        // sold-as markers for WHS-made products (all-finished-good lines). The
+        // Recipes tab shows them read-only; production recipes above stay the
+        // warehouse-managed primary.
+        const salesRecipes = {}
+        ;(recRetailRes || []).forEach(r => {
+          const key = recipeKeyFor(r)
+          if (!salesRecipes[key]) salesRecipes[key] = {}
+          salesRecipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
+        })
+
         setConfigState({
           ingredients,
+          allIngredients: ingredients,
           recipes,
+          salesRecipes,
           dimProducts,
           unitPay,
           suppliers: suppRes,
@@ -1108,15 +1129,17 @@ export function ConfigProvider({ children }) {
   const refreshRecipes = useCallback(async () => {
     // 6c: Lakehouse is THE read path — no toggle.
     const useLh = Boolean(settings?.token && settings?.warehouseId)
-    const [recRes, payRes, prodRes] = useLh
+    const [recRes, recRetailRes, payRes, prodRes] = useLh
       ? await Promise.all([
           fetchLh(settings.token, settings.warehouseId, 'recipes').then(coerceLhRows),
+          fetchLh(settings.token, settings.warehouseId, 'recipesRetail').then(coerceLhRows),
           fetchLh(settings.token, settings.warehouseId, 'cookUnitPay').then(coerceLhRows),
           // Same best-effort contract as the initial load
           fetchLh(settings.token, settings.warehouseId, 'dimProduct').then(coerceLhRows).catch(() => null),
         ])
       : await Promise.all([
           queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
+          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
           queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => []),
           Promise.resolve(null),
         ])
@@ -1149,9 +1172,17 @@ export function ConfigProvider({ children }) {
       if (!recipes[key]) recipes[key] = {}
       recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
     })
+    const salesRecipes = {}
+    ;(recRetailRes || []).forEach(r => {
+      const key = recipeKeyFor(r)
+      if (!salesRecipes[key]) salesRecipes[key] = {}
+      salesRecipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
+    })
     setConfigState(prev => ({
       ...prev,
       recipes,
+      salesRecipes,
+      allIngredients: prev.ingredients,
       // dimProduct fetch failed → keep whatever we already have; fresh rows →
       // normalize with the same rules as the initial load.
       ...(prodRes ? { dimProducts } : {}),

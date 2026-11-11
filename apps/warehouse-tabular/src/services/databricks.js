@@ -85,6 +85,10 @@ export const LH_QUERIES = {
   stores: `SELECT store_id, store_code, store_name, store_name_en, city, store_type, is_active FROM ${T('dim_stores')} ORDER BY store_id ASC`,
   ingredients: `SELECT i.ingredient_id AS id, i.ingredient_name AS name, i.unit, i.product_type AS productType, i.supplier_id AS supplierId, i.supplier_name AS supplierName, i.is_warehouse_only AS warehouseOnly, i.is_hidden AS hidden, i.cost_per_unit AS costPerUnit, i.item_class AS itemClass, i.last_purchase_cost AS lastPurchaseCost, w.effective_unit_cost AS wacCost30d FROM ${T('dim_ingredients')} i LEFT JOIN ${T('view_ingredient_wac_30d')} w ON w.ingredient_id = i.ingredient_id`,
   recipes: `SELECT recipe_product_name, product_id, ingredient_id, amount_per_serving FROM ${T('fact_recipe_ingredients')} WHERE recipe_type = 'production'`,
+  // Retail (in-store sales) recipes: drinks consumed directly at a store, and
+  // sold-as markers for WHS-made products (all-finished-good lines). The
+  // warehouse Recipes tab shows these read-only — the stores app manages them.
+  recipesRetail: `SELECT recipe_product_name, product_id, ingredient_id, amount_per_serving FROM ${T('fact_recipe_ingredients')} WHERE recipe_type = 'retail'`,
   suppliers: `SELECT DISTINCT supplier_id AS id, supplier_name AS name FROM ${T('dim_ingredients')} WHERE supplier_id IS NOT NULL ORDER BY id ASC`,
   transactions: `SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM ${T('fact_inventory_transactions')} ORDER BY transaction_date DESC, transaction_timestamp DESC`,
   purchaseOrders: `SELECT po_id, order_type, store_id, store_code, from_store_id, to_store_id, status, received_date, received_at, created_date, sent_date, CAST(NULL AS INT) AS supplier_id FROM ${T('fact_purchase_orders')} ORDER BY po_id DESC`,
