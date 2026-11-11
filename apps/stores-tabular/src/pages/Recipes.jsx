@@ -516,18 +516,23 @@ function RecipesTab() {
     return d.toISOString().slice(0, 10)
   })()
 
-  const hasRecipe = (name) => Object.values(config.recipes[name] ?? {}).some(q => q > 0)
+  const hasRecipe = (name) => productionRecipeFor(name) != null || soldAsFor(name) != null
   const soldRecently = (name) => {
     const d = soldDates[name]
     return d != null && d >= weekAgo
   }
 
-  // ── WHS-made products (two-echelon) ────────────────────────────────────────
-  // A product with a retail "sold as" recipe (e.g. Моти Манго → «Моти манго»
-  // finished good ×1) is produced at the warehouse and transferred to stores.
-  // Its sale decrements the finished good, never raw materials — the raw
-  // transformation happened once at production. Production recipes for such
-  // products are a Warehouse-app concern and are NOT displayed in this tab.
+  // ── Two-echelon recipe visibility ──────────────────────────────────────────
+  // Production recipe = the product is manufactured at the warehouse (WHS).
+  // Its raw-material recipe is a Warehouse-app concern and is NOT shown here;
+  // what the store sees is the "sold as" retail recipe (the finished good).
+  // A retail recipe WITHOUT production = ordinary in-store drink: a sale
+  // consumes the recipe's ingredients directly at the store (read-only here —
+  // retail recipes are authored in the manager inventory app).
+  const productionRecipeFor = (name) => {
+    const r = config.recipes?.[name]
+    return r && Object.values(r).some(q => q > 0) ? r : null
+  }
   const soldAsFor = (name) => {
     const r = config.salesRecipes?.[name]
     return r && Object.keys(r).length > 0 ? r : null
@@ -536,6 +541,12 @@ function RecipesTab() {
     const ing = allIngredients.find(i => i.id === Number(id))
     return `«${ing?.name || `#${id}`}» ×${qty}`
   }).join(', ')
+  const recipeCountFor = (name) => {
+    const prod = productionRecipeFor(name)
+    if (prod) return Object.values(prod).filter(q => q > 0).length
+    const retail = soldAsFor(name)
+    return retail ? Object.keys(retail).length : 0
+  }
 
   // Active-only: inactive dim_product rows are maintained in menu-manager;
   // this tab always shows the live menu.
@@ -615,14 +626,17 @@ function RecipesTab() {
   // so the store-facing filtered list would hide most of the recipe.
   const allIngredients = config.allIngredients?.length ? config.allIngredients : config.ingredients
   const selectedRecipe    = config.recipes[selected] ?? {}
-  const recipeIngredients = allIngredients.filter(i => (selectedRecipe[i.id] ?? 0) > 0)
-  const unusedIngredients = allIngredients.filter(i => !((selectedRecipe[i.id] ?? 0) > 0))
+  const selectedProduction = selected ? productionRecipeFor(selected) : null
+  const selectedSoldAs = selected ? soldAsFor(selected) : null
+  // Display recipe: WHS-made products show a note instead of their hidden
+  // production recipe (displayRecipe stays empty); ordinary drinks show their
+  // retail (in-store) recipe.
+  const displayRecipe = selectedProduction ? {} : (selectedSoldAs ?? {})
+  const recipeIngredients = allIngredients.filter(i => (displayRecipe[i.id] ?? 0) > 0)
+  const unusedIngredients = allIngredients.filter(i => !((displayRecipe[i.id] ?? 0) > 0))
   const selectedProductUnit = allIngredients.find(i => i.name === selected)?.unit || 'ед.'
   const selectedDim = dimRows.find(p => p.productRu === selected) || null
   const selectedIsOrphan = useCatalog && !catalogNames.has(selected) && Object.keys(selectedRecipe).length > 0
-  // WHS-made product? Its production recipe is hidden (managed in the
-  // Warehouse app); the detail panel shows a "sold as" note instead.
-  const selectedSoldAs = selected ? soldAsFor(selected) : null
 
   const startEditing = () => {
     const draft = {}
@@ -812,8 +826,8 @@ function RecipesTab() {
                           dim={p}
                           selected={selected === p.productRu}
                           indent={hasVariants}
-                          recipeCount={Object.values(config.recipes[p.productRu] ?? {}).reduce((n, v) => n + (v > 0 ? 1 : 0), 0)}
-                          soldAsBadge={Boolean(soldAsFor(p.productRu))}
+                          recipeCount={recipeCountFor(p.productRu)}
+                          soldAsBadge={Boolean(productionRecipeFor(p.productRu))}
                           soldRecently={soldRecently(p.productRu)}
                           unitPay={config.unitPay?.[p.productRu]}
                           onSelect={() => handleSelectProduct(p.productRu)}
@@ -828,8 +842,8 @@ function RecipesTab() {
                     name={p.productRu}
                     dim={null}
                     selected={selected === p.productRu}
-                    recipeCount={Object.values(config.recipes[p.productRu] ?? {}).reduce((n, v) => n + (v > 0 ? 1 : 0), 0)}
-                    soldAsBadge={Boolean(soldAsFor(p.productRu))}
+                    recipeCount={recipeCountFor(p.productRu)}
+                    soldAsBadge={Boolean(productionRecipeFor(p.productRu))}
                     soldRecently={soldRecently(p.productRu)}
                     unitPay={config.unitPay?.[p.productRu]}
                     onSelect={() => handleSelectProduct(p.productRu)}
@@ -861,15 +875,23 @@ function RecipesTab() {
                       {t('recipes.notInCatalog')}
                     </span>
                   )}
+                  {selectedSoldAs && !selectedProduction && (
+                    <span title={t('recipes.viewingRetail')}
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      {t('recipes.retailBadge')}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {selectedDim
                     ? [selectedDim.category, selectedDim.variant].filter(Boolean).join(' · ') + ` · ${t('recipes.parentProductEnShort')}: ${selectedDim.parentProductEn || '—'}`
                     : selectedIsOrphan
                       ? t('recipes.orphanHint')
-                      : editing
-                        ? 'Editing Production Recipe'
-                        : 'Viewing Production Recipe'}
+                      : selectedSoldAs && !selectedProduction
+                        ? t('recipes.viewingRetail')
+                        : editing
+                          ? 'Editing Production Recipe'
+                          : 'Viewing Production Recipe'}
                 </p>
               </div>
             </div>
@@ -895,7 +917,7 @@ function RecipesTab() {
                     {t('recipes.saveChanges')}
                   </button>
                 </>
-              ) : !selectedIsOrphan && !selectedSoldAs && (
+              ) : !selectedIsOrphan && !selectedProduction && !selectedSoldAs && (
                 <button onClick={startEditing}
                   className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium">
                   {t('recipes.modify')}
@@ -945,7 +967,7 @@ function RecipesTab() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {selectedSoldAs ? (
+            {selectedProduction ? (
               /* WHS-made product: production recipe is hidden — it is managed
                  in the Warehouse & Production app. Show what the sale consumes. */
               <div className="px-5 py-8">
@@ -956,7 +978,9 @@ function RecipesTab() {
                   <p className="text-sm text-indigo-900 leading-relaxed">
                     {selectedIsOrphan
                       ? t('recipes.whsMadeOrphan')
-                      : t('recipes.whsMadeNote', { ingredient: soldAsText(selectedSoldAs) })}
+                      : selectedSoldAs
+                        ? t('recipes.whsMadeNote', { ingredient: soldAsText(selectedSoldAs) })
+                        : t('recipes.whsMadePlain')}
                   </p>
                 </div>
               </div>
@@ -996,7 +1020,7 @@ function RecipesTab() {
                             onChange={e => setDraftQtys(prev => ({ ...prev, [ing.id]: e.target.value }))}
                             className="w-28 border border-blue-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums" />
                         ) : (
-                          <span className="tabular-nums font-medium text-gray-800">{selectedRecipe[ing.id]}</span>
+                          <span className="tabular-nums font-medium text-gray-800">{displayRecipe[ing.id]}</span>
                         )}
                       </td>
                       {editing && (
