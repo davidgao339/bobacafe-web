@@ -330,7 +330,17 @@ def main():
     d1_ingredients = query_d1("SELECT * FROM ingredients")
     d1_suppliers = query_d1("SELECT * FROM suppliers")
     d1_recipes = query_d1("SELECT * FROM recipes")
+    # Audits: the audit-app maintains fact_audit_headers/counts DIRECTLY
+    # (it never writes the legacy `audits` master), so the fact tables are the
+    # app-maintained source of truth — same principle as fact_inventory_balance.
+    # The legacy master is still read for the row-count printout / drift check,
+    # but LH audit tables copy the fact tables verbatim (zeros included:
+    # count_quantity = 0 means "counted, nothing left"; row absence = NULL).
     d1_audits = query_d1("SELECT * FROM audits")
+    d1_audit_headers_fact = query_d1(
+        "SELECT audit_id, store_id, store_code, audit_date, audit_timestamp, status FROM fact_audit_headers")
+    d1_audit_counts_fact = query_d1(
+        "SELECT audit_id, store_id, audit_date, ingredient_id, ingredient_name, count_quantity FROM fact_audit_counts")
     d1_pos = query_d1("SELECT * FROM purchase_orders")
     d1_txs = query_d1("SELECT * FROM transactions")
     d1_settings = query_d1("SELECT * FROM settings")
@@ -621,45 +631,27 @@ def main():
     ) USING DELTA
     """)
 
-    audit_headers_rows = []
-    audit_counts_rows = []
+    # LH fact_audit_headers copies D1 fact_audit_headers verbatim (the
+    # audit-app already resolved store ids / codes at write time).
+    audit_headers_rows = [
+        [h.get("audit_id"), h.get("store_id"), h.get("store_code"), h.get("audit_date"),
+         h.get("audit_timestamp"), h.get("status") or "approved"]
+        for h in d1_audit_headers_fact
+    ]
 
-    for a in d1_audits:
-        audit_id = a.get("id")
-        store_name = a.get("store")
-        store_id = resolve_store_id(store_name)
-        store_code = STORE_ID_TO_CODE.get(store_id)
-        audit_date = a.get("date")
-        timestamp = a.get("timestamp")
-        status = a.get("status", "approved")
-        audit_headers_rows.append([audit_id, store_id, store_code, audit_date, timestamp, status])
+    audit_counts_rows = [
+        [c.get("audit_id"), c.get("store_id"), c.get("audit_date"),
+         c.get("ingredient_id"), c.get("ingredient_name"), c.get("count_quantity")]
+        for c in d1_audit_counts_fact
+        if c.get("ingredient_id") is not None and c.get("count_quantity") is not None
+    ]
 
-        counts_raw = a.get("counts")
-        if not counts_raw:
-            continue
-        try:
-            counts = json.loads(counts_raw)
-        except Exception:
-            continue
-
-        for ing_id_str, qty in counts.items():
-            try:
-                ing_id = int(ing_id_str)
-                qty_val = float(qty)
-                # Keep explicit 0 counts: a zero row means "counted, nothing left".
-                # Absence of a row (not a zero) means "not counted" — NULL semantics.
-                if qty_val >= 0:
-                    ing_name = ing_name_map.get(ing_id, f"Ingredient #{ing_id}")
-                    audit_counts_rows.append([audit_id, store_id, audit_date, ing_id, ing_name, qty_val])
-            except Exception:
-                continue
-
-    # Audit counts are fully derived per audit id — refresh exactly; LH-only
-    # audits (app-authored, absent in D1) are untouched.
+    # Audit counts are a verbatim copy of D1 fact_audit_counts — refresh
+    # exactly; LH-only audits (absent in D1) are untouched.
     batch_merge(table_audit_headers,
                 ["audit_id", "store_id", "store_code", "audit_date", "audit_timestamp", "status"],
                 audit_headers_rows, merge_keys=["audit_id"])
-    audit_ids = [a.get("id") for a in d1_audits if a.get("id")]
+    audit_ids = [h.get("audit_id") for h in d1_audit_headers_fact if h.get("audit_id")]
     delete_children_by_parents(table_audit_counts, "audit_id", audit_ids)
     batch_insert(table_audit_counts,
                  ["audit_id", "store_id", "audit_date", "ingredient_id", "ingredient_name", "count_quantity"],
