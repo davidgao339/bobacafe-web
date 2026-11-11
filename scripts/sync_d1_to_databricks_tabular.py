@@ -755,8 +755,10 @@ def main():
             try:
                 ordered = float(it.get("ordered") or 0)
                 received = float(it.get("received") or 0)
-                # Filter zero rows strictly
-                if ordered <= 0 and received <= 0:
+                # Zero-quantity regular/array lines are skipped (matches D1
+                # trigger filter). Custom lines are kept at any quantity —
+                # D1 triggers derive them unfiltered, and LH must equal D1.
+                if not is_cust and ordered <= 0 and received <= 0:
                     continue
 
                 if is_cust or it.get("ingredientId") is None:

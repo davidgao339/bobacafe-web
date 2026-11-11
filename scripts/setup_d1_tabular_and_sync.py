@@ -760,11 +760,17 @@ def main():
     print("  ✓ Transactions auto-sync triggers installed.")
 
     # RECIPE TRIGGERS
+    # NOTE: fact deletes/reinserts are scoped to (product_name, type). Without
+    # the type filter, editing a retail recipe wipes the production fact rows
+    # of the same product name (and vice versa) — the two recipe types coexist
+    # under one product name by design (WHS-made products).
     query_d1("""
     CREATE TRIGGER trg_recipes_insert
     AFTER INSERT ON recipes
     BEGIN
-        DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = NEW.product_name;
+        DELETE FROM fact_recipe_ingredients
+        WHERE recipe_product_name = NEW.product_name
+          AND recipe_type = COALESCE(NEW.type, 'retail');
 
         INSERT INTO fact_recipe_ingredients (recipe_product_name, ingredient_id, ingredient_name, amount_per_serving, recipe_type, is_hidden)
         SELECT 
@@ -783,7 +789,9 @@ def main():
     CREATE TRIGGER trg_recipes_update
     AFTER UPDATE ON recipes
     BEGIN
-        DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = NEW.product_name;
+        DELETE FROM fact_recipe_ingredients
+        WHERE recipe_product_name IN (NEW.product_name, OLD.product_name)
+          AND recipe_type = COALESCE(NEW.type, 'retail');
 
         INSERT INTO fact_recipe_ingredients (recipe_product_name, ingredient_id, ingredient_name, amount_per_serving, recipe_type, is_hidden)
         SELECT 
@@ -802,7 +810,9 @@ def main():
     CREATE TRIGGER trg_recipes_delete
     AFTER DELETE ON recipes
     BEGIN
-        DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = OLD.product_name;
+        DELETE FROM fact_recipe_ingredients
+        WHERE recipe_product_name = OLD.product_name
+          AND recipe_type = COALESCE(OLD.type, 'retail');
     END
     """)
     print("  ✓ Recipes auto-sync triggers installed.")
