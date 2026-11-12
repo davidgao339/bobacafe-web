@@ -657,6 +657,29 @@ def main():
                  ["audit_id", "store_id", "audit_date", "ingredient_id", "ingredient_name", "count_quantity"],
                  audit_counts_rows)
 
+    # ─── Prune deletion ghosts (audit headers & counts) ──────────────────────
+    # D1 is the single source of truth for audits: every write path lands in D1
+    # (tabular apps dual-write, legacy apps write D1 directly). MERGE upserts
+    # never delete, so an app-side deletion whose LH push failed lingers in the
+    # LH forever (found live 2026-11-12: RSQ-002). Prune LH audit rows absent
+    # from D1. Policy note: the earlier "LH-only audits are untouched" rule
+    # predates complete dual-write coverage (phase 6b); with dual-write in
+    # place, an LH-only audit row can only be a failed-D1-mirror leftover.
+    lh_header_ids = {r["audit_id"] for r in run_databricks_sql(
+        f"SELECT audit_id FROM {table_audit_headers}")}
+    lh_count_ids = {r["audit_id"] for r in run_databricks_sql(
+        f"SELECT DISTINCT audit_id FROM {table_audit_counts}")}
+    d1_header_id_set = set(audit_ids)
+    ghost_ids = sorted((lh_header_ids | lh_count_ids) - d1_header_id_set)
+    if ghost_ids:
+        print(f"  pruning LH audit ghosts (absent from D1): {ghost_ids}")
+        for i in range(0, len(ghost_ids), 400):
+            chunk = ghost_ids[i:i + 400]
+            id_list = ",".join("'" + str(a).replace("'", "''") + "'" for a in chunk)
+            run_databricks_sql(f"DELETE FROM {table_audit_counts} WHERE audit_id IN ({id_list})")
+            run_databricks_sql(f"DELETE FROM {table_audit_headers} WHERE audit_id IN ({id_list})")
+        print(f"  pruned {len(ghost_ids)} orphan audit headers (+ their counts)")
+
     # ─── TABLE 7 & 8: fact_purchase_orders & fact_purchase_order_lines ───────
     print("\n[Step 9/9] Creating and loading fact_purchase_orders & fact_purchase_order_lines...")
     table_pos = f"{TARGET_SCHEMA}.fact_purchase_orders"

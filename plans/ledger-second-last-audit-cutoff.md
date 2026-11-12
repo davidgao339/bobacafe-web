@@ -155,6 +155,41 @@ Fix (both tabular apps): anchor audit detail gets `baseline: true` —
   en "starting balance", ru "стартовый остаток") instead of a signed adj.
 Ending balances unaffected. Both builds pass.
 
+## Follow-up 3 (2026-11-12): deletion ghost + two hardening fixes
+
+User deleted audits RSQ-002/004/005 in the deployed stores-tabular Audit page
+(/internal/audit — reads the LAKEHOUSE; D1 is only a write mirror + no-credential
+bootstrap). D1 deletes landed (fact tables + legacy blob), RSQ-004/005 LH deletes
+landed too, but **RSQ-002's LH delete push failed silently** (lhPush was
+fire-and-forget, console.error only) — the ghost header+32 counts stayed in the
+LH. The nightly sync could never fix it: phase 6a MERGE upserts never delete.
+Cleaned manually (LH header sets now match D1 exactly, 229=229); ledger view
+verified (RSQ сироп now anchors RSQ-001; RSQ пюре anchors A-235 10-27).
+
+Two fixes implemented:
+
+1. **Surface LH push failures (both tabular apps + shared toast).**
+   `lhPush` in both `ConfigContext.jsx` now dispatches the existing
+   `d1-sync-error` CustomEvent with `channel: 'lakehouse'`, `sql` (joined),
+   and a `retry` closure re-running the statements. `SyncErrorToast`
+   (inventory-app copy, shared via `@inventory/components`) branches on the
+   channel: title "Lakehouse Save Error" / «Ошибка записи в озеро данных»,
+   subtitle explains D1 was saved but the LH copy failed (balances/ledger may
+   show stale data) — and offers Retry (runs the closure) as before. The
+   tapioca-app copy of the toast is separate and unaffected.
+
+2. **Nightly sync prunes audit deletion ghosts.**
+   `scripts/sync_d1_to_databricks_tabular.py` (after the audit counts insert):
+   compares LH `fact_audit_headers`/`fact_audit_counts` audit_ids against D1's
+   header ids and DELETEs LH rows absent from D1 (chunked IN lists, ids
+   quote-escaped, printed for observability). Policy change vs the 6a-era
+   "LH-only audits are untouched" rule: with dual-write coverage complete
+   (6b), an LH-only audit row can only be a failed-D1-mirror leftover.
+   Verified end-to-end: planted `ZZ-GHOST-TEST` header+count → full sync ran
+   green, reported and pruned the ghost, reconciliation 229/5029 rows clean.
+   (Transactions/POs could get the same treatment later if D1 ghosts show up
+   there too.)
+
 ## Risks / notes
 
 - `view_store_stock` / `view_whs_stock` / `view_current_inventory` untouched —

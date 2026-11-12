@@ -82,7 +82,9 @@ export default function SyncErrorToast() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-bold text-sm text-red-900">
-                      {isRu ? 'Ошибка сохранения в базу данных (D1)' : 'Database Save Error (D1)'}
+                      {err.channel === 'lakehouse'
+                        ? (isRu ? 'Ошибка записи в озеро данных (Lakehouse)' : 'Lakehouse Save Error')
+                        : (isRu ? 'Ошибка сохранения в базу данных (D1)' : 'Database Save Error (D1)')}
                     </h4>
                     {err.count > 1 && (
                       <span className="px-1.5 py-0.2 bg-red-200 text-red-800 text-[10px] font-bold rounded-full">
@@ -91,9 +93,13 @@ export default function SyncErrorToast() {
                     )}
                   </div>
                   <p className="text-xs text-red-800 mt-1 leading-relaxed">
-                    {isRu
-                      ? 'Изменения видны на экране, но НЕ сохранились на сервере. При перезагрузке они пропадут.'
-                      : 'Changes are visible locally, but FAILED to save to the server. They will be lost on page reload.'}
+                    {err.channel === 'lakehouse'
+                      ? (isRu
+                        ? 'Запись сохранена в D1, но НЕ сохранилась в озеро данных. Экраны, читающие озеро (остатки, журнал), могут показывать устаревшие данные, пока запись не будет повторена.'
+                        : 'The record was saved to D1, but the LAKEHOUSE copy failed. Screens that read the lakehouse (balances, ledger) may show stale data until retried.')
+                      : (isRu
+                        ? 'Изменения видны на экране, но НЕ сохранились на сервере. При перезагрузке они пропадут.'
+                        : 'Changes are visible locally, but FAILED to save to the server. They will be lost on page reload.')}
                   </p>
                 </div>
               </div>

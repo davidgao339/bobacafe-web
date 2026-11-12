@@ -41,11 +41,28 @@ function rowsToSales(rows) {
 
 // Fire-and-forget lakehouse push (spec §3, phase 6b). D1 write above is already
 // saved, so a failed push is logged and healed by the nightly MERGE sync.
-// Idempotent MERGEs mean a re-save never duplicates.
+// Idempotent MERGEs mean a re-save never duplicates. Failures are surfaced in
+// the SyncErrorToast (channel: 'lakehouse') — the nightly sync heals stale
+// writes, but DELETED rows are never resurrected by the sync (it prunes LH rows
+// absent from D1), so a failed LH delete must be retried by the user.
 function lhPush(settings, sqls) {
   if (!settings?.token || !settings?.warehouseId || !sqls?.length) return
-  sqls.reduce((p, s) => p.then(() => runDatabricksSql(settings.token, settings.warehouseId, s)), Promise.resolve())
-    .catch(err => console.error('LH push failed (D1 write already saved):', err))
+  const run = () => sqls.reduce((p, s) => p.then(() => runDatabricksSql(settings.token, settings.warehouseId, s)), Promise.resolve())
+  run().catch(err => {
+    console.error('LH push failed (D1 write already saved):', err)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('d1-sync-error', {
+        detail: {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          channel: 'lakehouse',
+          sql: sqls.join(';\n'),
+          message: err?.message || String(err),
+          timestamp: new Date().toLocaleTimeString(),
+          retry: run,
+        },
+      }))
+    }
+  })
 }
 
 // Normalized PO lines (regular + custom) for lakehouse pushes
