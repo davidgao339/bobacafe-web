@@ -71,6 +71,9 @@ export default function App() {
   // Selected Store & Date (uses local device calendar date YYYY-MM-DD)
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [auditDate, setAuditDate] = useState(() => new Date().toLocaleDateString('en-CA'));
+  // Fool-proofing: submit is gated behind an explicit confirmation modal that
+  // restates store / date / item count, so a mis-picked store can't slip through.
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Current Counts & Baseline
   const [counts, setCounts] = useState({});
@@ -158,9 +161,10 @@ export default function App() {
         const [storesData, ingData] = await Promise.all([fetchStores(), fetchIngredients()]);
         setStores(storesData);
         setIngredients(ingData);
-        if (storesData.length > 0 && !selectedStoreId) {
-          setSelectedStoreId(storesData[0].store_id);
-        }
+        // Fool-proofing: NO default store. The store used to be auto-set to
+        // storesData[0] (RSQ), so employees could submit a count booked to the
+        // wrong location without ever looking at the picker. Now every audit
+        // starts with an explicit store choice, re-confirmed at submit.
       } catch (err) {
         showToast('Error loading database: ' + err.message, 'error');
       } finally {
@@ -259,20 +263,44 @@ export default function App() {
     }
   };
 
+  // Fool-proofing: switching the store mid-count discards the typed counts —
+  // they were most likely entered for the wrong store, and carrying them over
+  // would book one store's numbers to another. While EDITING an audit, a
+  // manual store switch cancels the edit entirely — otherwise the submit
+  // would re-book the old audit (editingAuditId) to the newly picked store.
+  const changeStore = (id) => {
+    if (id === selectedStoreId) return
+    if (editingAuditId) {
+      setEditingAuditId(null);
+      showToast(t('cancelEdit'), 'info');
+    }
+    setCounts({});
+    setSelectedStoreId(id);
+  };
+
   // ─── SUBMIT AUDIT ──────────────────────────────────────────────────────────
 
-  const handleSubmitAudit = async () => {
+  const handleSubmitAudit = () => {
     const selectedStore = stores.find(s => s.store_id === selectedStoreId);
-    if (!selectedStore) return;
+    if (!selectedStore) {
+      showToast(t('noStoreChosen'), 'warning');
+      return;
+    }
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       showToast('📶 Нет подключения к интернету. Данные в безопасности на телефоне. Подключитесь к Wi-Fi и нажмите "Отправить".', 'warning');
       return;
     }
 
-    const filled = ingredients.filter(i => counts[i.ingredient_id] !== undefined && counts[i.ingredient_id] !== '');
-    if (filled.length < ingredients.length) {
-      if (!confirm(t('incompleteWarning'))) return;
+    // Gate: the confirmation modal restates store / date / item count.
+    setConfirmOpen(true);
+  };
+
+  const confirmSubmitAudit = async () => {
+    const selectedStore = stores.find(s => s.store_id === selectedStoreId);
+    if (!selectedStore) {
+      setConfirmOpen(false);
+      return;
     }
 
     setSaving(true);
@@ -311,6 +339,7 @@ export default function App() {
       }
     } finally {
       setSaving(false);
+      setConfirmOpen(false);
     }
   };
 
@@ -541,7 +570,7 @@ export default function App() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium truncate leading-tight mt-0.5 flex items-center gap-1">
-                <span>📍</span> <span>{selectedStore ? selectedStore.store_name : ''}</span>
+                <span>📍</span> <span>{selectedStore ? selectedStore.store_name : t('noStoreChosen')}</span>
               </p>
             </div>
           </div>
@@ -599,7 +628,7 @@ export default function App() {
         )}
 
         {/* Count View: Sticky Category Selector + Search Bar (Always 1-Tap Accessible) */}
-        {activeTab === 'count' && !loadingInitial && (
+        {activeTab === 'count' && !loadingInitial && selectedStoreId && (
           <div className="bg-slate-50/95 border-t border-slate-200/80 px-3 sm:px-4 py-1.5 sm:py-2">
             <div className="max-w-xl mx-auto flex items-center gap-2">
               {/* Category Dropdown (Primary thumb control) */}
@@ -678,6 +707,27 @@ export default function App() {
               </div>
             )}
 
+            {!selectedStore ? (
+              /* Fool-proofing: no store chosen yet — block counting entirely
+                 so typed numbers can never leak across stores. */
+              <div className="bg-white rounded-2xl border-2 border-dashed border-blue-300 p-6 text-center">
+                <div className="text-3xl mb-2">📍</div>
+                <h3 className="text-base font-bold text-slate-900">{t('chooseStorePrompt')}</h3>
+                <p className="text-xs text-slate-500 mt-1 mb-4">{t('chooseStoreHint')}</p>
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  {stores.map(s => (
+                    <button
+                      key={s.store_id}
+                      onClick={() => changeStore(s.store_id)}
+                      className="px-3 py-3 rounded-xl border border-slate-200 bg-white hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 text-xs sm:text-sm font-bold text-slate-800 transition-colors truncate"
+                    >
+                      📍 {s.store_name} <span className="text-slate-400 font-semibold">({s.store_code})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Header Control Panel (Store Selector, Date & Progress) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs space-y-3">
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -689,9 +739,10 @@ export default function App() {
                   <div className="relative">
                     <select
                       value={selectedStoreId || ''}
-                      onChange={e => setSelectedStoreId(Number(e.target.value))}
+                      onChange={e => changeStore(e.target.value ? Number(e.target.value) : null)}
                       className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 py-2 pr-7 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors appearance-none cursor-pointer truncate"
                     >
+                      <option value="" disabled>— {t('selectStore')} —</option>
                       {stores.map(s => (
                         <option key={s.store_id} value={s.store_id}>
                           {s.store_name} ({s.store_code})
@@ -903,6 +954,8 @@ export default function App() {
                 )}
               </button>
             </div>
+            </>
+            )}
           </div>
         ) : (
           /* ── HISTORY VIEW (MANAGER) ─────────────────────────────────────── */
@@ -1078,6 +1131,70 @@ export default function App() {
           ↑
         </button>
       )}
+
+      {/* ── Submit Confirmation Modal (Fool-proofing gate) ─────────────── */}
+      {confirmOpen && (() => {
+        const selStore = stores.find(s => s.store_id === selectedStoreId);
+        const filledCountNow = ingredients.filter(i => counts[i.ingredient_id] !== undefined && counts[i.ingredient_id] !== '').length;
+        const totalCount = ingredients.length;
+        return (
+          <div
+            className="fixed inset-0 z-[60] bg-slate-900/60 flex items-center justify-center p-4"
+            onClick={() => setConfirmOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-xs p-5 space-y-3"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="text-3xl mb-1">✅</div>
+                <h3 className="text-base font-extrabold text-slate-900">{t('confirmTitle')}</h3>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl px-4 py-3 space-y-1.5 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-semibold">📍 {t('confirmStore')}</span>
+                  <span className="font-extrabold text-slate-900 truncate">{selStore ? `${selStore.store_name} (${selStore.store_code})` : '—'}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-semibold">📅 {t('confirmDate')}</span>
+                  <span className="font-bold text-slate-900 tabular-nums">{auditDate}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-semibold">🔢 {t('confirmItems')}</span>
+                  <span className="font-bold text-slate-900 tabular-nums">{filledCountNow} / {totalCount}</span>
+                </div>
+              </div>
+
+              {filledCountNow === 0 ? (
+                <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
+                  {t('confirmEmpty')}
+                </p>
+              ) : filledCountNow < totalCount ? (
+                <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                  {t('confirmIncomplete')}
+                </p>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setConfirmOpen(false)}
+                  className="py-3 rounded-xl border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-all"
+                >
+                  {lang === 'ru' ? 'Отмена' : 'Cancel'}
+                </button>
+                <button
+                  onClick={confirmSubmitAudit}
+                  disabled={saving || filledCountNow === 0}
+                  className="py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-extrabold shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all"
+                >
+                  {saving ? t('saving') : `✓ ${t('confirmSubmit')}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Toast Notification ──────────────────────────────────────────── */}
       {toast && (

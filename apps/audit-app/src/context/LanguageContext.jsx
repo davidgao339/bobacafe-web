@@ -47,6 +47,16 @@ const DICTIONARY = {
     editingNotice: 'Editing Audit',
     existingAuditNotice: 'An audit already exists for this store on this date. Saving will update the existing record.',
     loadExisting: 'Load Existing Record',
+    chooseStorePrompt: 'Which store are you counting?',
+    chooseStoreHint: 'Pick the location — the audit will be saved exactly for it',
+    confirmTitle: 'Check before submitting',
+    confirmStore: 'Store',
+    confirmDate: 'Date',
+    confirmItems: 'Items Counted',
+    confirmSubmit: 'Confirm & Submit',
+    confirmIncomplete: 'Some items are not counted yet — they will be left blank.',
+    confirmEmpty: 'Nothing is counted yet — fill at least one item.',
+    noStoreChosen: 'Choose the store first',
   },
   ru: {
     appTitle: 'Инвентаризация',
@@ -94,6 +104,16 @@ const DICTIONARY = {
     editingNotice: 'Редактирование ревизии',
     existingAuditNotice: 'Ревизия на эту дату уже существует. Сохранение обновит запись.',
     loadExisting: 'Загрузить существующие данные',
+    chooseStorePrompt: 'Какую точку пересчитываете?',
+    chooseStoreHint: 'Выберите точку — ревизия будет сохранена именно для неё',
+    confirmTitle: 'Проверьте перед отправкой',
+    confirmStore: 'Точка',
+    confirmDate: 'Дата',
+    confirmItems: 'Позиций посчитано',
+    confirmSubmit: 'Подтвердить и отправить',
+    confirmIncomplete: 'Не все позиции заполнены — пустые будут пропущены.',
+    confirmEmpty: 'Ни одна позиция не заполнена — заполните хотя бы одну.',
+    noStoreChosen: 'Сначала выберите точку',
   }
 };
 
