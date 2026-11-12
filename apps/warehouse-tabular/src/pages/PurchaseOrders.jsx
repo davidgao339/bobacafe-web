@@ -370,6 +370,9 @@ export default function PurchaseOrders({ initialCreate }) {
   const [editingId,   setEditingId]   = useState(null)
   const [confirm,     setConfirm]     = useState(null)
   const [filter,      setFilter]      = useState('all')
+  // Store scope: 'all' = one glance across every store (default), or a single
+  // store name. Purely view-layer — composes with the status filter + search.
+  const [storeFilter, setStoreFilter] = useState('all')
   const [search,      setSearch]      = useState('')
   const [receiveId,   setReceiveId]   = useState(null)
   const [receiveDate, setReceiveDate] = useState(TODAY)
@@ -387,12 +390,19 @@ export default function PurchaseOrders({ initialCreate }) {
 
   const filtered = pos.filter(po => {
     if (filter !== 'all' && po.status !== filter) return false
+    if (storeFilter !== 'all' && po.store !== storeFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return po.id.toLowerCase().includes(q) || po.store.toLowerCase().includes(q)
     }
     return true
   })
+  // Store chips: known stores that actually have POs (config order first,
+  // then any other store that appears in the data, e.g. Warehouse).
+  const storeOptions = [
+    ...(stores || []).filter(n => pos.some(p => p.store === n)),
+    ...[...new Set(pos.map(p => p.store))].filter(n => !(stores || []).includes(n)),
+  ]
   const count    = (s) => s === 'all' ? pos.length : pos.filter(p => p.status === s).length
 
   const cancelReceive = () => { setReceiveId(null); setReceiveQtys({}) }
@@ -738,6 +748,16 @@ export default function PurchaseOrders({ initialCreate }) {
             {label} <span className="ml-1 text-gray-400">{count(id)}</span>
           </button>
         ))}
+        </div>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
+          {[['all', t('po.allStores')], ...storeOptions.map(s => [s, s])].map(([id, label]) => (
+            <button key={id} onClick={() => setStoreFilter(id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                storeFilter === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>

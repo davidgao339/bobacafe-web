@@ -273,6 +273,7 @@ const ru = {
   'po.subtitle':           'Управление заказами от черновика до получения',
   'po.newPO':              '+ Новый заказ',
   'po.all':                'Все',
+  'po.allStores':          'Все точки',
   'po.draft':              'Черновик',
   'po.sent':               'Отправлен',
   'po.partially_received': 'Частично получен',

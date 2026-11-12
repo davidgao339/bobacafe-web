@@ -263,6 +263,7 @@ const en = {
   'po.subtitle':           'Track ingredient orders from draft through delivery',
   'po.newPO':              '+ New PO',
   'po.all':                'All',
+  'po.allStores':          'All stores',
   'po.draft':              'Draft',
   'po.sent':               'Sent',
   'po.partially_received': 'Partially Received',
