@@ -56,4 +56,14 @@ jobs:
         run: |
           cd apps/databricks-proxy
           wrangler deploy
+      - name: Ensure DATABRICKS_TOKEN secret on prod worker (real-time LH push)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          cd apps/databricks-proxy
+          # Non-interactive: pipe the value on stdin; --env="" targets the
+          # top-level (prod) worker. Idempotent — re-sets on every deploy.
+          printf '%s' "$DATABRICKS_TOKEN" | wrangler secret put DATABRICKS_TOKEN --env=""
 
