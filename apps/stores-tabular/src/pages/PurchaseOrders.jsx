@@ -749,7 +749,7 @@ export default function PurchaseOrders({ initialCreate }) {
           </button>
         ))}
         </div>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
+        <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1 w-fit">
           {[['all', t('po.allStores')], ...storeOptions.map(s => [s, s])].map(([id, label]) => (
             <button key={id} onClick={() => setStoreFilter(id)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
