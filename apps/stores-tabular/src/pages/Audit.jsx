@@ -4,10 +4,18 @@ import { useLanguage } from '../context/LanguageContext'
 import { getProductType } from '@inventory/utils/productTypes'
 // ─── Count tab ────────────────────────────────────────────────────────────────
 
-function CountTab({ store, date, setDate }) {
-  const { config, data, addAudit } = useConfig()
+function CountTab({ date, setDate }) {
+  const { config, data, addAudit, stores } = useConfig()
   const { t } = useLanguage()
 
+  // Fool-proofing: the audit store is chosen HERE, per session, with NO
+  // default — the global header selector (persisted in localStorage, often
+  // left on whichever store was used last, or auto-set to the first store)
+  // must not silently decide where a physical count is booked. Not persisted:
+  // every audit starts with an explicit choice, re-confirmed at save.
+  const [store, setStoreState] = useState(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const retailStores = (stores || []).filter(s => s !== 'Warehouse')
   const [counts,  setCounts]  = useState({})
   const [saved,   setSaved]   = useState(false)
   const [search,  setSearch]  = useState('')
@@ -73,13 +81,27 @@ function CountTab({ store, date, setDate }) {
     setSaved(false)
   }
 
+  const changeStore = (next) => {
+    // Switching stores must not leak counts keyed to the previous store.
+    if (store) setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
+    setStoreState(next)
+    setSaved(false)
+  }
+
+  // Save is always gated behind an explicit confirmation: the modal restates
+  // store / date / time / item count so a mis-picked store can't slip through.
   const handleSave = () => {
+    if (anyFilled) setConfirmOpen(true)
+  }
+
+  const confirmSave = () => {
     const auditCounts = {}
     for (const product of config.ingredients) {
       const val = getValue(product.id)
       if (val !== '') auditCounts[product.id] = Math.max(0, parseFloat(val))
     }
     addAudit(store, date, auditCounts, `${date}T${time}:00`)
+    setConfirmOpen(false)
     setSaved(true)
     setCounts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${store}-`))))
     setTimeout(() => setSaved(false), 3500)
@@ -115,7 +137,32 @@ function CountTab({ store, date, setDate }) {
             )}
           </div>
         </div>
+        {store && (
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <span className="text-xs font-medium text-blue-700">{t('audit.countingStore')}:</span>
+            <span className="text-sm font-bold text-blue-900">{store}</span>
+            <button onClick={() => changeStore(null)}
+              className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
+              {t('audit.changeStore')}
+            </button>
+          </div>
+        )}
       </div>
+
+      {!store && (
+        <div className="bg-white rounded-xl border-2 border-dashed border-blue-300 p-6 mb-6">
+          <h3 className="text-base font-semibold text-gray-900">{t('audit.chooseStore')}</h3>
+          <p className="text-sm text-gray-500 mt-0.5 mb-4">{t('audit.chooseStoreHint')}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {retailStores.map(s => (
+              <button key={s} onClick={() => changeStore(s)}
+                className="px-4 py-3 rounded-lg border border-gray-300 bg-white hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 text-sm font-semibold text-gray-800 transition-colors">
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {existingAudit && (
         <div className="mb-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
@@ -124,6 +171,8 @@ function CountTab({ store, date, setDate }) {
         </div>
       )}
 
+      {store && (
+      <>
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
         {config.ingredients
           .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -233,6 +282,38 @@ function CountTab({ store, date, setDate }) {
         </div>
       </div>
       <p className="text-xs text-gray-400 text-right mt-2">{t('audit.unfilledNote')}</p>
+      </>
+      )}
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmOpen(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">{t('audit.confirmTitle')}</h3>
+            <p className="text-xs text-gray-500 mb-4">{t('audit.confirmSubtitle')}</p>
+            <div className="bg-gray-50 rounded-lg px-4 py-3 mb-3 space-y-1.5 text-sm">
+              <div className="flex justify-between gap-4"><span className="text-gray-500">{t('audit.confirmStore')}</span><span className="font-bold text-gray-900">{store}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-gray-500">{t('audit.confirmDate')}</span><span className="font-medium text-gray-900">{date}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-gray-500">{t('audit.confirmTime')}</span><span className="font-medium text-gray-900 tabular-nums">{time}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-gray-500">{t('audit.confirmItems')}</span><span className="font-medium text-gray-900">{config.ingredients.filter(p => getValue(p.id) !== '').length}</span></div>
+            </div>
+            {existingAudit && (
+              <div className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                {t('audit.confirmExisting')}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmOpen(false)}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                {t('common.cancel')}
+              </button>
+              <button onClick={confirmSave}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+                {t('audit.confirmSave')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -680,7 +761,8 @@ function ImportTab() {
 
 export default function InventoryAudit() {
   const [activeTab, setActiveTab] = useState('count')
-  const { selectedStore: store } = useConfig()
+  // NOTE: no global store here — CountTab owns its store choice (no default,
+  // forced pick + confirm) so the header selector can't pre-book a count.
   const [date,  setDate]  = useState(new Date().toISOString().slice(0, 10))
   const { t } = useLanguage()
 
@@ -702,7 +784,7 @@ export default function InventoryAudit() {
         ))}
       </div>
 
-      {activeTab === 'count'   && <CountTab   store={store} date={date} setDate={setDate} />}
+      {activeTab === 'count'   && <CountTab   date={date} setDate={setDate} />}
       {activeTab === 'history' && <HistoryTab />}
       {activeTab === 'import'  && <ImportTab />}
     </div>
