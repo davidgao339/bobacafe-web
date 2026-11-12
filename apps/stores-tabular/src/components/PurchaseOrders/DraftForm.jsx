@@ -42,6 +42,11 @@ export default function DraftForm({
 
   const isSupplierPurchase = !fromLocation
 
+  // FROM/TO always include Warehouse: store orders come FROM the warehouse,
+  // and warehouse-sourced POs are pass-through (no cost entry required).
+  // 'Warehouse' resolves to store 99 everywhere in the data layer.
+  const locationOptions = [...new Set(['Warehouse', ...(stores || [])])]
+
   // Track user's last edited field ('unit' or 'total') for regular ingredients
   const [lastCostEdit, setLastCostEdit] = useState({})
 
@@ -478,7 +483,7 @@ export default function DraftForm({
               <label className="text-xs font-medium text-gray-600">{t('common.store')}</label>
               <select value={store} onChange={e => handleStoreChange(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                {stores.map(s => <option key={s}>{s}</option>)}
+                {locationOptions.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
           )}
@@ -507,7 +512,7 @@ export default function DraftForm({
             <select value={fromLocation ?? ''} onChange={e => setFromLocation(e.target.value || null)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">— Внешний поставщик —</option>
-              {stores.map(s => <option key={s}>{s}</option>)}
+              {locationOptions.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -515,7 +520,7 @@ export default function DraftForm({
             <select value={toLocation ?? ''} onChange={e => setToLocation(e.target.value || null)}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">—</option>
-              {stores.map(s => <option key={s}>{s}</option>)}
+              {locationOptions.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="relative">
