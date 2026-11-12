@@ -281,15 +281,10 @@ async function syncToD1(db, payload) {
     }
   }
 
-  // 2. Recipes
-  if (config.recipes) {
-    statements.push(db.prepare(`DELETE FROM recipes`))
-    for (const [productName, mapping] of Object.entries(config.recipes)) {
-      statements.push(db.prepare(
-        `INSERT INTO recipes (product_name, ingredient_mapping) VALUES (?, ?)`
-      ).bind(productName, JSON.stringify(mapping)))
-    }
-  }
+  // 2. Recipes — removed: recipes are lakehouse-only now. The legacy D1
+  // `recipes` table is no longer maintained (apps write
+  // fact_recipe_ingredients in LH directly; the nightly sync no longer
+  // rebuilds it from D1 either).
 
   // 3. Purchase Orders
   if (data.purchaseOrders) {

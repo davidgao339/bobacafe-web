@@ -77,6 +77,14 @@ function IngredientsTab() {
           Object.fromEntries(Object.entries(recipe).filter(([iid]) => Number(iid) !== id)),
         ])
       ),
+      // Retail recipes too: a deleted ingredient must not linger as a ghost
+      // line in store-authored (retail) recipes.
+      salesRecipes: Object.fromEntries(
+        Object.entries(prev.salesRecipes || {}).map(([product, recipe]) => [
+          product,
+          Object.fromEntries(Object.entries(recipe).filter(([iid]) => Number(iid) !== id)),
+        ])
+      ),
     }))
     if (editingId === id) setEditingId(null)
   }
@@ -137,9 +145,10 @@ function IngredientsTab() {
         </thead>
         <tbody className="divide-y divide-gray-50">
           {visibleIngredients.map(ing => {
-            const usedIn = Object.entries(config.recipes)
-              .filter(([, recipe]) => (recipe[ing.id] ?? 0) > 0)
-              .map(([product, recipe]) => ({ product, qty: recipe[ing.id] }))
+            const usedIn = [
+              ...Object.entries(config.recipes ?? {}).map(([product, recipe]) => ({ product, qty: recipe[ing.id], type: 'production' })),
+              ...Object.entries(config.salesRecipes ?? {}).map(([product, recipe]) => ({ product, qty: recipe[ing.id], type: 'retail' })),
+            ].filter(u => (u.qty ?? 0) > 0)
             const isExpanded = expandedIngId === ing.id
             const effectivePt = getProductType(ing)
             const step = getRoundStep(ing)
@@ -252,8 +261,8 @@ function IngredientsTab() {
                     <p className="text-xs text-gray-400 italic">{t('recipes.notUsedAnywhere')}</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {usedIn.map(({ product, qty }) => (
-                        <span key={product} className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full px-3 py-1 text-xs text-gray-700 shadow-sm">
+                      {usedIn.map(({ product, qty, type }) => (
+                        <span key={`${type}:${product}`} className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full px-3 py-1 text-xs text-gray-700 shadow-sm">
                           <span className="font-medium">{product}</span>
                           <span className="text-blue-500 font-semibold">{qty} {ing.unit}</span>
                         </span>
@@ -499,10 +508,12 @@ function RecipesTab() {
   const catalogNames = useMemo(() => new Set(dimRows.map(p => p.productRu)), [dimRows])
 
   // Orphan recipes: keys in fact_recipe_ingredients that belong to no
-  // dim_product entry — exactly the dirty-data surface this fixes.
+  // dim_product entry — exactly the dirty-data surface this fixes. Covers
+  // both production BOMs and store-authored retail recipes.
   const orphanNames = useMemo(
-    () => Object.keys(config.recipes).filter(p => !catalogNames.has(p)).sort(),
-    [config.recipes, catalogNames]
+    () => [...new Set([...Object.keys(config.recipes ?? {}), ...Object.keys(config.salesRecipes ?? {})])]
+      .filter(p => !catalogNames.has(p)).sort(),
+    [config.recipes, config.salesRecipes, catalogNames]
   )
 
   // POS coverage from the sales cache (badge only — never drives the list).
@@ -533,8 +544,8 @@ function RecipesTab() {
   // Its raw-material recipe is a Warehouse-app concern and is NOT shown here;
   // what the store sees is the "sold as" retail recipe (the finished good).
   // A retail recipe WITHOUT production = ordinary in-store drink: a sale
-  // consumes the recipe's ingredients directly at the store (read-only here —
-  // retail recipes are authored in the manager inventory app).
+  // consumes the recipe's ingredients directly at the store. The store
+  // authors these HERE as recipe_type='retail' (sales-based consumption).
   // A retail recipe whose lines are ALL finished goods is a sold-as marker
   // (WHS-made product transferred to stores), even if the production recipe
   // is missing — such products must not display as in-store drinks.
@@ -588,10 +599,10 @@ function RecipesTab() {
   // Legacy universe (lakehouse offline / dim_product unavailable)
   const legacyProducts = useMemo(() => {
     if (useCatalog) return []
-    const seen = [...new Set([...sales.map(s => s.product), ...posWaste.map(s => s.product), ...orphanNames, ...Object.keys(config.recipes)])]
+    const seen = [...new Set([...sales.map(s => s.product), ...posWaste.map(s => s.product), ...orphanNames, ...Object.keys(config.recipes ?? {}), ...Object.keys(config.salesRecipes ?? {})])]
       .sort()
     return seen.map(name => ({ productRu: name, parentProductEn: '', variant: 'Standard', category: null, isActive: true, isModifier: false }))
-  }, [useCatalog, sales, posWaste, config.recipes, orphanNames])
+  }, [useCatalog, sales, posWaste, config.recipes, config.salesRecipes, orphanNames])
 
   const categories = useMemo(
     () => [...new Set(groups.map(g => g.category))].sort(),
@@ -638,7 +649,10 @@ function RecipesTab() {
     ? groups.reduce((n, g) => n + g.children.filter(c => !hasRecipe(c.productRu)).length, 0)
     : legacyDisplayed.filter(p => !hasRecipe(p.productRu)).length
 
-  const selectedRecipe    = config.recipes[selected] ?? {}
+  // Editor works on the RETAIL (in-store) recipe: store-authored recipes are
+  // recipe_type='retail'. config.recipes holds production BOMs, which are a
+  // Warehouse-app concern and stay read-only here (WHS · склад lock).
+  const selectedRecipe    = config.salesRecipes?.[selected] ?? {}
   const selectedProduction = selected ? productionRecipeFor(selected) : null
   const selectedSoldAs = selected ? soldAsFor(selected) : null
   const selectedRetail = selected ? retailRecipeFor(selected) : null
@@ -680,7 +694,7 @@ function RecipesTab() {
         const num = parseFloat(val)
         if (!isNaN(num) && num > 0) recipe[Number(id)] = num
       })
-      return { ...prev, recipes: { ...prev.recipes, [selected]: recipe } }
+      return { ...prev, salesRecipes: { ...prev.salesRecipes, [selected]: recipe } }
     })
     saveUnitPay?.(selected, draftUnitPay)
     setEditing(false)
@@ -734,10 +748,10 @@ function RecipesTab() {
 
   const deleteRecipe = (name) => {
     setConfig(prev => {
-      if (!prev.recipes[name]) return prev
-      const recipes = { ...prev.recipes }
-      delete recipes[name]
-      return { ...prev, recipes }
+      if (!prev.salesRecipes?.[name]) return prev
+      const salesRecipes = { ...prev.salesRecipes }
+      delete salesRecipes[name]
+      return { ...prev, salesRecipes }
     })
     setSelected(null)
     setConfirmDelete(false)

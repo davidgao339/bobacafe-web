@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '../data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '../services/api'
+import { runLhSql, fetchRetailRecipesLh, lhRecipeReplaceRetail, lhRecipeDeleteRetail } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '../components/SyncErrorToast'
 
@@ -12,6 +13,41 @@ const SUPPRESSED_STORES_KEY = 'bobacafe_suppressed_stores'
 
 export const DEFAULT_INGREDIENTS = []
 export const DEFAULT_RECIPES = {}
+
+// Fire-and-forget lakehouse push. Failures raise the in-app SyncErrorToast
+// alarm (channel 'lakehouse') with a Retry button.
+function lhPush(settings, sqls) {
+  if (!settings?.token || !settings?.warehouseId || !sqls?.length) return
+  const run = () => sqls.reduce((p, s) => p.then(() => runLhSql(settings.token, settings.warehouseId, s)), Promise.resolve())
+  run().catch(err => {
+    console.error('LH push failed:', err)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('d1-sync-error', {
+        detail: {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          channel: 'lakehouse',
+          sql: sqls.join(';\n'),
+          message: err?.message || String(err),
+          timestamp: new Date().toLocaleTimeString(),
+          retry: run,
+        },
+      }))
+    }
+  })
+}
+
+// Group raw LH retail recipe rows into the app's {recipes, hiddenRecipes} shape.
+function groupRetailRecipes(rows) {
+  const recipes = {}
+  const hiddenRecipes = {}
+  for (const r of rows) {
+    const key = r.recipe_product_name
+    if (!recipes[key]) recipes[key] = {}
+    recipes[key][r.ingredient_id] = Number(r.amount_per_serving) || 0
+    if (r.is_hidden) hiddenRecipes[key] = true
+  }
+  return { recipes, hiddenRecipes }
+}
 
 // ─── Operational data defaults ────────────────────────────────────────────────
 
@@ -138,19 +174,30 @@ export function ConfigProvider({ children }) {
   useEffect(() => {
     async function loadFromD1() {
       try {
-        const [ingRes, recRes, suppRes, txRes, poRes, audRes] = await Promise.all([
+        const [ingRes, suppRes, txRes, poRes, audRes] = await Promise.all([
           queryD1('SELECT * FROM ingredients'),
-          queryD1("SELECT * FROM recipes WHERE type = 'retail'"),
           queryD1('SELECT * FROM suppliers'),
           queryD1('SELECT * FROM transactions'),
           queryD1('SELECT * FROM purchase_orders'),
           queryD1('SELECT * FROM audits')
         ])
-        
+
+        // Recipes are LH-only: read fact_recipe_ingredients (retail) straight
+        // from the lakehouse. No LH credentials yet → start with an empty book.
+        let recRows = []
+        if (settings?.token && settings?.warehouseId) {
+          try {
+            recRows = await fetchRetailRecipesLh(settings.token, settings.warehouseId)
+          } catch (e) {
+            console.error('LH recipe load failed:', e)
+          }
+        }
+        const { recipes: groupedRecipes, hiddenRecipes: groupedHidden } = groupRetailRecipes(recRows)
+
         setConfigState({
           ingredients: ingRes.map(i => ({ ...i, hidden: Boolean(i.hidden), warehouseOnly: Boolean(i.warehouseOnly) })),
-          recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
-          hiddenRecipes: Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)])),
+          recipes: groupedRecipes,
+          hiddenRecipes: groupedHidden,
           suppliers: suppRes,
           _nextIngId: Math.max(0, ...ingRes.map(i => i.id)) + 1,
           _nextSupplierId: Math.max(0, ...suppRes.map(s => s.id)) + 1,
@@ -436,20 +483,25 @@ export function ConfigProvider({ children }) {
     setConfigState(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
       
-      // Compute delta for recipes
+      // Compute delta for recipes — LH-only writes (retail facts, hidden flag
+      // preserved). No D1 legacy `recipes` rows are maintained.
       if (next.recipes !== prev.recipes || next.hiddenRecipes !== prev.hiddenRecipes) {
         const nextProducts = new Set([...Object.keys(next.recipes || {}), ...Object.keys(next.hiddenRecipes || {})])
+        const ingName = (ingId) => {
+          const ing = next.ingredients?.find(i => String(i.id) === String(ingId))
+          return ing?.name || `Item #${ingId}`
+        }
         for (const product of nextProducts) {
           const mapping = next.recipes[product] || {}
           const hidden = next.hiddenRecipes?.[product] ? 1 : 0
-          
+
           if (JSON.stringify(mapping) !== JSON.stringify(prev.recipes[product] || {}) || hidden !== (prev.hiddenRecipes?.[product] ? 1 : 0)) {
-            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping, hidden) VALUES (?, 'retail', ?, ?)`, [product, JSON.stringify(mapping), hidden]).catch(console.error)
+            lhPush(settings, lhRecipeReplaceRetail(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: ingName(ingId), amt: Number(amt) })), null, hidden))
           }
         }
         for (const product of Object.keys(prev.recipes)) {
           if (!nextProducts.has(product)) {
-            queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'retail'`, [product]).catch(console.error)
+            lhPush(settings, [lhRecipeDeleteRetail(product)])
           }
         }
       }
@@ -476,13 +528,16 @@ export function ConfigProvider({ children }) {
   }, [])
 
   const refreshRecipes = useCallback(async () => {
-    const recRes = await queryD1("SELECT * FROM recipes WHERE type = 'retail'")
-    setConfigState(prev => ({
-      ...prev,
-      recipes: Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)])),
-      hiddenRecipes: Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)])),
-    }))
-  }, [])
+    // Recipes are LH-only: refresh reads fact_recipe_ingredients (retail).
+    if (!(settings?.token && settings?.warehouseId)) return
+    try {
+      const recRows = await fetchRetailRecipesLh(settings.token, settings.warehouseId)
+      const { recipes, hiddenRecipes } = groupRetailRecipes(recRows)
+      setConfigState(prev => ({ ...prev, recipes, hiddenRecipes }))
+    } catch (err) {
+      console.error('LH recipe refresh failed:', err)
+    }
+  }, [settings?.token, settings?.warehouseId])
 
   const addSupplier = useCallback((name) => {
     setConfigState(prev => {
@@ -559,15 +614,17 @@ export function ConfigProvider({ children }) {
   }, [salesCache])
 
   const recalculateUsage = useCallback(async (fromDate, toDate, store = 'All') => {
-    // 1. Refresh retail recipes from D1 so current formulas are fresh
-    const recRes = await queryD1("SELECT * FROM recipes WHERE type = 'retail'")
-    const freshRecipes = Object.fromEntries(recRes.map(r => [r.product_name, JSON.parse(r.ingredient_mapping)]))
-    const freshHidden = Object.fromEntries(recRes.map(r => [r.product_name, Boolean(r.hidden)]))
-    setConfigState(prev => ({
-      ...prev,
-      recipes: freshRecipes,
-      hiddenRecipes: freshHidden,
-    }))
+    // 1. Refresh retail recipes from the lakehouse so current formulas are
+    // fresh (recipes are LH-only; skipped when no credentials are set).
+    if (settings?.token && settings?.warehouseId) {
+      try {
+        const recRows = await fetchRetailRecipesLh(settings.token, settings.warehouseId)
+        const grouped = groupRetailRecipes(recRows)
+        setConfigState(prev => ({ ...prev, recipes: grouped.recipes, hiddenRecipes: grouped.hiddenRecipes }))
+      } catch (e) {
+        console.error('LH recipe refresh failed:', e)
+      }
+    }
 
     // 2. Fetch fresh transactions from Databricks if token/warehouseId available
     let syncedDatabricks = false
@@ -605,7 +662,6 @@ export function ConfigProvider({ children }) {
       count: matchingRows.length,
       fromDate,
       toDate,
-      recipesCount: Object.keys(freshRecipes).length,
       syncedDatabricks,
       newRowsCount,
     }
@@ -618,7 +674,7 @@ export function ConfigProvider({ children }) {
     const a    = document.createElement('a')
     a.href = url; a.download = `inventory-config-${new Date().toISOString().slice(0, 10)}.json`
     a.click(); URL.revokeObjectURL(url)
-  }, [config])
+  }, [config, settings])
 
   const importConfig = useCallback((file) =>
     new Promise((resolve, reject) => {
@@ -654,12 +710,17 @@ export function ConfigProvider({ children }) {
             await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0])
           }
           
-          await queryD1(`DELETE FROM recipes WHERE type = 'retail'`)
-          const allProds = new Set([...Object.keys(conf.recipes), ...Object.keys(conf.hiddenRecipes)])
+          // Recipes are LH-only: push the imported retail book straight to the
+          // lakehouse (idempotent replace per product). No D1 legacy writes.
+          const importedIngName = (ingId) => {
+            const ing = conf.ingredients.find(i => String(i.id) === String(ingId))
+            return ing?.name || `Item #${ingId}`
+          }
+          const allProds = new Set([...Object.keys(conf.recipes || {}), ...Object.keys(conf.hiddenRecipes || {})])
           for (const product of allProds) {
             const mapping = conf.recipes[product] || {}
             const hidden = conf.hiddenRecipes[product] ? 1 : 0
-            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping, hidden) VALUES (?, 'retail', ?, ?)`, [product, JSON.stringify(mapping), hidden])
+            lhPush(settings, lhRecipeReplaceRetail(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: importedIngName(ingId), amt: Number(amt) })), null, hidden))
           }
           
           await queryD1(`DELETE FROM suppliers`)

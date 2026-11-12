@@ -280,8 +280,10 @@ export function ConfigProvider({ children }) {
               queryD1('SELECT * FROM dim_stores ORDER BY store_id ASC'),
               queryD1('SELECT * FROM dim_store_aliases'),
               queryD1('SELECT ingredient_id AS id, ingredient_name AS name, unit, product_type AS productType, supplier_id AS supplierId, supplier_name AS supplierName, is_warehouse_only AS warehouseOnly, is_hidden AS hidden, cost_per_unit AS costPerUnit, last_purchase_cost AS lastPurchaseCost, wac_cost_30d AS wacCost30d FROM dim_ingredients'),
-              queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
-              queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
+              // Recipes are LH-only (no D1 fallback): a first run without LH
+              // credentials simply starts with an empty recipe book.
+              Promise.resolve([]),
+              Promise.resolve([]),
               queryD1('SELECT * FROM suppliers'),
               queryD1('SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM fact_inventory_transactions ORDER BY transaction_date DESC, transaction_timestamp DESC'),
               queryD1('SELECT * FROM fact_purchase_orders ORDER BY po_id DESC'),
@@ -1140,17 +1142,8 @@ export function ConfigProvider({ children }) {
               console.error(`Recipe cycle blocked: production recipe '${product}' would consume itself (ingredient ${selfIngId})`)
               continue
             }
-            queryD1(`DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = ? AND recipe_type = 'production'`, [product]).catch(console.error)
-            Object.entries(mapping).forEach(([ingId, amt]) => {
-              const ing = next.ingredients?.find(i => String(i.id) === String(ingId))
-              queryD1(
-                `INSERT INTO fact_recipe_ingredients (recipe_product_name, ingredient_id, ingredient_name, amount_per_serving, recipe_type) VALUES (?, ?, ?, ?, 'production')`,
-                [product, Number(ingId), ing?.name || `Item #${ingId}`, Number(amt)]
-              ).catch(console.error)
-            })
-            queryD1(`INSERT OR REPLACE INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)]).catch(console.error)
-            // Attach the dim_product id (product_id-matched recipes): normalize
-            // match against the catalog; NULL when the product isn't in dim yet.
+            // Recipes are LH-only: the lakehouse row is written directly
+            // (idempotent replace); no D1 fact/legacy copies are maintained.
             const dimHit = (next.dimProducts || []).find(p => p.productRu === product)
             const dimHitNorm = dimHit ? null : (next.dimProducts || []).find(p => normNameKey(p.productRu) === normNameKey(product) && p.isActive)
             const dimMatch = dimHit || dimHitNorm || null
@@ -1160,9 +1153,38 @@ export function ConfigProvider({ children }) {
         const nextProducts = new Set(Object.keys(next.recipes))
         for (const product of Object.keys(prev.recipes)) {
           if (!nextProducts.has(product)) {
-            queryD1(`DELETE FROM fact_recipe_ingredients WHERE recipe_product_name = ? AND recipe_type = 'production'`, [product]).catch(console.error)
-            queryD1(`DELETE FROM recipes WHERE product_name = ? AND type = 'production'`, [product]).catch(console.error)
             lhPush(settings, [LH_PUSH.del('fact_recipe_ingredients', `recipe_product_name = '${esc(product)}' AND recipe_type = 'production'`)])
+          }
+        }
+      }
+
+      // Compute delta for retail recipes. stores-tabular authors in-store
+      // drink recipes as recipe_type='retail' (the nightly sync feeds them to
+      // retail_refs, not the WHS-made classification). No production
+      // self-reference guard here: retail self-depletion is legitimate (a
+      // sold retail SKU depletes itself).
+      // Recipes are LH-only: written straight to fact_recipe_ingredients,
+      // no D1 fact/legacy copies.
+      if (next.salesRecipes !== prev.salesRecipes && next.salesRecipes) {
+        const ingName = (ingId) => {
+          const list = next.allIngredients?.length ? next.allIngredients : (next.ingredients || [])
+          const ing = list.find(i => String(i.id) === String(ingId))
+          return ing?.name || `Item #${ingId}`
+        }
+        for (const [product, mapping] of Object.entries(next.salesRecipes)) {
+          if (JSON.stringify(mapping) !== JSON.stringify(prev.salesRecipes[product])) {
+            // Attach the dim_product id (product_id-matched recipes): normalize
+            // match against the catalog; NULL when the product isn't in dim yet.
+            const dimHit = (next.dimProducts || []).find(p => p.productRu === product)
+            const dimHitNorm = dimHit ? null : (next.dimProducts || []).find(p => normNameKey(p.productRu) === normNameKey(product) && p.isActive)
+            const dimMatch = dimHit || dimHitNorm || null
+            lhPush(settings, LH_PUSH.recipeReplaceRetail(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: ingName(ingId), amt: Number(amt) })), dimMatch?.productId ?? null))
+          }
+        }
+        const nextRetailProducts = new Set(Object.keys(next.salesRecipes))
+        for (const product of Object.keys(prev.salesRecipes)) {
+          if (!nextRetailProducts.has(product)) {
+            lhPush(settings, [LH_PUSH.del('fact_recipe_ingredients', `recipe_product_name = '${esc(product)}' AND recipe_type = 'retail'`)])
           }
         }
       }
@@ -1207,8 +1229,11 @@ export function ConfigProvider({ children }) {
           fetchLh(settings.token, settings.warehouseId, 'dimProduct').then(coerceLhRows).catch(() => null),
         ])
       : await Promise.all([
-          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'production'"),
-          queryD1("SELECT recipe_product_name, ingredient_id, amount_per_serving FROM fact_recipe_ingredients WHERE recipe_type = 'retail'"),
+          // Recipes are LH-only: no D1 refresh fallback. Without credentials
+          // the refresh returns empty book data (state is left untouched for
+          // dim/products via the best-effort contract below).
+          Promise.resolve([]),
+          Promise.resolve([]),
           queryD1("SELECT product_name, pay_rate FROM dim_cook_unit_pay").catch(() => []),
           Promise.resolve(null),
         ])
@@ -1409,6 +1434,7 @@ export function ConfigProvider({ children }) {
           const conf = {
             ingredients: nextConfig.ingredients || [],
             recipes: nextConfig.recipes || {},
+            salesRecipes: nextConfig.salesRecipes || {},
             unitPay: nextConfig.unitPay || config.unitPay || {},
             suppliers: nextConfig.suppliers || [],
             _nextIngId: Math.max(0, ...(nextConfig.ingredients || []).map(i => i.id)) + 1,
@@ -1421,9 +1447,22 @@ export function ConfigProvider({ children }) {
             await queryD1(`INSERT INTO ingredients (id, name, unit, productType, supplierId, hidden, warehouseOnly) VALUES (?, ?, ?, ?, ?, ?, ?)`, [ing.id, ing.name, ing.unit, ing.productType || null, ing.supplierId || null, ing.hidden ? 1 : 0, ing.warehouseOnly ? 1 : 0])
           }
           
-          await queryD1(`DELETE FROM recipes WHERE type = 'production'`)
+          // Recipes are LH-only: push the imported recipe book straight to the
+          // lakehouse (idempotent replace per product). No D1 legacy writes.
+          const importedIngName = (ingId) => {
+            const ing = conf.ingredients.find(i => String(i.id) === String(ingId))
+            return ing?.name || `Item #${ingId}`
+          }
+          const importedDimId = (product) => {
+            const hit = (config.dimProducts || []).find(p => p.productRu === product)
+            const hitNorm = hit ? null : (config.dimProducts || []).find(p => normNameKey(p.productRu) === normNameKey(product) && p.isActive)
+            return (hit || hitNorm || null)?.productId ?? null
+          }
           for (const [product, mapping] of Object.entries(conf.recipes)) {
-            await queryD1(`INSERT INTO recipes (product_name, type, ingredient_mapping) VALUES (?, 'production', ?)`, [product, JSON.stringify(mapping)])
+            lhPush(settings, LH_PUSH.recipeReplace(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: importedIngName(ingId), amt: Number(amt) })), importedDimId(product)))
+          }
+          for (const [product, mapping] of Object.entries(conf.salesRecipes || {})) {
+            lhPush(settings, LH_PUSH.recipeReplaceRetail(product, Object.entries(mapping).map(([ingId, amt]) => ({ id: Number(ingId), name: importedIngName(ingId), amt: Number(amt) })), importedDimId(product)))
           }
           
           await queryD1(`DELETE FROM suppliers`)
@@ -1494,7 +1533,7 @@ export function ConfigProvider({ children }) {
         audits: (data.audits || []).filter(a =>
           a.store === selectedStore || (selectedStoreId != null && a.storeId === selectedStoreId))
       }
-  }, [data, selectedStore, selectedStoreId])
+  }, [data, selectedStore, selectedStoreId, config, settings])
 
   // If not loaded, we can return null to avoid crashing child components that expect full data,
   // or return the context. For now, children expect data to be defined. It starts as DEFAULT_DATA.

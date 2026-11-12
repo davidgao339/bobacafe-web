@@ -293,6 +293,8 @@ def delete_facts_by_composite_parents(table_name: str, pairs: list, batch_size: 
             f"   AND v.recipe_type = {table_name}.recipe_type)")
 
 def delete_recipe_rows_by_identity(table_name: str, parents: list, prod_lookup, key_fn, pid_to_name):
+    """UNUSED since recipes went LH-only (apps author fact rows directly).
+    Kept for reference until the legacy D1 `recipes` table is dropped."""
     """6c Gap A: identity-keyed recipe refresh.
 
     For each D1 (raw_name, type) parent that resolves to a dim_product:
@@ -329,7 +331,12 @@ def main():
     print("\n[Step 2/9] Extracting all tables from Cloudflare D1 via proxy...")
     d1_ingredients = query_d1("SELECT * FROM ingredients")
     d1_suppliers = query_d1("SELECT * FROM suppliers")
-    d1_recipes = query_d1("SELECT * FROM recipes")
+    # Recipes are LH-only now: apps author fact_recipe_ingredients directly
+    # in the lakehouse. The legacy D1 `recipes` table is neither read nor
+    # rebuilt; only its per-ingredient usage refs are needed, and those come
+    # from the LH fact rows below.
+    lh_recipe_refs = run_databricks_sql(
+        "SELECT recipe_type, ingredient_id FROM workspace.inventory_tabular.fact_recipe_ingredients")
     # Audits: the audit-app maintains fact_audit_headers/counts DIRECTLY
     # (it never writes the legacy `audits` master), so the fact tables are the
     # app-maintained source of truth — same principle as fact_inventory_balance.
@@ -355,7 +362,7 @@ def main():
     print(f"  D1 ingredients:     {len(d1_ingredients)} rows")
     print(f"  D1 dim cost rows:   {len(d1_dim_costs)} rows")
     print(f"  D1 suppliers:       {len(d1_suppliers)} rows")
-    print(f"  D1 recipes:         {len(d1_recipes)} rows")
+    print(f"  LH recipe facts:    {len(lh_recipe_refs)} rows (LH-only)")
     print(f"  D1 audits:          {len(d1_audits)} rows")
     print(f"  D1 purchase orders: {len(d1_pos)} rows")
     print(f"  D1 transactions:    {len(d1_txs)} rows")
@@ -448,23 +455,20 @@ def main():
     
     ingredient_rows = []
     ing_name_map = {}
-    # Two-echelon classification: usage refs from D1 recipes (same evidence the
-    # ending fact counts in LH carry), then the shared semantic module decides.
+    # Two-echelon classification: usage refs from the lakehouse recipe facts
+    # (recipes are LH-only; apps write them straight into
+    # fact_recipe_ingredients), then the shared semantic module decides.
     prod_refs_map, retail_refs_map = {}, {}
-    for r in d1_recipes:
-        rtype = (r.get("type") or "retail")
-        try:
-            mapping = json.loads(r.get("ingredient_mapping") or "{}")
-        except Exception:
-            continue
+    for r in lh_recipe_refs:
+        rtype = r.get("recipe_type") or "retail"
         ref_map = prod_refs_map if rtype == "production" else (retail_refs_map if rtype == "retail" else None)
         if ref_map is None:
             continue
-        for ing_id_str in mapping:
-            try:
-                ref_map[int(ing_id_str)] = ref_map.get(int(ing_id_str), 0) + 1
-            except Exception:
-                continue
+        try:
+            ing_id = int(r.get("ingredient_id"))
+        except (TypeError, ValueError):
+            continue
+        ref_map[ing_id] = ref_map.get(ing_id, 0) + 1
     prod_index_active, prod_index_any = build_product_index(db_products)
     for ing in d1_ingredients:
         ing_id = int(ing["id"])
@@ -534,7 +538,7 @@ def main():
                 merge_keys=["product_name"])
 
     # ─── TABLE 4: fact_recipe_ingredients (Unrolled BOM) ────────────────────
-    print("\n[Step 7/9] Creating and loading fact_recipe_ingredients...")
+    print("\n[Step 7/9] fact_recipe_ingredients (LH-only, app-authored)...")
     table_recipes = f"{TARGET_SCHEMA}.fact_recipe_ingredients"
     run_databricks_sql(f"""
     CREATE TABLE IF NOT EXISTS {table_recipes} (
@@ -548,61 +552,9 @@ def main():
         is_hidden BOOLEAN
     ) USING DELTA
     """)
-
-    recipe_rows = []
-    pid_to_name = {}
-    for p in db_products:
-        p_ru = (p.get('product_ru') or '').strip()
-        p_id = p.get('product_id')
-        if p_ru and p_id is not None and int(p_id) not in pid_to_name:
-            pid_to_name[int(p_id)] = p_ru
-    for r in d1_recipes:
-        pname = r.get("product_name", "").strip()
-        rtype = r.get("type", "retail")
-        hidden = bool(r.get("hidden", 0))
-        mapping_raw = r.get("ingredient_mapping")
-        if not mapping_raw:
-            continue
-        try:
-            mapping = json.loads(mapping_raw)
-        except Exception:
-            continue
-        
-        prod_info = prod_lookup.get(_key(pname), {})
-        if not prod_info:
-            unresolved_product_names[pname] = unresolved_product_names.get(pname, 0) + 1
-        p_id = prod_info.get("product_id")
-        parent_p_id = prod_info.get("parent_product_id")
-
-        # 6c Gap A: canonicalize the recipe spelling LH-side. D1 rows keep
-        # legacy spellings forever; the app keys recipes on canonical dim
-        # names (product_id-attached), so one product must never exist under
-        # two spellings in the Lakehouse. No dim match → keep raw D1 spelling
-        # (pseudo-products like 'Списание - …').
-        canon_name = pid_to_name.get(p_id, pname) if p_id is not None else pname
-
-        for ing_id_str, amt in mapping.items():
-            try:
-                ing_id = int(ing_id_str)
-                amt_val = float(amt)
-                ing_name = ing_name_map.get(ing_id, f"Ingredient #{ing_id}")
-                recipe_rows.append([canon_name, p_id, parent_p_id, ing_id, ing_name, amt_val, rtype, hidden])
-            except Exception:
-                continue
-
-    # Recipes are fully derived per product identity — refresh exactly, keep
-    # LH-only product recipes untouched (app-authored, absent from D1).
-    # Identity-keyed (6c Gap A): a refresh deletes ALL spellings of the same
-    # product (raw D1 spelling, canonical dim spelling, and any LH-authored
-    # variant carrying the same product_id) before reinserting canonical rows.
-    recipe_parents = sorted(set((r.get("product_name", "").strip(), r.get("type", "retail"))
-                                for r in d1_recipes if r.get("product_name", "").strip()))
-    delete_recipe_rows_by_identity(table_recipes, recipe_parents, prod_lookup, _key, pid_to_name)
-    batch_insert(
-        table_recipes,
-        ["recipe_product_name", "product_id", "parent_product_id", "ingredient_id", "ingredient_name", "amount_per_serving", "recipe_type", "is_hidden"],
-        recipe_rows
-    )
+    print("  Preserved lakehouse rows untouched — recipes are authored directly")
+    print("  in LH by the apps (LH_PUSH.recipeReplace / recipeReplaceRetail) and")
+    print("  are no longer derived from the legacy D1 `recipes` table.")
 
     # ─── TABLE 5 & 6: fact_audit_headers & fact_audit_counts ────────────────
     print("\n[Step 8/9] Creating and loading fact_audit_headers & fact_audit_counts...")

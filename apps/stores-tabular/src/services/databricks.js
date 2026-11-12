@@ -114,6 +114,13 @@ export const LH_PUSH = {
     `DELETE FROM ${T('fact_recipe_ingredients')} WHERE recipe_product_name = '${esc(product)}' AND recipe_type = 'production'`,
     ...entries.map(e => `INSERT INTO ${T('fact_recipe_ingredients')} (recipe_product_name, product_id, ingredient_id, ingredient_name, amount_per_serving, recipe_type) VALUES ('${esc(product)}', ${productId ?? 'NULL'}, ${Number(e.id)}, '${esc(e.name)}', ${Number(e.amt)}, 'production')`),
   ],
+  // Retail variant: the stores app authors in-store drink recipes as
+  // recipe_type='retail' (sales-based consumption), never 'production' —
+  // a store-authored production row would flag the product as WHS-made.
+  recipeReplaceRetail: (product, entries, productId) => [
+    `DELETE FROM ${T('fact_recipe_ingredients')} WHERE recipe_product_name = '${esc(product)}' AND recipe_type = 'retail'`,
+    ...entries.map(e => `INSERT INTO ${T('fact_recipe_ingredients')} (recipe_product_name, product_id, ingredient_id, ingredient_name, amount_per_serving, recipe_type) VALUES ('${esc(product)}', ${productId ?? 'NULL'}, ${Number(e.id)}, '${esc(e.name)}', ${Number(e.amt)}, 'retail')`),
+  ],
   ingredient: (i) => `MERGE INTO ${T('dim_ingredients')} t USING (SELECT ${i.id} AS ingredient_id, '${esc(i.name)}' AS ingredient_name, '${esc(i.unit)}' AS unit, ${i.productType ? `'${esc(i.productType)}'` : 'NULL'} AS product_type, ${i.supplierId ?? 'NULL'} AS supplier_id, ${i.supplierName ? `'${esc(i.supplierName)}'` : 'NULL'} AS supplier_name, ${i.warehouseOnly ? 'true' : 'false'} AS is_warehouse_only, ${i.hidden ? 'true' : 'false'} AS is_hidden, ${i.costPerUnit ?? 'NULL'} AS cost_per_unit) s ON t.ingredient_id = s.ingredient_id WHEN MATCHED THEN UPDATE SET ingredient_name = s.ingredient_name, unit = s.unit, product_type = s.product_type, supplier_id = s.supplier_id, supplier_name = s.supplier_name, is_warehouse_only = s.is_warehouse_only, is_hidden = s.is_hidden, cost_per_unit = s.cost_per_unit WHEN NOT MATCHED THEN INSERT (ingredient_id, ingredient_name, unit, product_type, supplier_id, supplier_name, is_warehouse_only, is_hidden, cost_per_unit) VALUES (s.ingredient_id, s.ingredient_name, s.unit, s.product_type, s.supplier_id, s.supplier_name, s.is_warehouse_only, s.is_hidden, s.cost_per_unit)`,
   cookPay: (product, rate) => rate == null
     ? `DELETE FROM ${T('dim_cook_unit_pay')} WHERE product_name = '${esc(product)}'`
