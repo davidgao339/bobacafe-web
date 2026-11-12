@@ -28,6 +28,7 @@ const ru = {
   'ledger.colEnding':        'Остаток на конец дня',
   'ledger.today':            'сегодня',
   'ledger.auditTag':         'инвент.',
+  'ledger.transferInTag':    'перемещ.',
   'ledger.kindAudit':        'Инвентаризация',
   'ledger.auditCounted':     'Подсчитано: {{count}} {{unit}}',
   'ledger.auditBaseline':    'стартовый остаток',

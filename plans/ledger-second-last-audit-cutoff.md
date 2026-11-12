@@ -200,3 +200,28 @@ Two fixes implemented:
   ledger correctly shows the drop to 0 as an audit adjustment.
 - The LH badge/title texts referencing the view name should be kept accurate
   (small doc edits, Option A).
+
+## Follow-up 4 (2026-11-12): ledger day pills - baseline audit + transfer-in
+
+User request: the first-day (baseline) audit row should be visibly tagged as an
+audit just like the last audit's day, and days with a transfer-in should carry
+a pill for an easy glance.
+
+Both apps/stores-tabular/src/pages/Ledger.jsx and
+apps/warehouse-tabular/src/pages/Ledger.jsx (LH day-loop):
+
+- Track dayTransferIn (sum of transfer-in events) and hasBaselineAudit
+  (the anchor audit is stored on the day it happened) per day; rows now carry
+  transferIn and baselineAudit fields.
+- Display filter includes r.transferIn > 0 || r.baselineAudit so those days
+  show even when nothing else happened.
+- Date cell pills: existing purple ledger.auditTag (audit adj days), plus
+  new teal ledger.transferInTag when row.transferIn > 0.
+- Row tint: purple also when row.baselineAudit (baseline audit day looks
+  like an audit day).
+- i18n ledger.transferInTag: en 'transfer in', ru 'перемещ.' (matches the
+  existing "Перемещение" wording for transfers).
+
+Intentionally NOT changed: the local D1 fallback path's rows lack
+transferIn/baselineAudit (undefined -> no pill); that path already renders
+its baseline differently and wasn't part of the request. Both builds pass.

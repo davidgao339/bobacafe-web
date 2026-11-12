@@ -147,7 +147,7 @@ export default function DailyLedger({ initialIngredientId }) {
         const details = [...(byDate[d]?.details ?? [])]
         details.sort((a, b) => String(a.time).localeCompare(String(b.time)))
 
-        let dayUsage = 0, dayReceived = 0, dayTransferOut = 0, dayAuditAdj = null
+        let dayUsage = 0, dayReceived = 0, dayTransferOut = 0, dayTransferIn = 0, dayAuditAdj = null, hasBaselineAudit = false
 
         for (const ev of details) {
           if (ev.kind === 'audit') {
@@ -156,10 +156,15 @@ export default function DailyLedger({ initialIngredientId }) {
             // The baseline (anchor) audit is the ledger's starting point, not a
             // correction — don't report its count as a day adjustment.
             if (!ev.baseline) dayAuditAdj = dayAuditAdj === null ? adj : r1(dayAuditAdj + adj)
+            else hasBaselineAudit = true
             running = ev.count
-          } else if (ev.kind === 'po' || ev.kind === 'transfer-in') {
+          } else if (ev.kind === 'po') {
             running = r1(running + ev.qty)
             dayReceived = r1(dayReceived + ev.qty)
+          } else if (ev.kind === 'transfer-in') {
+            running = r1(running + ev.qty)
+            dayReceived = r1(dayReceived + ev.qty)
+            dayTransferIn = r1(dayTransferIn + ev.qty)
           } else if (ev.kind === 'transfer-out') {
             running = r1(running - ev.qty)
             dayTransferOut = r1(dayTransferOut + ev.qty)
@@ -175,13 +180,13 @@ export default function DailyLedger({ initialIngredientId }) {
           }
         }
 
-        allRows.push({ date: d, usage: dayUsage, received: dayReceived, transferOut: dayTransferOut, auditAdj: dayAuditAdj, ending: running, details })
+        allRows.push({ date: d, usage: dayUsage, received: dayReceived, transferOut: dayTransferOut, transferIn: dayTransferIn, auditAdj: dayAuditAdj, baselineAudit: hasBaselineAudit, ending: running, details })
       }
 
       const displayRows = allRows
         .filter(r =>
           r.date >= from && r.date <= to &&
-          (r.usage > 0 || r.received !== 0 || r.transferOut > 0 || r.auditAdj !== null || r.date === today)
+          (r.usage > 0 || r.received !== 0 || r.transferOut > 0 || r.transferIn > 0 || r.auditAdj !== null || r.baselineAudit || r.date === today)
         )
         .reverse()
 
@@ -504,7 +509,7 @@ export default function DailyLedger({ initialIngredientId }) {
                               row.details.length > 0 ? 'cursor-pointer' : ''
                             } ${
                               expandedDate === row.date ? 'bg-blue-50' :
-                              row.auditAdj !== null    ? 'bg-purple-50/40' :
+                              row.auditAdj !== null || row.baselineAudit ? 'bg-purple-50/40' :
                               row.date === today       ? 'bg-amber-50/50' :
                                                         'hover:bg-gray-50'
                             }`}>
@@ -527,6 +532,11 @@ export default function DailyLedger({ initialIngredientId }) {
                                 {row.auditAdj !== null && (
                                   <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-medium">
                                     {t('ledger.auditTag')}
+                                  </span>
+                                )}
+                                {row.transferIn > 0 && (
+                                  <span className="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium">
+                                    {t('ledger.transferInTag')}
                                   </span>
                                 )}
                               </div>

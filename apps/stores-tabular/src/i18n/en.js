@@ -28,6 +28,7 @@ const en = {
   'ledger.colEnding':        'Ending Balance',
   'ledger.today':            'today',
   'ledger.auditTag':         'audit',
+  'ledger.transferInTag':    'transfer in',
   'ledger.kindAudit':        'Audit',
   'ledger.auditCounted':     'Counted: {{count}} {{unit}}',
   'ledger.auditBaseline':    'starting balance',
