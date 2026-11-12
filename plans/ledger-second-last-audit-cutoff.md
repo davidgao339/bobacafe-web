@@ -136,6 +136,25 @@ Fix: added an `audit` branch to the replay loop in BOTH tabular apps
 `adj = counted − running` (the loss) and resets the balance. Both builds pass.
 View deployed earlier is unchanged; no SQL change needed.
 
+## Follow-up 2 (2026-11-12): baseline audit showed a fake "+adj"
+
+After the replay fix the user saw RSQ-11-11 as two audit rows: "Counted: 1000
+(+1000)" (the anchor RSQ-002) and "Counted: 1600 (+600)" (RSQ-003). The +1000
+was an artifact — the LH day loop starts `running` at 0, so the anchor's
+`adj = count − 0 = base` rendered like a gain (the local D1 fallback doesn't
+have this problem: it starts `running = base`). Also confirmed via
+`fact_audit_counts` that the 1000 IS real: RSQ ran three audits on 11-11
+(07:35 RSQ-001=1600, 07:38 RSQ-002=1000, 07:50 RSQ-003=1600) — the Audit
+history tab lists RSQ-002; expanding it shows the 1000.
+
+Fix (both tabular apps): anchor audit detail gets `baseline: true` —
+- excluded from `dayAuditAdj` (so the day's Audit Adj column shows only real
+  corrections; a pure-baseline day may now be filtered out of display, the
+  header still shows "Audit {date} · base {n}"),
+- rendered as "Counted: N · starting balance" (i18n `ledger.auditBaseline`:
+  en "starting balance", ru "стартовый остаток") instead of a signed adj.
+Ending balances unaffected. Both builds pass.
+
 ## Risks / notes
 
 - `view_store_stock` / `view_whs_stock` / `view_current_inventory` untouched —

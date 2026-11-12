@@ -134,7 +134,7 @@ export default function DailyLedger({ initialIngredientId }) {
       if (anchor) {
         const ad = String(anchor.event_ts).slice(0, 10)
         ensure(ad)
-        byDate[ad].details.push({ kind: 'audit', count: base, time: String(anchor.event_ts) })
+        byDate[ad].details.push({ kind: 'audit', count: base, time: String(anchor.event_ts), baseline: true })
       }
 
       const allDates = [...new Set([startDate, ...Object.keys(byDate), today])].sort()
@@ -153,7 +153,9 @@ export default function DailyLedger({ initialIngredientId }) {
           if (ev.kind === 'audit') {
             const adj = r1(ev.count - running)
             ev.adj = adj
-            dayAuditAdj = dayAuditAdj === null ? adj : r1(dayAuditAdj + adj)
+            // The baseline (anchor) audit is the ledger's starting point, not a
+            // correction — don't report its count as a day adjustment.
+            if (!ev.baseline) dayAuditAdj = dayAuditAdj === null ? adj : r1(dayAuditAdj + adj)
             running = ev.count
           } else if (ev.kind === 'po' || ev.kind === 'transfer-in') {
             running = r1(running + ev.qty)
@@ -599,7 +601,9 @@ export default function DailyLedger({ initialIngredientId }) {
                                       {d.kind === 'audit'
                                         ? <span className="text-purple-700 font-semibold flex-shrink-0">
                                             {t('ledger.auditCounted', { count: d.count, unit: selectedIng?.unit })}
-                                            {d.adj !== 0 && (
+                                            {d.baseline
+                                              ? <span className="ml-1.5 text-purple-400 font-normal">· {t('ledger.auditBaseline')}</span>
+                                              : d.adj !== 0 && (
                                               <span className={`ml-1.5 ${d.adj > 0 ? 'text-green-600' : 'text-red-500'}`}>
                                                 ({d.adj > 0 ? '+' : ''}{d.adj})
                                               </span>

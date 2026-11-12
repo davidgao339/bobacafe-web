@@ -30,6 +30,7 @@ const en = {
   'ledger.auditTag':         'audit',
   'ledger.kindAudit':        'Audit',
   'ledger.auditCounted':     'Counted: {{count}} {{unit}}',
+  'ledger.auditBaseline':    'starting balance',
   'ledger.auditBase':        'Audit {{date}} · base {{base}}',
   'ledger.noAudit':          'No audit on record for this store — do a stock count first',
   'ledger.noActivity':       'No activity in this date range',

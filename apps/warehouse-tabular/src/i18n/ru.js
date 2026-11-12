@@ -30,6 +30,7 @@ const ru = {
   'ledger.auditTag':         'инвент.',
   'ledger.kindAudit':        'Инвентаризация',
   'ledger.auditCounted':     'Подсчитано: {{count}} {{unit}}',
+  'ledger.auditBaseline':    'стартовый остаток',
   'ledger.auditBase':        'Инвентаризация {{date}} · база {{base}}',
   'ledger.noAudit':          'Нет записей инвентаризации для этого магазина — сначала выполните подсчёт',
   'ledger.noActivity':       'Нет активности за выбранный период',
