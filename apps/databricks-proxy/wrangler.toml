@@ -2,6 +2,11 @@ name = "bobacafe-proxy"
 main = "worker.js"
 compatibility_date = "2024-09-23"
 
+[vars]
+# Non-secret: the SQL warehouse used by the /lh/audit real-time push.
+# The token itself is a secret: `npx wrangler secret put DATABRICKS_TOKEN`
+DATABRICKS_WAREHOUSE_ID = "959d56e804ae9b36"
+
 [[kv_namespaces]]
 binding = "BACKUP_STORE"
 # Replace with your KV namespace ID from the Cloudflare dashboard:

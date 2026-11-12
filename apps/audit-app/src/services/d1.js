@@ -101,6 +101,60 @@ export async function fetchAuditForStoreAndDate(storeId, auditDate) {
   return { header: rows[0], counts: countsMap };
 }
 
+// ─── DATE GUARDRAILS (blind-count safe: dates only, never counts) ────────────
+
+// Latest approved audit DATE for one store. Used to block/warn on backdated
+// audits without exposing any counts to baristas.
+export async function fetchLatestStoreAuditDate(storeId) {
+  const sql = `
+    SELECT audit_date
+    FROM fact_audit_headers
+    WHERE store_id = ? AND status = 'approved'
+    ORDER BY audit_date DESC, audit_timestamp DESC
+    LIMIT 1
+  `;
+  const rows = await queryD1(sql, [storeId]);
+  return rows.length > 0 ? rows[0].audit_date : null;
+}
+
+// Latest approved audit DATE for every store at once — used by the CSV import
+// preview to flag backdated groups.
+export async function fetchLatestAuditDates() {
+  const sql = `
+    SELECT store_id, MAX(audit_date) AS last_date
+    FROM fact_audit_headers
+    WHERE status = 'approved'
+    GROUP BY store_id
+  `;
+  const rows = await queryD1(sql);
+  const map = {};
+  for (const r of rows) map[r.store_id] = r.last_date;
+  return map;
+}
+
+// ─── REAL-TIME LAKEHOUSE PUSH (via proxy worker /lh/audit) ────────────────────
+// The nightly D1→LH sync would eventually carry these rows, but orders are
+// placed the same day right after an audit, so the push must be immediate.
+// Fire-and-forget: on failure the nightly sync is the backstop.
+
+export async function pushAuditToLakehouse(entries) {
+  try {
+    const resp = await fetch(`${BACKUP_BASE}/lh/audit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entries),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`LH push error (${resp.status}): ${text.slice(0, 200)}`);
+    }
+    return true;
+  } catch (err) {
+    console.error('Lakehouse push failed (D1 write already saved):', err);
+    return false;
+  }
+}
+
 // ─── SAVE AUDIT (RELATIONAL + DUAL-WRITE BACKWARD COMPATIBILITY) ────────────
 
 export async function saveAudit({ auditId, storeId, storeCode, storeName, auditDate, auditTimestamp, status = 'approved', counts }) {

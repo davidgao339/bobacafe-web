@@ -57,6 +57,11 @@ const DICTIONARY = {
     confirmIncomplete: 'Some items are not counted yet — they will be left blank.',
     confirmEmpty: 'Nothing is counted yet — fill at least one item.',
     noStoreChosen: 'Choose the store first',
+    futureDateBlock: 'Date is in the future — check the device date. Import blocked.',
+    backdateWarn: 'This date is older than the last audit for this store.',
+    backdateBlock: 'An audit dated after this already exists — backdated counts are not allowed.',
+    lhPushWarning: 'Saved to database — but the lakehouse will catch up overnight.',
+    importTab: 'CSV Import',
   },
   ru: {
     appTitle: 'Инвентаризация',
@@ -114,6 +119,11 @@ const DICTIONARY = {
     confirmIncomplete: 'Не все позиции заполнены — пустые будут пропущены.',
     confirmEmpty: 'Ни одна позиция не заполнена — заполните хотя бы одну.',
     noStoreChosen: 'Сначала выберите точку',
+    futureDateBlock: 'Дата в будущем — проверьте дату на устройстве.',
+    backdateWarn: 'Эта дата старше последней ревизии точки.',
+    backdateBlock: 'Уже есть ревизия за более позднюю дату — ревизии задним числом запрещены.',
+    lhPushWarning: 'Сохранено в базу — озеро данных обновится ночью.',
+    importTab: 'Импорт CSV',
   }
 };
 

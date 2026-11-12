@@ -4,13 +4,17 @@ import {
   fetchStores, 
   fetchIngredients, 
   fetchLatestStoreAudit, 
+  fetchLatestStoreAuditDate,
+  fetchLatestAuditDates,
   fetchAuditForStoreAndDate,
   saveAudit, 
   fetchAuditHistory, 
   fetchAuditDetails, 
   updateAuditStatus, 
-  deleteAudit 
+  deleteAudit,
+  pushAuditToLakehouse
 } from './services/d1';
+import { parseAuditCsv, buildTemplateCsv } from './utils/auditCsv';
 
 const PIN_BARISTA = '1234';
 const PIN_MANAGER = '7530';
@@ -74,6 +78,9 @@ export default function App() {
   // Fool-proofing: submit is gated behind an explicit confirmation modal that
   // restates store / date / item count, so a mis-picked store can't slip through.
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Date guardrails: latest approved audit DATE for the selected store
+  // (dates only — baristas never see counts, blind count stays blind).
+  const [lastAuditDate, setLastAuditDate] = useState(null);
 
   // Current Counts & Baseline
   const [counts, setCounts] = useState({});
@@ -131,6 +138,7 @@ export default function App() {
     const p = enteredPin.trim();
     if (p === PIN_BARISTA) {
       setRole('quick_count');
+      setActiveTab('count');  // baristas never see the manager-only Import tab
       sessionStorage.setItem('audit_role', 'quick_count');
       // A barista session must clear any stale 30-day manager TTL
       localStorage.removeItem('audit_role_info');
@@ -221,6 +229,12 @@ export default function App() {
       setExistingDateAudit(null);
     }
 
+    // Date guardrail (both roles): latest approved audit DATE only — blind
+    // count stays blind because counts are never fetched for baristas.
+    fetchLatestStoreAuditDate(selectedStoreId)
+      .then(d => { if (active) setLastAuditDate(d); })
+      .catch(console.error);
+
     // Check draft in localStorage only if not editing a historical audit
     if (!editingAuditId) {
       const draftKey = `audit_draft_${selectedStoreId}_${auditDate}`;
@@ -287,6 +301,16 @@ export default function App() {
       return;
     }
 
+    // Date guardrails (defense in depth — the modal also blocks these)
+    if (isFutureDate) {
+      showToast(t('futureDateBlock'), 'warning');
+      return;
+    }
+    if (isBackdated && role !== 'manager') {
+      showToast(t('backdateBlock'), 'warning');
+      return;
+    }
+
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       showToast('📶 Нет подключения к интернету. Данные в безопасности на телефоне. Подключитесь к Wi-Fi и нажмите "Отправить".', 'warning');
       return;
@@ -305,7 +329,7 @@ export default function App() {
 
     setSaving(true);
     try {
-      await saveAudit({
+      const saved = await saveAudit({
         auditId: editingAuditId || undefined,
         storeId: selectedStore.store_id,
         storeCode: selectedStore.store_code,
@@ -313,6 +337,26 @@ export default function App() {
         auditDate,
         counts,
         status: 'approved'
+      });
+
+      // Real-time lakehouse push (fire-and-forget): orders are placed the same
+      // day right after an audit, so the LH must see the count now, not after
+      // the nightly sync. Failure is non-fatal — the nightly sync is the
+      // backstop — but the user is told.
+      pushAuditToLakehouse({
+        audits: [{
+          auditId: saved.id,
+          storeId: selectedStore.store_id,
+          storeCode: selectedStore.store_code,
+          date: auditDate,
+          ts: new Date().toISOString(),
+          status: 'approved',
+          counts: ingredients
+            .filter(i => counts[i.ingredient_id] !== undefined && counts[i.ingredient_id] !== '')
+            .map(i => ({ ingredientId: i.ingredient_id, name: i.ingredient_name, qty: Number(counts[i.ingredient_id]) })),
+        }],
+      }).then(ok => {
+        if (!ok) showToast(t('lhPushWarning'), 'warning');
       });
 
       if (editingAuditId) {
@@ -420,6 +464,9 @@ export default function App() {
     if (!confirm(t('confirmDelete'))) return;
     try {
       await deleteAudit(auditId);
+      // Real-time lakehouse delete (fire-and-forget): without this the deleted
+      // audit would keep anchoring the ledger until the nightly prune.
+      pushAuditToLakehouse({ deletes: [auditId] });
       setHistoryList(prev => prev.filter(a => a.audit_id !== auditId));
       showToast(`Audit ${auditId} deleted`, 'info');
     } catch (err) {
@@ -548,6 +595,15 @@ export default function App() {
 
   const selectedStore = stores.find(s => s.store_id === selectedStoreId);
 
+  // ─── DATE GUARDRAILS ─────────────────────────────────────────────────────
+  // Future-dated audits are never legitimate (device clock drift or fat-finger)
+  // — blocked for everyone. Backdated audits corrupt the ledger's event order,
+  // so baristas are hard-blocked; managers may override (legit corrections).
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const isFutureDate = auditDate > todayStr;
+  const isBackdated = Boolean(lastAuditDate) && auditDate < lastAuditDate;
+  const dateBlocked = isFutureDate || (isBackdated && role !== 'manager');
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       {/* ── Top App Bar (Mobile-first, Uncrammed) ────────────────────────── */}
@@ -600,7 +656,7 @@ export default function App() {
         {/* Manager Mode: Dedicated Segmented Control Bar */}
         {role === 'manager' && (
           <div className="bg-slate-100/70 border-t border-slate-200/70 px-3 py-1.5">
-            <div className="max-w-md mx-auto grid grid-cols-2 bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold">
+            <div className="max-w-md mx-auto grid grid-cols-3 bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold">
               <button
                 onClick={() => setActiveTab('count')}
                 className={`py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
@@ -622,6 +678,17 @@ export default function App() {
               >
                 <span>🕒</span>
                 <span>{t('historyTab')}</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('import')}
+                className={`py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'import'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📎</span>
+                <span>{t('importTab')}</span>
               </button>
             </div>
           </div>
@@ -957,6 +1024,15 @@ export default function App() {
             </>
             )}
           </div>
+        ) : activeTab === 'import' && role === 'manager' ? (
+          /* ── CSV IMPORT VIEW (MANAGER ONLY) ────────────────────────────── */
+          <ImportCsvTab
+            t={t}
+            lang={lang}
+            ingredients={ingredients}
+            stores={stores}
+            showToast={showToast}
+          />
         ) : (
           /* ── HISTORY VIEW (MANAGER) ─────────────────────────────────────── */
           <div className="space-y-4">
@@ -1170,6 +1246,18 @@ export default function App() {
                 <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
                   {t('confirmEmpty')}
                 </p>
+              ) : isFutureDate ? (
+                <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
+                  📅 {t('futureDateBlock')}
+                </p>
+              ) : isBackdated ? (
+                <p className={`text-xs font-semibold rounded-lg px-3 py-2 text-center border ${
+                  role === 'manager'
+                    ? 'text-amber-700 bg-amber-50 border-amber-200'
+                    : 'text-red-600 bg-red-50 border-red-200'
+                }`}>
+                  📅 {t('backdateWarn')} {lastAuditDate ? `(${lastAuditDate})` : ''}
+                </p>
               ) : filledCountNow < totalCount ? (
                 <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
                   {t('confirmIncomplete')}
@@ -1185,7 +1273,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={confirmSubmitAudit}
-                  disabled={saving || filledCountNow === 0}
+                  disabled={saving || filledCountNow === 0 || dateBlocked}
                   className="py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-extrabold shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all"
                 >
                   {saving ? t('saving') : `✓ ${t('confirmSubmit')}`}
@@ -1208,6 +1296,222 @@ export default function App() {
           <span>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '⚠️' : 'ℹ️'}</span>
           <span>{toast.message}</span>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CSV IMPORT (MANAGER ONLY) ────────────────────────────────────────────────
+// Bulk import of paper/spreadsheet counts. Same CSV format as the old
+// stores-tabular import (store, date, time, ingredient, unit, supplier, qty).
+// Fool-proofing: store validation against ACTIVE stores, per-row error report,
+// date guardrails (future blocked, backdated flagged), preview + explicit
+// confirm, and a real-time lakehouse push after the write.
+
+function ImportCsvTab({ t, lang, ingredients, stores, showToast }) {
+  const [parsed, setParsed] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importedCount, setImportedCount] = useState(null);
+  const [lastDates, setLastDates] = useState({});
+  const fileRef = useRef(null);
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+
+  useEffect(() => {
+    let active = true;
+    fetchLatestAuditDates()
+      .then(m => { if (active) setLastDates(m); })
+      .catch(console.error);
+    return () => { active = false; };
+  }, []);
+
+  const downloadTemplate = () => {
+    const csv = '\uFEFF' + buildTemplateCsv(ingredients, stores[0]?.store_name || '', todayStr);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'audit-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParsed(null);
+    setImportedCount(null);
+    const reader = new FileReader();
+    reader.onload = ev => setParsed(parseAuditCsv(ev.target.result, { ingredients, stores }));
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const totalItems = parsed?.audits.reduce((n, a) => n + Object.keys(a.counts).length, 0) ?? 0;
+  const futureGroups = parsed?.audits.filter(a => a.date > todayStr) ?? [];
+  const backdatedGroups = parsed?.audits.filter(a => {
+    const ld = lastDates[a.storeId];
+    return ld && a.date < ld;
+  }) ?? [];
+  const canImport = parsed && parsed.audits.length > 0 && futureGroups.length === 0 && !importing;
+
+  const handleImport = async () => {
+    if (!canImport) return;
+    setImporting(true);
+    try {
+      const lhAudits = [];
+      for (const a of parsed.audits) {
+        const saved = await saveAudit({
+          storeId: a.storeId,
+          storeCode: a.storeCode,
+          storeName: a.store,
+          auditDate: a.date,
+          auditTimestamp: a.time ? `${a.date}T${a.time}:00` : undefined,
+          counts: a.counts,
+          status: 'approved'
+        });
+        lhAudits.push({
+          auditId: saved.id,
+          storeId: a.storeId,
+          storeCode: a.storeCode,
+          date: a.date,
+          ts: a.time ? `${a.date}T${a.time}:00` : new Date().toISOString(),
+          status: 'approved',
+          counts: Object.entries(a.counts).map(([ingId, qty]) => ({
+            ingredientId: Number(ingId),
+            name: ingredients.find(i => i.ingredient_id === Number(ingId))?.ingredient_name || `Item #${ingId}`,
+            qty: Number(qty),
+          })),
+        });
+      }
+      // Real-time lakehouse push for ALL imported audits in one request
+      pushAuditToLakehouse({ audits: lhAudits }).then(ok => {
+        if (!ok) showToast(lang === 'ru'
+          ? 'Импорт сохранён, но озеро данных обновится ночью'
+          : 'Import saved, but the lakehouse will catch up overnight', 'warning');
+      });
+      setImportedCount(parsed.audits.length);
+      setParsed(null);
+      if (fileRef.current) fileRef.current.value = '';
+      showToast(lang === 'ru' ? `Импортировано ревизий: ${lhAudits.length}` : `Imported ${lhAudits.length} audit(s)`, 'success');
+    } catch (err) {
+      showToast(lang === 'ru' ? 'Ошибка импорта: ' : 'Import error: ' + err.message, 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
+        <h2 className="text-sm font-extrabold text-slate-900">{lang === 'ru' ? 'Импорт ревизий из CSV' : 'Import Audits from CSV'}</h2>
+        <p className="text-xs text-slate-500 mt-1">
+          {lang === 'ru'
+            ? 'Файл: store, date, time, ingredient, unit, supplier, qty. Ничего не записывается, пока вы не подтвердите импорт.'
+            : 'File: store, date, time, ingredient, unit, supplier, qty. Nothing is written until you confirm the import.'}
+        </p>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <button
+            onClick={downloadTemplate}
+            className="py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 active:scale-[0.98] transition-all"
+          >
+            ⬇️ {lang === 'ru' ? 'Скачать шаблон' : 'Download Template'}
+          </button>
+          <label className="py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            📄 {lang === 'ru' ? 'Загрузить CSV' : 'Upload CSV'}
+            <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
+          </label>
+        </div>
+      </div>
+
+      {importedCount != null && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2.5 rounded-2xl text-xs font-semibold">
+          ✓ {lang === 'ru' ? `Импортировано ревизий: ${importedCount}` : `Imported ${importedCount} audit(s)`}
+        </div>
+      )}
+
+      {parsed && (
+        <>
+          {parsed.unknownIngredients.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2.5 rounded-2xl text-xs">
+              <p className="font-bold mb-1">
+                {lang === 'ru'
+                  ? `${parsed.unknownIngredients.length} ингредиент(ов) не найдено — строки пропущены:`
+                  : `${parsed.unknownIngredients.length} ingredient(s) not found — rows skipped:`}
+              </p>
+              <ul className="space-y-0.5 text-amber-700 list-disc list-inside">
+                {parsed.unknownIngredients.map(name => <li key={name} className="truncate">"{name}"</li>)}
+              </ul>
+            </div>
+          )}
+
+          {parsed.rowErrors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 text-red-800 px-3.5 py-2.5 rounded-2xl text-xs">
+              <p className="font-bold mb-1">
+                {lang === 'ru'
+                  ? `Ошибок в строках: ${parsed.rowErrors.length} — пропущены:`
+                  : `${parsed.rowErrors.length} row error(s) — skipped:`}
+              </p>
+              <ul className="space-y-0.5 text-red-600 list-disc list-inside">
+                {parsed.rowErrors.map(e => <li key={e.rowNum}>{lang === 'ru' ? 'Строка' : 'Row'} {e.rowNum}: {e.msg}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {futureGroups.length > 0 && (
+            <div className="bg-red-50 border border-red-200 text-red-800 px-3.5 py-2.5 rounded-2xl text-xs font-semibold">
+              📅 {lang === 'ru'
+                ? `Будущая дата в файле (${futureGroups.map(g => g.date).join(', ')}) — импорт заблокирован. Исправьте дату.`
+                : `Future date in file (${futureGroups.map(g => g.date).join(', ')}) — import blocked. Fix the date.`}
+            </div>
+          )}
+
+          {parsed.audits.length > 0 ? (
+            <>
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-700">
+                  {lang === 'ru'
+                    ? `К импорту: ${parsed.audits.length} ревизии, ${totalItems} позиций`
+                    : `Ready to import: ${parsed.audits.length} audit(s), ${totalItems} items`}
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {parsed.audits.map((a, idx) => {
+                    const ld = lastDates[a.storeId];
+                    const isBackdated = ld && a.date < ld;
+                    const isFuture = a.date > todayStr;
+                    return (
+                      <div key={idx} className="px-4 py-2.5 flex items-center justify-between gap-2 text-xs">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">📍 {a.store}</p>
+                          <p className="text-slate-500 mt-0.5">📅 {a.date}{a.time ? ` ${a.time}` : ''} · 🔢 {Object.keys(a.counts).length}</p>
+                        </div>
+                        {isFuture && <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">{lang === 'ru' ? 'будущая дата' : 'future'}</span>}
+                        {isBackdated && !isFuture && <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">{lang === 'ru' ? `позже ${ld}` : `after ${ld}`}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                onClick={handleImport}
+                disabled={!canImport}
+                className={`w-full py-3.5 font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-[0.99] text-white ${
+                  canImport ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/25' : 'bg-slate-300 cursor-not-allowed'
+                }`}
+              >
+                {importing ? (
+                  <span>⏳ {t('saving')}</span>
+                ) : (
+                  <span>✓ {lang === 'ru' ? `Импортировать ${parsed.audits.length} ревизии (${totalItems} позиций)` : `Import ${parsed.audits.length} audit(s) (${totalItems} items)`}</span>
+                )}
+              </button>
+            </>
+          ) : (
+            <div className="text-center py-8 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+              {lang === 'ru' ? 'Валидных ревизий в файле не найдено' : 'No valid audits found in the file'}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

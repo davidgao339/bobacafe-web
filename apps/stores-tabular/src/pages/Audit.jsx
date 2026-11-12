@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment, useMemo } from 'react'
+import { useState, Fragment, useMemo } from 'react'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { getProductType } from '@inventory/utils/productTypes'
@@ -110,6 +110,18 @@ function CountTab({ date, setDate }) {
   const getValue  = (productId) => counts[`${store}-${productId}`] ?? ''
   const anyFilled = config.ingredients.some(p => getValue(p.id) !== '')
   const suppName  = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
+
+  // Date guardrails: future dates are a device-clock mistake — blocked;
+  // backdated audits change the ledger's event order (managers here may do
+  // that deliberately for corrections — warn, allow).
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const isFutureDate = date > todayStr
+  const lastAuditDate = (data.audits || [])
+    .filter(a => a.store === store && a.status !== 'rejected' && (!existingAudit || a.id !== existingAudit.id))
+    .map(a => a.date)
+    .sort()
+    .pop() || null
+  const isBackdated = Boolean(lastAuditDate) && date < lastAuditDate
 
   return (
     <>
@@ -301,13 +313,23 @@ function CountTab({ date, setDate }) {
                 {t('audit.confirmExisting')}
               </div>
             )}
+            {isFutureDate && (
+              <div className="mb-4 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                📅 {t('audit.futureDateBlock')}
+              </div>
+            )}
+            {isBackdated && !isFutureDate && (
+              <div className="mb-4 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                📅 {t('audit.backdateWarn')} ({lastAuditDate})
+              </div>
+            )}
             <div className="flex gap-2">
               <button onClick={() => setConfirmOpen(false)}
                 className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 {t('common.cancel')}
               </button>
-              <button onClick={confirmSave}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+              <button onClick={confirmSave} disabled={isFutureDate}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                 {t('audit.confirmSave')}
               </button>
             </div>
@@ -511,252 +533,6 @@ function HistoryTab() {
   )
 }
 
-// ─── Import tab ───────────────────────────────────────────────────────────────
-
-function parseCSVLine(line, delim = ',') {
-  const result = []
-  let current = '', inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
-      else inQuotes = !inQuotes
-    } else if (ch === delim && !inQuotes) {
-      result.push(current); current = ''
-    } else {
-      current += ch
-    }
-  }
-  result.push(current)
-  return result
-}
-
-const RUSSIAN_LABEL_CELLS = new Set(['кафе', 'дата', 'время', 'ингредиент', 'ед.измерения', 'количество'])
-
-function normalizeDate(raw) {
-  // Accept DD.MM.YYYY in addition to YYYY-MM-DD
-  const ddmmyyyy = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
-  if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`
-  return raw
-}
-
-// 24-hour H:mm or HH:mm → 'HH:mm', or null if invalid
-function normalizeTime(raw) {
-  const m = raw.match(/^(\d{1,2}):(\d{2})$/)
-  if (!m) return null
-  const h = Number(m[1]), min = Number(m[2])
-  if (h > 23 || min > 59) return null
-  return `${String(h).padStart(2, '0')}:${m[2]}`
-}
-
-function ImportTab() {
-  const { config, addAudit, stores } = useConfig()
-  const { t } = useLanguage()
-  const [parsed,  setParsed]  = useState(null)
-  const [result,  setResult]  = useState(null)
-  const fileRef = useRef(null)
-
-  const csvEsc = v => /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
-
-  const downloadTemplate = () => {
-    const today = new Date().toISOString().slice(0, 10)
-    const suppName = (ing) => (config.suppliers ?? []).find(s => s.id === ing.supplierId)?.name ?? ''
-    const rows = [
-      ['store', 'date', 'time', 'ingredient', 'unit', 'supplier', 'qty'],
-      ...[...config.ingredients]
-        .sort((a, b) => {
-          const sa = suppName(a), sb = suppName(b)
-          if (sa !== sb) return sa.localeCompare(sb)
-          return a.name.localeCompare(b.name)
-        })
-        .map(i => [stores[0], today, '', i.name, i.unit, suppName(i), '']),
-    ]
-    const csv = rows.map(r => r.map(csvEsc).join(',')).join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'audit-template.csv'; a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const parseFile = (text) => {
-    const clean = text.replace(/^﻿/, '')
-    const lines = clean.split(/\r?\n/).filter(l => l.trim())
-    if (lines.length < 2) return { audits: [], rowErrors: [], unknownIngredients: [] }
-
-    // Auto-detect delimiter: whichever of , or ; appears more in the header line
-    const delim = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ','
-
-    const headers = parseCSVLine(lines[0], delim).map(h => h.trim().toLowerCase())
-    const iStore = headers.indexOf('store')
-    const iDate  = headers.indexOf('date')
-    const iTime  = headers.indexOf('time')   // optional, 24h HH:mm
-    const iIng   = headers.indexOf('ingredient')
-    const iQty   = headers.indexOf('qty')
-    if (iStore < 0 || iDate < 0 || iIng < 0 || iQty < 0)
-      return { audits: [], rowErrors: [{ rowNum: 1, msg: t('audit.importBadHeader') }], unknownIngredients: [] }
-
-    const ingByName = {}
-    config.ingredients.forEach(i => { ingByName[i.name.toLowerCase()] = i })
-
-    // collect raw row errors and valid counts grouped by store+date
-    const groups = {}   // key "store||date" -> { store, date, counts: {} }
-    const rowErrors = []
-    const unknownIngredients = new Set()
-
-    // Determine first data row — skip a Russian label row if present
-    const firstDataRow = (() => {
-      const cells = parseCSVLine(lines[1], delim).map(c => c.trim().toLowerCase())
-      const isLabel = cells.some(c => RUSSIAN_LABEL_CELLS.has(c))
-      return isLabel ? 2 : 1
-    })()
-
-    for (let i = firstDataRow; i < lines.length; i++) {
-      const cells = parseCSVLine(lines[i], delim)
-      if (cells.every(c => !c.trim())) continue
-      const rowNum = i + 1
-      const store   = cells[iStore]?.trim() ?? ''
-      const date    = normalizeDate(cells[iDate]?.trim() ?? '')
-      const timeRaw = iTime >= 0 ? (cells[iTime]?.trim() ?? '') : ''
-      const ingRaw  = cells[iIng]?.trim()   ?? ''
-      const qtyRaw  = cells[iQty]?.trim()   ?? ''
-      const errors = []
-
-      if (!stores.includes(store)) errors.push(`unknown store "${store}"`)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push(`invalid date "${cells[iDate]?.trim()}"`)
-      const time = timeRaw ? normalizeTime(timeRaw) : null
-      if (timeRaw && !time) errors.push(`invalid time "${timeRaw}" (use 24h HH:mm)`)
-      const ing = ingByName[ingRaw.toLowerCase()]
-      if (!ing) { unknownIngredients.add(ingRaw); continue }
-      const qty = parseFloat(qtyRaw)
-      if (qtyRaw && isNaN(qty)) errors.push(`invalid qty "${qtyRaw}"`)
-
-      if (errors.length > 0) { rowErrors.push({ rowNum, msg: errors.join('; ') }); continue }
-      if (!qtyRaw) continue  // blank qty = not counted, skip silently
-
-      const key = `${store}||${date}`
-      if (!groups[key]) groups[key] = { store, date, time: null, counts: {} }
-      if (time && !groups[key].time) groups[key].time = time
-      groups[key].counts[ing.id] = Math.max(0, qty)
-    }
-
-    const audits = Object.values(groups)
-    return { audits, rowErrors, unknownIngredients: [...unknownIngredients].sort() }
-  }
-
-  const handleFile = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setResult(null)
-    const reader = new FileReader()
-    reader.onload = ev => setParsed(parseFile(ev.target.result))
-    reader.readAsText(file, 'UTF-8')
-  }
-
-  const handleImport = () => {
-    parsed?.audits.forEach(a => addAudit(a.store, a.date, a.counts, a.time ? `${a.date}T${a.time}:00` : undefined))
-    setResult({ imported: parsed?.audits.length ?? 0 })
-    setParsed(null)
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
-  return (
-    <>
-      <div className="mb-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-1">{t('audit.importTitle')}</h2>
-        <p className="text-sm text-gray-500">{t('audit.importDesc')}</p>
-      </div>
-
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={downloadTemplate}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          {t('audit.downloadTemplate')}
-        </button>
-        <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          {t('audit.uploadCSV')}
-          <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
-        </label>
-      </div>
-
-      {result && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-          {t('audit.importSuccess', { count: result.imported })}
-        </div>
-      )}
-
-      {parsed && (
-        <>
-          {parsed.unknownIngredients.length > 0 && (
-            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <p className="text-xs font-medium text-amber-800 mb-1.5">
-                {parsed.unknownIngredients.length} ingredient(s) not found in system — rows skipped:
-              </p>
-              <ul className="text-xs text-amber-700 space-y-0.5">
-                {parsed.unknownIngredients.map(name => <li key={name}>"{name}"</li>)}
-              </ul>
-            </div>
-          )}
-
-          {parsed.rowErrors.length > 0 && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <p className="text-xs font-medium text-red-700 mb-1.5">{parsed.rowErrors.length} row error(s) — these rows were skipped:</p>
-              <ul className="text-xs text-red-600 space-y-0.5">
-                {parsed.rowErrors.map(e => <li key={e.rowNum}>Row {e.rowNum}: {e.msg}</li>)}
-              </ul>
-            </div>
-          )}
-
-          {parsed.audits.length > 0 ? (
-            <>
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
-                <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
-                  <span className="text-sm font-medium text-gray-700">
-                    {t('audit.importReady', { valid: parsed.audits.length, errors: parsed.rowErrors.length })}
-                  </span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
-                      <th className="px-4 py-2 font-medium">{t('common.store')}</th>
-                      <th className="px-4 py-2 font-medium">{t('common.date')}</th>
-                      <th className="px-4 py-2 font-medium text-right">{t('audit.colCounted')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {parsed.audits.map(a => (
-                      <tr key={`${a.store}||${a.date}`}>
-                        <td className="px-4 py-2 font-medium text-gray-900">{a.store}</td>
-                        <td className="px-4 py-2 text-gray-700">
-                          {a.date}
-                          {a.time && <span className="text-gray-400 text-xs ml-1.5">{a.time}</span>}
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums text-gray-600">
-                          {Object.keys(a.counts).length}
-                          <span className="text-gray-400 text-xs"> / {config.ingredients.length}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex justify-end">
-                <button onClick={handleImport}
-                  className="px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                  {t('audit.importNow', { count: parsed.audits.length })}
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">{t('audit.importNoRows')}</p>
-          )}
-        </>
-      )}
-    </>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InventoryAudit() {
@@ -774,7 +550,7 @@ export default function InventoryAudit() {
       </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
-        {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')], ['import', t('audit.tabImport')]].map(([id, label]) => (
+        {[['count', t('audit.tabCount')], ['history', t('audit.tabHistory')]].map(([id, label]) => (
           <button key={id} onClick={() => setActiveTab(id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -786,7 +562,6 @@ export default function InventoryAudit() {
 
       {activeTab === 'count'   && <CountTab   date={date} setDate={setDate} />}
       {activeTab === 'history' && <HistoryTab />}
-      {activeTab === 'import'  && <ImportTab />}
     </div>
   )
 }

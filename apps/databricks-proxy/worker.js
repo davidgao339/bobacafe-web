@@ -1,4 +1,4 @@
-const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
+﻿const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
 const ORIGIN = '*'
 const MAX_AUTO_BACKUPS = 5
 const MAX_MANUAL_BACKUPS = 10
@@ -12,37 +12,42 @@ export default {
       return new Response(null, { headers: cors() })
     }
 
-    // ── Databricks proxy (root) ──────────────────────────────────────────────
+    // â”€â”€ Databricks proxy (root) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (path === '/' || path === '') {
       return handleDatabricks(request)
     }
 
-    // ── Backup: list ─────────────────────────────────────────────────────────
+    // â”€â”€ Backup: list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (path === '/backups' && request.method === 'GET') {
       return handleListBackups(env)
     }
 
-    // ── Backup: save ─────────────────────────────────────────────────────────
+    // â”€â”€ Backup: save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (path === '/backups' && request.method === 'POST') {
       return handleSaveBackup(request, env, ctx)
     }
 
-    // ── Backup: get one ───────────────────────────────────────────────────────
+    // â”€â”€ Backup: get one â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const m = path.match(/^\/backups\/([^/]+)$/)
     if (m && request.method === 'GET') {
       return handleGetBackup(m[1], env)
     }
 
-    // ── D1 Direct Query (for warehouse app eventually) ────────────────────────
+    // â”€â”€ D1 Direct Query (for warehouse app eventually) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (path === '/d1/execute' && request.method === 'POST') {
       return handleD1Query(request, env)
+    }
+
+    // â”€â”€ Real-time lakehouse audit push (server-side credentials) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if (path === '/lh/audit' && request.method === 'POST') {
+      return handleLakehouseAuditPush(request, env)
     }
 
     return new Response('Not found', { status: 404, headers: cors() })
   },
 }
 
-// ── Databricks proxy ──────────────────────────────────────────────────────────
+// â”€â”€ Databricks proxy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function handleDatabricks(request) {
   if (request.method !== 'POST') {
@@ -71,7 +76,7 @@ async function handleDatabricks(request) {
   }
 }
 
-// ── Backup handlers ───────────────────────────────────────────────────────────
+// â”€â”€ Backup handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function handleListBackups(env) {
   const result = await env.BACKUP_STORE.list({ prefix: 'backup:' })
@@ -143,7 +148,7 @@ async function handleGetBackup(id, env) {
   })
 }
 
-// ── D1 Handlers ───────────────────────────────────────────────────────────────
+// â”€â”€ D1 Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function handleD1Query(request, env) {
   let body
@@ -159,6 +164,105 @@ async function handleD1Query(request, env) {
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors() })
   }
+}
+
+// â”€â”€ Lakehouse audit push (server-side credentials) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// The audit-app (employee phones) has no Databricks token, so the browser can't
+// push MERGEs directly like stores-tabular does. This endpoint accepts a
+// FIXED-SHAPE payload (no SQL from clients) and runs the same idempotent
+// statements stores-tabular's LH_PUSH builds (header MERGE + counts
+// delete+insert), so an audit lands in the lakehouse within seconds and
+// same-day order screens see it. Failures are non-fatal: the nightly
+// D1â†’LH sync is the backstop.
+const LH_SCHEMA = 'workspace.inventory_tabular'
+const sqlEsc = (s) => String(s ?? '').replace(/'/g, "''")
+
+async function handleLakehouseAuditPush(request, env) {
+  if (!env.DATABRICKS_TOKEN || !env.DATABRICKS_WAREHOUSE_ID) {
+    return new Response(JSON.stringify({ error: 'Lakehouse push not configured' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', ...cors() },
+    })
+  }
+
+  let body
+  try { body = await request.json() } catch {
+    return new Response('Bad request', { status: 400, headers: cors() })
+  }
+
+  const statements = []
+  for (const auditId of body.deletes || []) {
+    statements.push(`DELETE FROM ${LH_SCHEMA}.fact_audit_counts WHERE audit_id = '${sqlEsc(auditId)}'`)
+    statements.push(`DELETE FROM ${LH_SCHEMA}.fact_audit_headers WHERE audit_id = '${sqlEsc(auditId)}'`)
+  }
+  for (const a of body.audits || []) {
+    if (!a.auditId || !a.storeId || !a.date) {
+      return new Response(JSON.stringify({ error: 'audit requires auditId, storeId, date' }), {
+        status: 400, headers: { 'Content-Type': 'application/json', ...cors() },
+      })
+    }
+    statements.push(
+      `MERGE INTO ${LH_SCHEMA}.fact_audit_headers t USING (SELECT '${sqlEsc(a.auditId)}' AS audit_id, ${Number(a.storeId)} AS store_id, '${sqlEsc(a.storeCode)}' AS store_code, '${sqlEsc(a.date)}' AS audit_date, '${sqlEsc(a.ts || new Date().toISOString())}' AS audit_timestamp, '${sqlEsc(a.status || 'approved')}' AS status) s ON t.audit_id = s.audit_id WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *`
+    )
+    statements.push(`DELETE FROM ${LH_SCHEMA}.fact_audit_counts WHERE audit_id = '${sqlEsc(a.auditId)}'`)
+    for (const c of a.counts || []) {
+      if (c.ingredientId == null) continue
+      statements.push(
+        `INSERT INTO ${LH_SCHEMA}.fact_audit_counts (audit_id, store_id, audit_date, ingredient_id, ingredient_name, count_quantity) VALUES ('${sqlEsc(a.auditId)}', ${Number(a.storeId)}, '${sqlEsc(a.date)}', ${Number(c.ingredientId)}, '${sqlEsc(c.name)}', ${Number(c.qty)})`
+      )
+    }
+  }
+
+  if (statements.length === 0) {
+    return json({ ok: true, executed: 0 })
+  }
+
+  try {
+    for (const statement of statements) {
+      await runLhStatement(env, statement)
+    }
+    return json({ ok: true, executed: statements.length })
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 502, headers: { 'Content-Type': 'application/json', ...cors() },
+    })
+  }
+}
+
+// Runs one SQL statement and polls to completion (Statement Execution API).
+async function runLhStatement(env, statement) {
+  const submit = await fetch(DATABRICKS_TARGET, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.DATABRICKS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      statement,
+      warehouse_id: env.DATABRICKS_WAREHOUSE_ID,
+      wait_timeout: '30s',
+      on_wait_timeout: 'CONTINUE',
+    }),
+  })
+  if (!submit.ok) {
+    throw new Error(`Databricks submit failed (${submit.status}): ${(await submit.text().catch(() => '')).slice(0, 300)}`)
+  }
+  let data = await submit.json()
+  let state = data.status?.state
+  const deadline = Date.now() + 60000
+  while ((state === 'PENDING' || state === 'RUNNING') && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1500))
+    const poll = await fetch(`${DATABRICKS_TARGET}/${data.statement_id}`, {
+      headers: { 'Authorization': `Bearer ${env.DATABRICKS_TOKEN}` },
+    })
+    if (!poll.ok) throw new Error(`Databricks poll failed (${poll.status})`)
+    data = await poll.json()
+    state = data.status?.state
+  }
+  if (state !== 'SUCCEEDED') {
+    const err = JSON.stringify(data.status?.error || {}).slice(0, 300)
+    throw new Error(`Databricks statement ${state}: ${err}`)
+  }
+  return state
 }
 
 async function syncToD1(db, payload) {
@@ -224,7 +328,7 @@ async function syncToD1(db, payload) {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function json(data) {
   return new Response(JSON.stringify(data), {
