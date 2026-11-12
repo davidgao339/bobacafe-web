@@ -34,10 +34,14 @@
      uses (header MERGE + counts DELETE+INSERT into
      workspace.inventory_tabular.fact_audit_*). Runs each statement via the
      Statement Execution API (submit + poll) with the server-side token.
-   - Credentials: worker secret `DATABRICKS_TOKEN` (set once via
-     `npx wrangler secret put DATABRICKS_TOKEN`), warehouse id as a non-secret
-     `[vars] DATABRICKS_WAREHOUSE_ID` in wrangler.toml. Worker deploys on push
-     to main (deploy-proxy.yml).
+   - Credentials: worker secret `DATABRICKS_TOKEN`. Initial manual attempts
+     failed (PowerShell swallowed `--env=""`), so the deploy workflow now sets
+     it from the existing GitHub secret `DATABRICKS_TOKEN` on every prod deploy
+     (deploy-proxy.yml "Ensure DATABRICKS_TOKEN secret" step, non-interactive,
+     idempotent).
+   - VERIFIED LIVE 2026-11-12: empty probe returns `{"ok":true,"executed":0}`;
+     smoke test (TEST-LH-SMOKE → header MERGE + count insert → rows visible in
+     fact_audit_headers/count within seconds → delete → 0 leftover rows) passed.
    - audit-app calls it fire-and-forget after every saveAudit (manual + each
      CSV-imported group, batched in one request) and deleteAudit. Failure →
      warning toast; nightly sync remains the backstop (and ghost-pruner).
