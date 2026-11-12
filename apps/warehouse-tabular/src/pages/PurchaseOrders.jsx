@@ -749,16 +749,11 @@ export default function PurchaseOrders({ initialCreate }) {
           </button>
         ))}
         </div>
-        <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-          {[['all', t('po.allStores')], ...storeOptions.map(s => [s, s])].map(([id, label]) => (
-            <button key={id} onClick={() => setStoreFilter(id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                storeFilter === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <select value={storeFilter} onChange={e => setStoreFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+          <option value="all">{t('po.allStores')}</option>
+          {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <input type="text" placeholder={t('common.search') + '…'} value={search}
