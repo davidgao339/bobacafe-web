@@ -119,6 +119,23 @@ an anchor). If only one audit ever counted the item → fall back to rn=1
   reconciliation covers the ledger math, and the ledger UI already renders
   `source='audit'` rows with adjustments.
 
+## Follow-up fix (2026-11-12): app dropped non-anchor audit events
+
+User verified in the UI: ledger still anchored at the last audit (RSQ × Сироп
+смородина: ending 992 vs estimate 1592). Root cause was NOT the view — the view
+correctly emits the rn=2 anchor (RSQ-002, 1000) and the rn=1 audit (RSQ-003,
+1600). But the LH replay loop in `Ledger.jsx` only handled `pos_sale` /
+`po_receipt` / `transfer_*` / `inventory_tx` sources: a non-anchor `audit`
+event matched no branch and was silently dropped (with the old view the only
+audit event was the anchor, which is added separately, so the gap never
+triggered).
+
+Fix: added an `audit` branch to the replay loop in BOTH tabular apps
+(`apps/stores-tabular/src/pages/Ledger.jsx`, `apps/warehouse-tabular/src/pages/Ledger.jsx`)
+— non-anchor audit rows push `{kind:'audit', count}` so the day loop computes
+`adj = counted − running` (the loss) and resets the balance. Both builds pass.
+View deployed earlier is unchanged; no SQL change needed.
+
 ## Risks / notes
 
 - `view_store_stock` / `view_whs_stock` / `view_current_inventory` untouched —

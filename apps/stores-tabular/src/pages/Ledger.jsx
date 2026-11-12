@@ -100,7 +100,13 @@ export default function DailyLedger({ initialIngredientId }) {
         const d = time.slice(0, 10)
         if (time <= anchorTime) return
         const qty = Number(e.qty_change) || 0
-        if (e.source === 'pos_sale') {
+        if (e.source === 'audit') {
+          // Non-anchor audit (the LAST audit, emitted by the view alongside the
+          // second-last anchor): resets the running balance to its count. The
+          // day-loop computes adj = counted − running → the visible loss/gain.
+          ensure(d)
+          byDate[d].details.push({ kind: 'audit', count: Number(e.audit_count) || 0, time })
+        } else if (e.source === 'pos_sale') {
           const consumed = r1(-qty)
           if (!consumed) return
           ensure(d)
