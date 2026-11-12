@@ -355,7 +355,7 @@ ${pagesHtml}
 }
 
 export default function PurchaseOrders({ initialCreate }) {
-  const { config, data, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate, addTransaction, stores, selectedStore } = useConfig()
+  const { config, data, allData, addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate, addTransaction, stores, selectedStore } = useConfig()
   const { getOrderQty } = useCalcs()
   const { t } = useLanguage()
 
@@ -385,7 +385,11 @@ export default function PurchaseOrders({ initialCreate }) {
 
   const fileInputRef = useRef(null)
 
-  const pos    = data.purchaseOrders
+  // 'All stores' bypasses the context's store scoping so the overview really
+  // covers every store; picking a store uses the scoped view.
+  const pos = storeFilter === 'all'
+    ? (allData?.purchaseOrders ?? data.purchaseOrders)
+    : data.purchaseOrders
   const nextId = `PO-${String(data._nextPoId).padStart(3, '0')}`
 
   const filtered = pos.filter(po => {

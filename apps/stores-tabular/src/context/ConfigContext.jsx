@@ -1506,6 +1506,9 @@ export function ConfigProvider({ children }) {
     <ConfigContext.Provider value={{
       config, setConfig, refreshRecipes, saveUnitPay,
       data: filteredData, setData,
+      // Unscoped dataset: 'All stores' views (e.g. the PO overview) need POs
+      // from every store, not just those touching the selected store.
+      allData: data,
       addAudit, deleteAudit, updateAudit, addTransaction, deleteTransaction, deleteProductionEvent, updateProductionEvent,
       addPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, revertPoToSent, updatePoReceivedDate,
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
