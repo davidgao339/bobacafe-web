@@ -32,7 +32,7 @@ export default function DraftForm({
   const { t } = useLanguage()
   const [store,          setStore]          = useState(initialStore ?? stores?.[0] ?? '')
   const [createdDate,    setCreatedDate]    = useState(initialCreatedDate ?? TODAY)
-  const [days,           setDays]           = useState(7)
+  const [days,           setDays]           = useState(14)
   const [bufferPct,      setBufferPct]      = useState(5)
   const [fromLocation,   setFromLocation]   = useState(initialFromLocation ?? null)
   const [toLocation,     setToLocation]     = useState(initialToLocation ?? null)
@@ -89,7 +89,7 @@ export default function DraftForm({
       const st = initialStore ?? stores?.[0] ?? ''
       const map = {}
       ingredients.forEach(p => {
-        const s = getOrderQty(st, p.id, 7)
+        const s = getOrderQty(st, p.id, 14)
         if (s > 0) map[`${st}:${p.id}`] = s
       })
       return map
@@ -496,7 +496,7 @@ export default function DraftForm({
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-gray-600">{t('po.daysToFill')}</label>
             <input type="number" min="1" max="365" value={days}
-              onChange={e => setDays(Math.max(1, parseInt(e.target.value) || 7))}
+              onChange={e => setDays(Math.max(1, parseInt(e.target.value) || 14))}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-right" />
             <span className="text-xs text-gray-400">{t('po.days')}</span>
           </div>

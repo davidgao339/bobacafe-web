@@ -68,7 +68,7 @@ export function fetchStockStats(token, warehouseId) {
   const statement = `
     SELECT store_id, store_code, store_name, ingredient_id, ingredient_name, unit,
            last_audit_date, current_on_hand,
-           consumed_7d, daily_avg, consumed_daily_7d,
+           consumed_14d, daily_avg, consumed_daily_14d,
            order_qty_raw
     FROM workspace.inventory_tabular.view_stock_stats
   `
@@ -83,7 +83,7 @@ const T = t => `workspace.inventory_tabular.${t}`
 
 export const LH_QUERIES = {
   stores: `SELECT store_id, store_code, store_name, store_name_en, city, store_type, is_active FROM ${T('dim_stores')} ORDER BY store_id ASC`,
-  ingredients: `SELECT i.ingredient_id AS id, i.ingredient_name AS name, i.unit, i.product_type AS productType, i.supplier_id AS supplierId, i.supplier_name AS supplierName, i.is_warehouse_only AS warehouseOnly, i.is_hidden AS hidden, i.cost_per_unit AS costPerUnit, i.item_class AS itemClass, i.last_purchase_cost AS lastPurchaseCost, w.effective_unit_cost AS wacCost30d FROM ${T('dim_ingredients')} i LEFT JOIN ${T('view_ingredient_wac_30d')} w ON w.ingredient_id = i.ingredient_id`,
+  ingredients: `SELECT i.ingredient_id AS id, i.ingredient_name AS name, i.unit, i.product_type AS productType, i.supplier_id AS supplierId, i.supplier_name AS supplierName, i.is_warehouse_only AS warehouseOnly, i.is_hidden AS hidden, i.cost_per_unit AS costPerUnit, i.item_class AS itemClass, i.product_id AS productId, i.last_purchase_cost AS lastPurchaseCost, w.effective_unit_cost AS wacCost30d FROM ${T('dim_ingredients')} i LEFT JOIN ${T('view_ingredient_wac_30d')} w ON w.ingredient_id = i.ingredient_id`,
   recipes: `SELECT recipe_product_name, product_id, ingredient_id, amount_per_serving FROM ${T('fact_recipe_ingredients')} WHERE recipe_type = 'production'`,
   recipesRetail: `SELECT recipe_product_name, product_id, ingredient_id, amount_per_serving FROM ${T('fact_recipe_ingredients')} WHERE recipe_type = 'retail'`,
   transactions: `SELECT transaction_id AS id, store_id AS storeId, store_code AS storeCode, transaction_date AS date, transaction_timestamp AS timestamp, transaction_type AS type, ingredient_id AS ingredientId, ingredient_name AS ingredientName, quantity, po_id AS poId, reason FROM ${T('fact_inventory_transactions')} ORDER BY transaction_date DESC, transaction_timestamp DESC`,

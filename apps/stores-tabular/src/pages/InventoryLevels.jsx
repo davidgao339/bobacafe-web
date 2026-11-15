@@ -5,14 +5,18 @@ import { useLanguage } from '../context/LanguageContext'
 
 const STATUS_RANK = { depleted: 0, critical: 1, low: 2, ok: 3, unknown: 4 }
 
-// Tiny 7-bar usage sparkline; bars normalised to the week's max
+// Tiny usage sparkline; bars normalised to the period's max
 function Sparkline({ values }) {
   const max = Math.max(...values, 0.001)
+  const count = values.length || 14
+  const barWidth = count > 7 ? 3 : 5
+  const gap = count > 7 ? 4.5 : 7.5
+  const svgWidth = Math.max(52, count * gap)
   return (
-    <svg width="52" height="18" className="inline-block align-middle">
+    <svg width={svgWidth} height="18" className="inline-block align-middle">
       {values.map((v, i) => {
         const h = Math.max(v > 0 ? 2 : 0, Math.round((v / max) * 16))
-        return <rect key={i} x={i * 7.5} y={18 - h} width="5" height={h} rx="1"
+        return <rect key={i} x={i * gap} y={18 - h} width={barWidth} height={h} rx="1"
           className={v > 0 ? 'fill-blue-300' : 'fill-gray-100'} />
       })}
     </svg>
@@ -88,8 +92,8 @@ export default function InventoryLevels() {
     // recipes loop dropped case-drifted POS spellings). Local sales loop is
     // only the fallback while lakehouse stats are unavailable.
     const sparkTo    = sales.length > 0 ? sales[0].date : new Date().toISOString().slice(0, 10)
-    const sparkDates = [...Array(7)].map((_, i) => {
-      const d = new Date(sparkTo + 'T12:00:00'); d.setDate(d.getDate() - (6 - i))
+    const sparkDates = [...Array(14)].map((_, i) => {
+      const d = new Date(sparkTo + 'T12:00:00'); d.setDate(d.getDate() - (13 - i))
       return d.toISOString().slice(0, 10)
     })
     const rowsByDate = {}
@@ -97,7 +101,7 @@ export default function InventoryLevels() {
       .filter(s => s.store === store && s.date >= sparkDates[0] && s.date <= sparkTo)
       .forEach(s => { (rowsByDate[s.date] ??= []).push(s) })
     const sparkFor = (ingId) => {
-      const arr = lhStats?.[store]?.[ingId]?.consumed_daily_7d
+      const arr = lhStats?.[store]?.[ingId]?.consumed_daily_14d || lhStats?.[store]?.[ingId]?.consumed_daily_7d
       if (arr != null) {
         try { return JSON.parse(arr).map(Number) } catch { /* fall through */ }
       }

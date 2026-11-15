@@ -31,10 +31,24 @@ export function useCalcs() {
     const salesRecipes = config.salesRecipes ?? recipes
     const r1 = n => Math.round(n * 10) / 10
 
-    // PRECOMPUTATION
-    const ingVarWindows = {} 
-    const storeVarWindows = {}
-    const lastAudits = {}
+    // Map product identity to finished ingredient for Path B (1 шт depletion per sale)
+    const finishedIngByProduct = {}
+    for (const ing of ingredients) {
+      if (ing.itemClass === 'finished' || ing.item_class === 'finished') {
+        // Match by ingredient id or ingredient name normalized
+        finishedIngByProduct[normProductKey(ing.name)] = ing.id
+      }
+    }
+    // Also match via dimProducts if available
+    for (const dp of config.dimProducts || []) {
+      const ing = ingredients.find(i => (i.itemClass === 'finished' || i.item_class === 'finished') && (
+        (i.productId != null && Number(i.productId) === Number(dp.productId)) ||
+        normProductKey(i.name) === normProductKey(dp.productRu)
+      ))
+      if (ing) {
+        finishedIngByProduct[normProductKey(dp.productRu)] = ing.id
+      }
+    }
     
     const sortedAuditsByStore = {}
     for (const store of stores) {
@@ -72,13 +86,25 @@ export function useCalcs() {
       const store = s.store
       const date = s.date
       const qty = s.quantity
+      if (!stores.includes(store)) continue
+
       const recipe = salesRecipeFor(salesRecipes, s.product)
-      if (!recipe || !stores.includes(store)) continue
-      
-      for (const ingId in recipe) {
+      // Path A: retail recipe expansion
+      // Path B: finished good direct 1:1 depletion if no retail recipe
+      let impacts = null
+      if (recipe) {
+        impacts = Object.entries(recipe).map(([ingId, amt]) => ({ ingId, amt: qty * amt }))
+      } else {
+        const finIngId = finishedIngByProduct[normProductKey(s.product)]
+        if (finIngId) {
+          impacts = [{ ingId: finIngId, amt: qty }]
+        }
+      }
+      if (!impacts) continue
+
+      for (const { ingId, amt } of impacts) {
         if (!salesConsumption[store] || salesConsumption[store][ingId] === undefined) continue
-        
-        const amt = qty * recipe[ingId]
+
         const win = ingVarWindows[store]?.[ingId]
         const fromVar = win?.opening.date ?? ''
         const toVar = win?.closing.date ?? '9999-12-31'
@@ -242,6 +268,12 @@ export function useCalcs() {
       return r1(base - (salesSinceLastAudit[store]?.[ingredientId] || 0) + (txSinceLastAudit[store]?.[ingredientId] || 0) + (poSinceLastAudit[store]?.[ingredientId] || 0))
     }
     const getConsumedForDays = (store, ingredientId, days) => {
+      // If we have lakehouse daily_avg for this pair, use it directly (validated product_id bridge)
+      const statsRow = lhStats?.[store]?.[ingredientId]
+      if (statsRow?.daily_avg != null) {
+        return r1(Number(statsRow.daily_avg) * days)
+      }
+
       let total = 0
       const toDate = sales.length > 0 ? sales[0].date : new Date().toISOString().slice(0, 10)
       const cut = new Date(toDate + 'T12:00:00')
@@ -253,6 +285,11 @@ export function useCalcs() {
           const recipe = salesRecipeFor(salesRecipes, s.product)
           if (recipe && recipe[ingredientId]) {
             total += s.quantity * recipe[ingredientId]
+          } else {
+            const finIngId = finishedIngByProduct[normProductKey(s.product)]
+            if (finIngId === ingredientId) {
+              total += s.quantity
+            }
           }
         }
       }
@@ -265,30 +302,30 @@ export function useCalcs() {
       return total
     }
 
-    const getDailyAvg = (store, ingredientId, days = 7) => {
-      // View-prioritized: view_stock_stats serves the 7-day average (validated
+    const getDailyAvg = (store, ingredientId, days = 14) => {
+      // View-prioritized: view_stock_stats serves daily_avg (validated
       // product_id sale bridge — catches spellings the name-keyed recipes map
       // drops). Local loop only for pairs the view doesn't cover / other spans.
       const statsRow = lhStats?.[store]?.[ingredientId]
-      if (days === 7) {
-        const viewed = statsRow?.daily_avg
-        if (viewed != null) return r1(Number(viewed))
-        return r1(getConsumed7d(store, ingredientId) / 7)
-      }
+      if (statsRow?.daily_avg != null) return r1(Number(statsRow.daily_avg))
       return r1(getConsumedForDays(store, ingredientId, days) / days)
     }
 
     const isLowStock  = (store, ingredientId) => estimateCurrentStock(store, ingredientId) < getDailyAvg(store, ingredientId) * 3
 
-    const getOrderQty = (store, ingredientId, days = 7, bufferPct = 5) => {
+    const getOrderQty = (store, ingredientId, days = 14, bufferPct = 5) => {
       const ing = ingredients.find(i => i.id === ingredientId)
-      // View-prioritized: view_stock_stats.order_qty_raw (consumed_7d × 1.05 −
+      // View-prioritized: view_stock_stats.order_qty_raw (consumed_14d × 1.05 −
       // on-hand); the app keeps only the per-unit-type rounding.
       const statsRow = lhStats?.[store]?.[ingredientId]
-      if (days === 7 && bufferPct === 5 && statsRow?.order_qty_raw != null) {
+      if (days === 14 && bufferPct === 5 && statsRow?.order_qty_raw != null) {
         return roundOrderQty(Number(statsRow.order_qty_raw), ing)
       }
-      const consumedPeriod = days === 7 ? getConsumed7d(store, ingredientId) : getConsumedForDays(store, ingredientId, days)
+      const consumedPeriod = (days === 14 && statsRow?.consumed_14d != null)
+        ? Number(statsRow.consumed_14d)
+        : (statsRow?.daily_avg != null
+            ? Number(statsRow.daily_avg) * days
+            : getConsumedForDays(store, ingredientId, days))
       const rawNeeded = consumedPeriod * (1 + bufferPct / 100) - estimateCurrentStock(store, ingredientId)
       return roundOrderQty(rawNeeded, ing)
     }

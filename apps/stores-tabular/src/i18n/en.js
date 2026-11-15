@@ -150,7 +150,7 @@ const en = {
   'levels.dailyAvg':       'Daily avg',
   'levels.daysLeft':       'Days left',
   'levels.colDaily':       'Usage/day',
-  'levels.col7d':          '7 days',
+  'levels.col7d':          '14 days',
   'levels.colOrder':       'Order',
   'levels.openLedger':     'Open in Daily Ledger',
   'levels.issuesOnly':     'Issues only',

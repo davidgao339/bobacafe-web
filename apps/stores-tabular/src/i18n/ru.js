@@ -150,7 +150,7 @@ const ru = {
   'levels.dailyAvg':       'Расход/день',
   'levels.daysLeft':       'Дней осталось',
   'levels.colDaily':       'Расход/день',
-  'levels.col7d':          '7 дней',
+  'levels.col7d':          '14 дней',
   'levels.colOrder':       'Заказ',
   'levels.openLedger':     'Открыть в дневном журнале',
   'levels.issuesOnly':     'Только проблемные',
