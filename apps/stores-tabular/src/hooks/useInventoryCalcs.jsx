@@ -21,7 +21,7 @@ function salesRecipeFor(salesRecipes, product) {
 }
 
 export function useCalcs() {
-  const { config, sales, posWaste, data, stores, lhBalancesByStore } = useConfig()
+  const { config, sales, posWaste, data, stores, lhBalancesByStore, lhStats } = useConfig()
 
   return useMemo(() => {
     const { ingredients, recipes } = config
@@ -266,7 +266,15 @@ export function useCalcs() {
     }
 
     const getDailyAvg = (store, ingredientId, days = 7) => {
-      if (days === 7) return r1(getConsumed7d(store, ingredientId) / 7)
+      // View-prioritized: view_stock_stats serves the 7-day average (validated
+      // product_id sale bridge — catches spellings the name-keyed recipes map
+      // drops). Local loop only for pairs the view doesn't cover / other spans.
+      const statsRow = lhStats?.[store]?.[ingredientId]
+      if (days === 7) {
+        const viewed = statsRow?.daily_avg
+        if (viewed != null) return r1(Number(viewed))
+        return r1(getConsumed7d(store, ingredientId) / 7)
+      }
       return r1(getConsumedForDays(store, ingredientId, days) / days)
     }
 
@@ -274,6 +282,12 @@ export function useCalcs() {
 
     const getOrderQty = (store, ingredientId, days = 7, bufferPct = 5) => {
       const ing = ingredients.find(i => i.id === ingredientId)
+      // View-prioritized: view_stock_stats.order_qty_raw (consumed_7d × 1.05 −
+      // on-hand); the app keeps only the per-unit-type rounding.
+      const statsRow = lhStats?.[store]?.[ingredientId]
+      if (days === 7 && bufferPct === 5 && statsRow?.order_qty_raw != null) {
+        return roundOrderQty(Number(statsRow.order_qty_raw), ing)
+      }
       const consumedPeriod = days === 7 ? getConsumed7d(store, ingredientId) : getConsumedForDays(store, ingredientId, days)
       const rawNeeded = consumedPeriod * (1 + bufferPct / 100) - estimateCurrentStock(store, ingredientId)
       return roundOrderQty(rawNeeded, ing)
@@ -327,5 +341,5 @@ export function useCalcs() {
       getActualConsumed, getUnexplainedVariance, getVariancePct,
       getVarianceWindow, getIngredientVarianceWindow, getLastAudit,
     }
-  }, [config, sales, data, lhBalancesByStore])
+  }, [config, sales, data, lhBalancesByStore, lhStats])
 }

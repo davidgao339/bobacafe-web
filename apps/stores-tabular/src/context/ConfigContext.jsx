@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { stores as STORES } from '@inventory/data/fakeData'
 import { fetchDatabricksSales, queryD1 } from '@inventory/services/api'
-import { fetchCurrentInventory, fetchLh, LH_PUSH, runDatabricksSql, esc } from '../services/databricks'
+import { fetchCurrentInventory, fetchLh, fetchStockStats, LH_PUSH, runDatabricksSql, esc } from '../services/databricks'
 import { useCalcs } from '../hooks/useInventoryCalcs'
 import SyncErrorToast from '@inventory/components/SyncErrorToast'
 
@@ -224,6 +224,10 @@ export function ConfigProvider({ children }) {
   // stores in one fetch (~1 row per store × ingredient pair). Derived maps
   // below make every estimateCurrentStock consumer view-prioritized.
   const [lhAllRows, setLhAllRows] = useState(null)
+  // Stock stats from view_stock_stats (same single fetch pattern): per pair
+  // 7d consumption / daily avg / order suggestion / sparkline — replaces the
+  // sales×recipe JS loops in useInventoryCalcs consumers.
+  const [lhStatsRows, setLhStatsRows] = useState(null)
   const setSelectedStore = useCallback((name) => {
     saveToStorage('bobacafe_selected_store', name)
     setSelectedStoreState(name)
@@ -605,10 +609,14 @@ export function ConfigProvider({ children }) {
   useEffect(() => {
     let cancelled = false
     setLhAllRows(null)
+    setLhStatsRows(null)
     if (!settings?.token || !settings?.warehouseId) return
     fetchCurrentInventory(settings.token, settings.warehouseId)
       .then(rows => { if (!cancelled) setLhAllRows(rows || []) })
       .catch(err => console.error('Lakehouse balances fetch failed', err))
+    fetchStockStats(settings.token, settings.warehouseId)
+      .then(rows => { if (!cancelled) setLhStatsRows(rows || []) })
+      .catch(err => console.error('Lakehouse stats fetch failed', err))
     return () => { cancelled = true }
   }, [settings?.token, settings?.warehouseId])
 
@@ -634,6 +642,22 @@ export function ConfigProvider({ children }) {
     })
     return out
   }, [lhAllRows, isD1Loaded])
+
+  // UI store name → ingredient_id → stats row (7d consumption, daily avg,
+  // order_qty_raw, consumed_daily_7d sparkline). Same store-name keying as
+  // lhBalancesByStore so the calc getters stay one lookup deep.
+  const lhStats = useMemo(() => {
+    const { idToName, idToCode } = storeMapsRef.current
+    const codeToName = {}
+    Object.entries(idToCode).forEach(([id, code]) => { codeToName[code] = idToName[id] })
+    const out = {}
+    ;(lhStatsRows || []).forEach(r => {
+      const name = codeToName[r.store_code]
+      if (!name) return
+      ;(out[name] ??= {})[r.ingredient_id] = r
+    })
+    return out
+  }, [lhStatsRows, isD1Loaded])
 
   // ─── Operational data mutations (Optimistic + D1 Tabular & Legacy) ────────
   const addAudit = useCallback((store, date, counts, timestamp) => {
@@ -1553,7 +1577,7 @@ export function ConfigProvider({ children }) {
       sales, posWaste, usingLiveData, salesCache, clearSalesCache,
       stores, visibleStores, suppressedStores, selectedStore, setSelectedStore, selectedStoreCode, toggleStoreVisibility: () => {},
       settings, saveSettings, updateOzonMapping, refreshSales,
-      lhBalances, lhBalancesByStore, lhConnected: Boolean(settings?.token && settings?.warehouseId),
+      lhBalances, lhBalancesByStore, lhStats, lhConnected: Boolean(settings?.token && settings?.warehouseId),
       dataSource: 'lakehouse',
       reportFrom, reportTo,
       exportConfig, importConfig,

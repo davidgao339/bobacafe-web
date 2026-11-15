@@ -21,7 +21,7 @@ function Sparkline({ values }) {
 
 export default function InventoryLevels() {
   const navigate = useNavigate()
-  const { config, data, sales, posWaste, selectedStore } = useConfig()
+  const { config, data, sales, posWaste, selectedStore, lhStats } = useConfig()
   const { estimateCurrentStock, getDailyAvg, getLastAudit, getOrderQty } = useCalcs()
   const { t } = useLanguage()
   
@@ -82,7 +82,11 @@ export default function InventoryLevels() {
     const lastAudit = getLastAudit(store)
     const auditLabel = lastAudit ? t('levels.lastAudit', { date: lastAudit.date }) : t('levels.noAudit')
 
-    // Last-7-day usage per ingredient per day, for the sparkline column
+    // Last-7-day usage per ingredient per day, for the sparkline column.
+    // View-prioritized: view_stock_stats.consumed_daily_7d (exactly 7 entries,
+    // sales via the validated product_id sale bridge — the old name-keyed
+    // recipes loop dropped case-drifted POS spellings). Local sales loop is
+    // only the fallback while lakehouse stats are unavailable.
     const sparkTo    = sales.length > 0 ? sales[0].date : new Date().toISOString().slice(0, 10)
     const sparkDates = [...Array(7)].map((_, i) => {
       const d = new Date(sparkTo + 'T12:00:00'); d.setDate(d.getDate() - (6 - i))
@@ -92,8 +96,14 @@ export default function InventoryLevels() {
     ;[...sales, ...posWaste]
       .filter(s => s.store === store && s.date >= sparkDates[0] && s.date <= sparkTo)
       .forEach(s => { (rowsByDate[s.date] ??= []).push(s) })
-    const sparkFor = (ingId) => sparkDates.map(d =>
-      (rowsByDate[d] ?? []).reduce((sum, s) => sum + s.quantity * (salesRecipes[s.product]?.[ingId] ?? 0), 0))
+    const sparkFor = (ingId) => {
+      const arr = lhStats?.[store]?.[ingId]?.consumed_daily_7d
+      if (arr != null) {
+        try { return JSON.parse(arr).map(Number) } catch { /* fall through */ }
+      }
+      return sparkDates.map(d =>
+        (rowsByDate[d] ?? []).reduce((sum, s) => sum + s.quantity * (salesRecipes[s.product]?.[ingId] ?? 0), 0))
+    }
 
     const rows = ingredients
       .filter(ing => !q || ing.name.toLowerCase().includes(q))

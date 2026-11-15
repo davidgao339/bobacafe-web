@@ -47,19 +47,30 @@ export async function runDatabricksSql(token, warehouseId, statement, retries = 
   throw lastErr
 }
 
-// Atomic inventory events since each store × ingredient's latest approved audit.
-// Source of truth for the ledger screen — replaces the local usage derivation.
-export function fetchLedgerEvents(token, warehouseId, storeCode) {
+// Daily ledger rows (view_ledger_daily) for one store × ingredient — the Daily
+// ledger screen renders these directly (details_json holds the day's events).
+export function fetchLedgerDaily(token, warehouseId, storeCode, ingredientId) {
   const statement = `
-    SELECT store_id, store_code, store_name, is_active,
-           ingredient_id, ingredient_name, unit, source,
-           CAST(event_ts AS STRING) AS event_ts,
-           CAST(date AS STRING) AS date,
-           qty_change, audit_count, audit_id,
-           po_id, product, qty_units, order_number, transaction_type
-    FROM workspace.inventory_tabular.view_inventory_events_last_audit
-    WHERE store_code = '${storeCode}'
-    ORDER BY event_ts ASC
+    SELECT CAST(date AS STRING) AS date,
+           CAST(anchor_date AS STRING) AS anchor_date, anchor_count,
+           day_usage, day_received, day_transfer_in, day_transfer_out,
+           audit_adj, ending_balance, details_json
+    FROM workspace.inventory_tabular.view_ledger_daily
+    WHERE store_code = '${storeCode}' AND ingredient_id = ${Number(ingredientId)}
+    ORDER BY date ASC
+  `
+  return runDatabricksSql(token, warehouseId, statement.replace(/\s+/g, ' ').trim())
+}
+
+// Per store × ingredient stock stats (view_stock_stats) — PO suggestions,
+// daily averages, sparklines and variance windows without client-side loops.
+export function fetchStockStats(token, warehouseId) {
+  const statement = `
+    SELECT store_id, store_code, store_name, ingredient_id, ingredient_name, unit,
+           last_audit_date, current_on_hand,
+           consumed_7d, daily_avg, consumed_daily_7d,
+           order_qty_raw
+    FROM workspace.inventory_tabular.view_stock_stats
   `
   return runDatabricksSql(token, warehouseId, statement.replace(/\s+/g, ' ').trim())
 }
