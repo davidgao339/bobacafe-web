@@ -118,7 +118,7 @@ export default function DraftForm({
     ingredients.forEach(p => {
       const key = `${initialStore ?? stores?.[0] ?? ''}:${p.id}`
       if (!(key in map)) {
-        const defaultCost = p.costPerUnit || p.lastPurchaseCost || ''
+        const defaultCost = p.effectiveUnitCost || p.wacCost30d || p.lastPurchaseCost || p.costPerUnit || ''
         if (defaultCost) map[key] = String(defaultCost)
       }
     })
@@ -144,10 +144,10 @@ export default function DraftForm({
 
   const lines = ingredients.map(p => {
     const key = `${store}:${p.id}`
-    const suggested = getOrderQty(store, p.id, days, bufferPct)
+    const suggested = isSupplierPurchase ? 0 : getOrderQty(store, p.id, days, bufferPct)
     const qty = key in qtys ? qtys[key] : (initialLines ? (originalIds.has(p.id) ? (initialLines.find(l => l.ingredientId === p.id)?.ordered ?? 0) : 0) : 0)
     const received = key in receivedQtys ? receivedQtys[key] : (initialLines ? (initialLines.find(l => l.ingredientId === p.id)?.received ?? qty) : qty)
-    const unitCost = key in unitCosts ? unitCosts[key] : (initialLines?.find(l => l.ingredientId === p.id)?.unitCost ?? (p.costPerUnit || p.lastPurchaseCost || ''))
+    const unitCost = key in unitCosts ? unitCosts[key] : (initialLines?.find(l => l.ingredientId === p.id)?.unitCost ?? (p.effectiveUnitCost || p.wacCost30d || p.lastPurchaseCost || p.costPerUnit || ''))
     const totalCost = key in totalCosts ? totalCosts[key] : ((Number(qty) > 0 && Number(unitCost) > 0) ? (Number(qty) * Number(unitCost)).toFixed(2) : '')
     return { ...p, suggested, qty, received, unitCost, totalCost, isOriginal: originalIds.has(p.id) }
   })
@@ -414,21 +414,28 @@ export default function DraftForm({
         {isSupplierPurchase && (
           <>
             <td className="px-4 py-2.5 text-right">
-              <div className="flex items-center justify-end gap-1">
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={l.unitCost}
-                  onChange={e => handleUnitCostChange(l.id, e.target.value)}
-                  className={`w-28 border rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 tabular-nums ${
-                    hasZeroCost
-                      ? 'border-red-400 bg-red-50 text-red-900 font-semibold focus:ring-red-500'
-                      : 'border-gray-300 focus:ring-blue-500'
-                  }`}
-                />
-                <span className="text-xs text-gray-400">₽</span>
+              <div className="flex flex-col items-end gap-0.5">
+                <div className="flex items-center justify-end gap-1">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={l.unitCost}
+                    onChange={e => handleUnitCostChange(l.id, e.target.value)}
+                    className={`w-28 border rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 tabular-nums ${
+                      hasZeroCost
+                        ? 'border-red-400 bg-red-50 text-red-900 font-semibold focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-blue-500'
+                    }`}
+                  />
+                  <span className="text-xs text-gray-400">₽</span>
+                </div>
+                {(l.wacCost30d > 0 || l.lastPurchaseCost > 0) && (
+                  <span className="text-[10px] text-gray-400 tabular-nums">
+                    {l.wacCost30d > 0 ? `WAC: ${Number(l.wacCost30d).toFixed(2)} ₽` : `Посл: ${Number(l.lastPurchaseCost).toFixed(2)} ₽`}
+                  </span>
+                )}
               </div>
             </td>
             <td className="px-4 py-2.5 text-right">

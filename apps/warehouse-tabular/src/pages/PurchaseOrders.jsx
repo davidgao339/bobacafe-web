@@ -378,6 +378,7 @@ export default function PurchaseOrders({ initialCreate }) {
   const [receiveDate, setReceiveDate] = useState(TODAY)
   const [receiveTime, setReceiveTime] = useState(() => new Date().toTimeString().slice(0, 5))
   const [receiveQtys, setReceiveQtys] = useState({})
+  const [receiveCosts,setReceiveCosts]= useState({})
   const [editDateId,  setEditDateId]  = useState(null)
   const [editDateVal, setEditDateVal] = useState(TODAY)
   const [editDateTime,setEditDateTime]= useState('00:00')
@@ -405,14 +406,21 @@ export default function PurchaseOrders({ initialCreate }) {
   ]
   const count    = (s) => s === 'all' ? pos.length : pos.filter(p => p.status === s).length
 
-  const cancelReceive = () => { setReceiveId(null); setReceiveQtys({}) }
+  const cancelReceive = () => { setReceiveId(null); setReceiveQtys({}); setReceiveCosts({}) }
 
   const startReceive = (po, e) => {
     e.stopPropagation()
     const qtys = {}
-    po.lines.filter(l => l.ordered > 0).forEach(l => { qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0))) })
-    po.customLines?.filter(c => c.ordered > 0).forEach(c => { qtys[c.id] = String(Math.max(0, c.ordered - (c.received || 0))) })
-    setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys)
+    const costs = {}
+    po.lines.filter(l => l.ordered > 0).forEach(l => {
+      qtys[l.ingredientId] = String(Math.max(0, l.ordered - (l.received || 0)))
+      costs[l.ingredientId] = l.unitCost != null && Number(l.unitCost) > 0 ? String(l.unitCost) : ''
+    })
+    po.customLines?.filter(c => c.ordered > 0).forEach(c => {
+      qtys[c.id] = String(Math.max(0, c.ordered - (c.received || 0)))
+      costs[c.id] = c.unitCost != null && Number(c.unitCost) > 0 ? String(c.unitCost) : ''
+    })
+    setReceiveId(po.id); setReceiveDate(TODAY); setReceiveTime(new Date().toTimeString().slice(0, 5)); setReceiveQtys(qtys); setReceiveCosts(costs)
     setExpanded(po.id); setConfirm(null)
   }
 
@@ -422,11 +430,13 @@ export default function PurchaseOrders({ initialCreate }) {
     if (isSupplierPurchase) {
       const missingCostLines = po.lines.filter(l => {
         const addedQty = receiveQtys[l.ingredientId] !== undefined ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0) : 0
-        return addedQty > 0 && !(Number(l.unitCost) > 0)
+        const costVal = receiveCosts[l.ingredientId] !== undefined ? parseFloat(receiveCosts[l.ingredientId]) : Number(l.unitCost)
+        return addedQty > 0 && !(costVal > 0)
       })
       const missingCustomCost = (po.customLines || []).filter(c => {
         const addedQty = receiveQtys[c.id] !== undefined ? Math.max(0, parseFloat(receiveQtys[c.id]) || 0) : 0
-        return addedQty > 0 && !(Number(c.unitCost) > 0)
+        const costVal = receiveCosts[c.id] !== undefined ? parseFloat(receiveCosts[c.id]) : Number(c.unitCost)
+        return addedQty > 0 && !(costVal > 0)
       })
 
       if (missingCostLines.length > 0 || missingCustomCost.length > 0) {
@@ -438,14 +448,18 @@ export default function PurchaseOrders({ initialCreate }) {
     const updatedLines = po.lines.map(l => {
       const addedQty = receiveQtys[l.ingredientId] !== undefined ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0) : 0;
       const newReceived = (l.received || 0) + addedQty
-      const uCost = Number(l.unitCost) || 0
+      const uCost = receiveCosts[l.ingredientId] !== undefined && receiveCosts[l.ingredientId] !== ''
+        ? Math.round(Number(receiveCosts[l.ingredientId]) * 100) / 100
+        : (Number(l.unitCost) || 0)
       const totalCost = Math.round(uCost * (newReceived || l.ordered || 0) * 100) / 100
       return { ...l, received: newReceived, unitCost: uCost, totalCost, costCategory: 'cogs' }
     })
     const updatedCustomLines = po.customLines?.map(c => {
       const addedQty = receiveQtys[c.id] !== undefined ? Math.max(0, parseFloat(receiveQtys[c.id]) || 0) : 0;
       const newReceived = (c.received || 0) + addedQty
-      const uCost = Number(c.unitCost) || 0
+      const uCost = receiveCosts[c.id] !== undefined && receiveCosts[c.id] !== ''
+        ? Math.round(Number(receiveCosts[c.id]) * 100) / 100
+        : (Number(c.unitCost) || 0)
       const totalCost = Math.round(uCost * (newReceived || c.ordered || 0) * 100) / 100
       return { 
         ...c, 
@@ -1081,8 +1095,11 @@ export default function PurchaseOrders({ initialCreate }) {
                                           </td>
                                           <td className="px-4 py-2.5 text-gray-400 text-xs">{ingredientUnit(l.ingredientId)}</td>
                                           {!po.fromLocation && (
-                                            <td className="px-4 py-2.5 text-right tabular-nums text-gray-700 font-medium">
-                                              {Number(l.unitCost) > 0 ? `${Number(l.unitCost).toLocaleString('ru-RU')} ₽` : <span className="text-red-500 font-bold">0 ₽</span>}
+                                            <td className="px-4 py-2.5 text-right">
+                                              <input type="number" min="0.01" step="0.01" placeholder="0.00"
+                                                value={receiveCosts[l.ingredientId] ?? (l.unitCost || '')}
+                                                onChange={e => setReceiveCosts(prev => ({ ...prev, [l.ingredientId]: e.target.value }))}
+                                                className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums" />
                                             </td>
                                           )}
                                         </tr>
@@ -1100,8 +1117,11 @@ export default function PurchaseOrders({ initialCreate }) {
                                           </td>
                                           <td className="px-4 py-2.5 text-gray-400 text-xs">{c.unit}</td>
                                           {!po.fromLocation && (
-                                            <td className="px-4 py-2.5 text-right tabular-nums text-gray-700 font-medium">
-                                              {Number(c.unitCost) > 0 ? `${Number(c.unitCost).toLocaleString('ru-RU')} ₽` : <span className="text-red-500 font-bold">0 ₽</span>}
+                                            <td className="px-4 py-2.5 text-right">
+                                              <input type="number" min="0.01" step="0.01" placeholder="0.00"
+                                                value={receiveCosts[c.id] ?? (c.unitCost || '')}
+                                                onChange={e => setReceiveCosts(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                                className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums" />
                                             </td>
                                           )}
                                         </tr>

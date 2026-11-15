@@ -47,6 +47,21 @@ export async function runDatabricksSql(token, warehouseId, statement, retries = 
   throw lastErr
 }
 
+// Daily ledger rows (view_ledger_daily) for one store × ingredient — the Daily
+// ledger screen renders these directly (details_json holds the day's events).
+export function fetchLedgerDaily(token, warehouseId, storeCode, ingredientId) {
+  const statement = `
+    SELECT CAST(date AS STRING) AS date,
+           CAST(anchor_date AS STRING) AS anchor_date, anchor_count,
+           day_usage, day_received, day_transfer_in, day_transfer_out,
+           audit_adj, ending_balance, details_json
+    FROM workspace.inventory_tabular.view_ledger_daily
+    WHERE store_code = '${storeCode}' AND ingredient_id = ${Number(ingredientId)}
+    ORDER BY date ASC
+  `
+  return runDatabricksSql(token, warehouseId, statement.replace(/\s+/g, ' ').trim())
+}
+
 // Atomic inventory events since each store × ingredient's latest approved audit.
 // Source of truth for the ledger screen — replaces the local usage derivation.
 export function fetchLedgerEvents(token, warehouseId, storeCode) {
@@ -83,7 +98,7 @@ export function fetchCurrentInventory(token, warehouseId) {
 const T = t => `workspace.inventory_tabular.${t}`
 export const LH_QUERIES = {
   stores: `SELECT store_id, store_code, store_name, store_name_en, city, store_type, is_active FROM ${T('dim_stores')} ORDER BY store_id ASC`,
-  ingredients: `SELECT i.ingredient_id AS id, i.ingredient_name AS name, i.unit, i.product_type AS productType, i.supplier_id AS supplierId, i.supplier_name AS supplierName, i.is_warehouse_only AS warehouseOnly, i.is_hidden AS hidden, i.cost_per_unit AS costPerUnit, i.item_class AS itemClass, i.last_purchase_cost AS lastPurchaseCost, w.effective_unit_cost AS wacCost30d FROM ${T('dim_ingredients')} i LEFT JOIN ${T('view_ingredient_wac_30d')} w ON w.ingredient_id = i.ingredient_id`,
+  ingredients: `SELECT i.ingredient_id AS id, i.ingredient_name AS name, i.unit, i.product_type AS productType, i.supplier_id AS supplierId, i.supplier_name AS supplierName, i.is_warehouse_only AS warehouseOnly, i.is_hidden AS hidden, i.cost_per_unit AS costPerUnit, i.item_class AS itemClass, i.product_id AS productId, i.last_purchase_cost AS lastPurchaseCost, w.wac_30d AS wacCost30d, w.effective_unit_cost AS effectiveUnitCost FROM ${T('dim_ingredients')} i LEFT JOIN ${T('view_ingredient_wac_30d')} w ON w.ingredient_id = i.ingredient_id`,
   recipes: `SELECT recipe_product_name, product_id, ingredient_id, amount_per_serving FROM ${T('fact_recipe_ingredients')} WHERE recipe_type = 'production'`,
   // Retail (in-store sales) recipes: drinks consumed directly at a store, and
   // sold-as markers for WHS-made products (all-finished-good lines). The

@@ -344,9 +344,11 @@ export function ConfigProvider({ children }) {
           hidden: Boolean(i.hidden),
           warehouseOnly: Boolean(i.warehouseOnly),
           itemClass: i.itemClass || null,
+          productId: i.productId != null ? Number(i.productId) : null,
           costPerUnit: i.costPerUnit != null ? Number(i.costPerUnit) : (i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0),
           lastPurchaseCost: i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : 0,
           wacCost30d: i.wacCost30d != null ? Number(i.wacCost30d) : 0,
+          effectiveUnitCost: i.effectiveUnitCost != null ? Number(i.effectiveUnitCost) : (i.wacCost30d != null ? Number(i.wacCost30d) : (i.lastPurchaseCost != null ? Number(i.lastPurchaseCost) : (i.costPerUnit != null ? Number(i.costPerUnit) : 0))),
         }))
 
         // Product master (read-only from lakehouse). isActive default TRUE —

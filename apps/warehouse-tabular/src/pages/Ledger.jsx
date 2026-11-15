@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useConfig, useCalcs } from '../context/ConfigContext'
 import { useLanguage } from '../context/LanguageContext'
 import { getProductType } from '@inventory/utils/productTypes'
-import { fetchLedgerEvents } from '../services/databricks'
+import { fetchLedgerDaily } from '../services/databricks'
 const r1 = n => Math.round(n * 10) / 10
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
@@ -29,17 +29,18 @@ export default function DailyLedger({ initialIngredientId }) {
   const [search,        setSearch]        = useState('')
   const [expandedDate,  setExpandedDate]  = useState(null)
 
-  // ── Lakehouse events (single source of truth) ─────────────────────────────
-  // null = not fetched yet → the legacy local computation below still runs as fallback.
-  const [lhEvents, setLhEvents] = useState(null)
+  // ── Lakehouse daily ledger (single source of truth) ────────────────────────
+  // view_ledger_daily serves one row per day (day aggregates + ending balance +
+  // details_json of the day's events) — the app only reshapes and renders.
+  const [lhDaily, setLhDaily] = useState(null)
   useEffect(() => {
     let cancelled = false
-    if (!settings?.token || !settings?.warehouseId) return
-    fetchLedgerEvents(settings.token, settings.warehouseId, 'WHS')
-      .then(rows => { if (!cancelled) setLhEvents(rows) })
-      .catch(err => console.error('Lakehouse events fetch failed; using local ledger', err))
+    if (!settings?.token || !settings?.warehouseId || !selectedIdState) return
+    fetchLedgerDaily(settings.token, settings.warehouseId, 'WHS', selectedIdState)
+      .then(rows => { if (!cancelled) setLhDaily({ ingredientId: selectedIdState, rows }) })
+      .catch(err => console.error('Lakehouse daily ledger fetch failed; using local ledger', err))
     return () => { cancelled = true }
-  }, [settings?.token, settings?.warehouseId])
+  }, [settings?.token, settings?.warehouseId, selectedIdState])
 
   // Sync state to URL
   useEffect(() => {
@@ -80,109 +81,63 @@ export default function DailyLedger({ initialIngredientId }) {
   const { auditInfo, ledgerRows } = useMemo(() => {
     if (!selectedId) return { auditInfo: null, ledgerRows: [] }
 
-    // ── Lakehouse path (authoritative): events since this pair's latest audit ──
-    if (lhEvents) {
-      const events = lhEvents.filter(e => String(e.ingredient_id) === String(selectedId))
-      if (events.length === 0) return { auditInfo: null, ledgerRows: [] }
-      const sorted = [...events].sort((a, b) => String(a.event_ts).localeCompare(String(b.event_ts)))
-      const anchor = sorted.find(e => e.source === 'audit')
-      const base = anchor ? (Number(anchor.audit_count) || 0) : 0
-      const startDate = anchor
-        ? String(anchor.event_ts).slice(0, 10)
-        : (sorted[0] ? String(sorted[0].event_ts).slice(0, 10) : from)
-      const anchorTime = anchor ? String(anchor.event_ts) : '0000-00-00T00:00:00'
+    // ── Lakehouse path (authoritative): day rows from view_ledger_daily ──────
+    // (ignored while the fetch belongs to a previously selected ingredient)
+    if (lhDaily && String(lhDaily.ingredientId) === String(selectedId)) {
+      const lhRows = lhDaily.rows
+      if (lhRows.length === 0) return { auditInfo: null, ledgerRows: [] }
 
-      const byDate = {}
-      const ensure = d => { if (!byDate[d]) byDate[d] = { details: [] } }
-
-      sorted.forEach(e => {
-        const time = String(e.event_ts)
-        const d = time.slice(0, 10)
-        if (time <= anchorTime) return
-        const qty = Number(e.qty_change) || 0
-        if (e.source === 'audit') {
-          // Non-anchor audit (the LAST audit, emitted by the view alongside the
-          // second-last anchor): resets the running balance to its count. The
-          // day-loop computes adj = counted − running → the visible loss/gain.
-          ensure(d)
-          byDate[d].details.push({ kind: 'audit', count: Number(e.audit_count) || 0, time })
-        } else if (e.source === 'pos_sale') {
-          const consumed = r1(-qty)
-          if (!consumed) return
-          ensure(d)
-          byDate[d].details.push({ kind: 'sale', product: e.product, soldQty: Number(e.qty_units) || 0, consumed, time })
-        } else if (e.source === 'po_receipt') {
-          ensure(d)
-          byDate[d].details.push({ kind: 'po', poId: e.po_id, qty, time })
-        } else if (e.source === 'transfer_in') {
-          ensure(d)
-          byDate[d].details.push({ kind: 'transfer-in', poId: e.po_id, qty, time })
-        } else if (e.source === 'transfer_out') {
-          ensure(d)
-          byDate[d].details.push({ kind: 'transfer-out', poId: e.po_id, qty: -qty, time })
-        } else if (e.source === 'inventory_tx') {
-          ensure(d)
-          if (e.transaction_type === 'production') {
-            if (qty > 0) byDate[d].details.push({ kind: 'production-yield', qty, prodId: e.po_id, time })
-            else byDate[d].details.push({ kind: 'production-usage', qty: -qty, prodId: e.po_id, time })
-          } else {
-            byDate[d].details.push({ kind: 'adjustment', qty, adjId: e.po_id, time })
-          }
+      // Reshape the view's rows to the renderer shape; details_json holds the
+      // day's event lines exactly as the old client-side bucketing produced them.
+      const allRows = lhRows.map(r => {
+        let details = []
+        try { details = JSON.parse(r.details_json || '[]') } catch { /* empty day */ }
+        details = details.map(d => ({
+          kind: d.kind,
+          time: d.time,
+          product: d.product,
+          soldQty: d.sold_qty,
+          consumed: d.consumed,
+          qty: d.qty,
+          poId: d.po_id,
+          prodId: d.po_id,
+          adjId: d.po_id,
+          count: d.audit_count,
+          adj: d.adj,
+          baseline: d.is_anchor,
+        }))
+        const hasAudit    = details.some(d => d.kind === 'audit')
+        const isAnchorDay = details.some(d => d.kind === 'audit' && d.baseline)
+        return {
+          date: r.date,
+          usage: Number(r.day_usage) || 0,
+          received: Number(r.day_received) || 0,
+          transferOut: Number(r.day_transfer_out) || 0,
+          transferIn: Number(r.day_transfer_in) || 0,
+          // The view emits 0.0 on audit-free days; the UI distinguishes
+          // "no audit that day" (null) from a real zero adjustment.
+          auditAdj: hasAudit && !isAnchorDay ? Number(r.audit_adj) : null,
+          baselineAudit: isAnchorDay,
+          ending: Number(r.ending_balance) || 0,
+          details,
+          anchorDate: r.anchor_date,
+          anchorCount: Number(r.anchor_count) || 0,
         }
       })
 
-      if (anchor) {
-        const ad = String(anchor.event_ts).slice(0, 10)
-        ensure(ad)
-        byDate[ad].details.push({ kind: 'audit', count: base, time: String(anchor.event_ts), baseline: true })
+      // The view emits no row for event-less days; the UI always shows today.
+      const todayRow = allRows.find(r => r.date === today)
+      if (!todayRow && today >= allRows[0].anchorDate) {
+        const lastRow = allRows[allRows.length - 1]
+        allRows.push({
+          date: today, usage: 0, received: 0, transferOut: 0, transferIn: 0,
+          auditAdj: null, baselineAudit: false,
+          ending: lastRow ? lastRow.ending : 0, details: [],
+          anchorDate: lastRow?.anchorDate, anchorCount: lastRow?.anchorCount ?? 0,
+        })
       }
 
-      const allDates = [...new Set([startDate, ...Object.keys(byDate), today])].sort()
-
-      let running = 0
-      const allRows = []
-
-      for (const d of allDates) {
-        if (d < startDate) continue
-        const details = [...(byDate[d]?.details ?? [])]
-        details.sort((a, b) => String(a.time).localeCompare(String(b.time)))
-
-        let dayUsage = 0, dayReceived = 0, dayTransferOut = 0, dayTransferIn = 0, dayAuditAdj = null, hasBaselineAudit = false
-
-        for (const ev of details) {
-          if (ev.kind === 'audit') {
-            const adj = r1(ev.count - running)
-            ev.adj = adj
-            // The baseline (anchor) audit is the ledger's starting point, not a
-            // correction — don't report its count as a day adjustment.
-            if (!ev.baseline) dayAuditAdj = dayAuditAdj === null ? adj : r1(dayAuditAdj + adj)
-            else hasBaselineAudit = true
-            running = ev.count
-          } else if (ev.kind === 'po') {
-            running = r1(running + ev.qty)
-            dayReceived = r1(dayReceived + ev.qty)
-          } else if (ev.kind === 'transfer-in') {
-            running = r1(running + ev.qty)
-            dayReceived = r1(dayReceived + ev.qty)
-            dayTransferIn = r1(dayTransferIn + ev.qty)
-          } else if (ev.kind === 'transfer-out') {
-            running = r1(running - ev.qty)
-            dayTransferOut = r1(dayTransferOut + ev.qty)
-          } else if (ev.kind === 'sale' || ev.kind === 'waste' || ev.kind === 'production-usage') {
-            running = r1(running - (ev.consumed ?? ev.qty))
-            dayUsage = r1(dayUsage + (ev.consumed ?? ev.qty))
-          } else if (ev.kind === 'adjustment' || ev.kind === 'production-yield') {
-            running = r1(running + ev.qty)
-            dayReceived = r1(dayReceived + ev.qty)
-          } else {
-            running = r1(running - ev.qty)
-            dayUsage = r1(dayUsage + ev.qty)
-          }
-        }
-
-        allRows.push({ date: d, usage: dayUsage, received: dayReceived, transferOut: dayTransferOut, transferIn: dayTransferIn, auditAdj: dayAuditAdj, baselineAudit: hasBaselineAudit, ending: running, details })
-      }
-
+      const anchor = allRows[0]
       const displayRows = allRows
         .filter(r =>
           r.date >= from && r.date <= to &&
@@ -191,7 +146,7 @@ export default function DailyLedger({ initialIngredientId }) {
         .reverse()
 
       return {
-        auditInfo: { date: startDate, base, isAssumed: !anchor },
+        auditInfo: { date: anchor.anchorDate, base: anchor.anchorCount, isAssumed: false },
         ledgerRows: displayRows,
       }
     }
@@ -379,7 +334,7 @@ export default function DailyLedger({ initialIngredientId }) {
       auditInfo: { date: startDate, base, isAssumed: !baseAudit },
       ledgerRows: displayRows,
     }
-  }, [selectedId, selectedStore, data, sales, posWaste, recipes, from, to, today, lhEvents])
+  }, [selectedId, selectedStore, data, sales, posWaste, recipes, from, to, today, lhDaily])
 
   const selectedIng = config.ingredients.find(i => i.id === selectedId)
 
@@ -391,6 +346,10 @@ export default function DailyLedger({ initialIngredientId }) {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">{t('ledger.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t('ledger.subtitle')}</p>
+          <span className={`mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium w-fit ${lhDaily && String(lhDaily.ingredientId) === String(selectedId) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`} title={lhDaily ? 'view_ledger_daily' : 'Local D1 computation — lakehouse not connected'}>
+            <span className={`w-1.5 h-1.5 rounded-full ${lhDaily && String(lhDaily.ingredientId) === String(selectedId) ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            {lhDaily && String(lhDaily.ingredientId) === String(selectedId) ? 'Lakehouse' : 'Локальный D1'}
+          </span>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
