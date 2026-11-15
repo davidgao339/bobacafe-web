@@ -31,6 +31,11 @@ export function useCalcs() {
     const salesRecipes = config.salesRecipes ?? recipes
     const r1 = n => Math.round(n * 10) / 10
 
+    // PRECOMPUTATION
+    const ingVarWindows = {} 
+    const storeVarWindows = {}
+    const lastAudits = {}
+
     // Map product identity to finished ingredient for Path B (1 шт depletion per sale)
     const finishedIngByProduct = {}
     for (const ing of ingredients) {
