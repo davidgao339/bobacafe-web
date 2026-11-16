@@ -477,17 +477,6 @@ export default function PurchaseOrders({ initialCreate }) {
     const status = isComplete ? 'received' : 'partially_received'
 
     updatePurchaseOrder(po.id, { status, receivedDate: receiveDate, receivedAt: `${receiveDate}T${receiveTime}:00`, lines: updatedLines, customLines: updatedCustomLines })
-
-    // Handle transfer if both locations are set
-    if (po.fromLocation && po.toLocation) {
-      updatedLines.forEach(l => {
-        const addedQty = receiveQtys[l.ingredientId] !== undefined ? Math.max(0, parseFloat(receiveQtys[l.ingredientId]) || 0) : 0;
-        if (addedQty > 0) {
-          addTransaction({ ingredientId: l.ingredientId, store: po.fromLocation, date: receiveDate, type: 'adjustment', quantity: -addedQty,  poId: po.id })
-          addTransaction({ ingredientId: l.ingredientId, store: po.toLocation,   date: receiveDate, type: 'adjustment', quantity:  addedQty,  poId: po.id })
-        }
-      })
-    }
     cancelReceive()
   }
 
