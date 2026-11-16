@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
-      '@inventory': path.resolve(__dirname, '../inventory-app/src'),
+      '@inventory': path.resolve(__dirname, '../../packages/inventory-shared'),
       react: path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
     },

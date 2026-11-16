@@ -40,18 +40,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build Inventory App
-        run: |
-          cd apps/inventory-app
-          npm ci
-          npm run build
-
-      - name: Build Warehouse App
-        run: |
-          cd apps/warehouse-app
-          npm ci
-          npm run build
-
       - name: Build Warehouse Tabular App
         run: |
           cd apps/warehouse-tabular
@@ -157,8 +145,6 @@ jobs:
 
           # 4. Fresh React builds
           cp -r apps/schedule-app/build/*   deploy/internal/schedule/
-          cp -r apps/inventory-app/dist/*   deploy/internal/inventory/
-          cp -r apps/warehouse-app/dist/*   deploy/internal/warehouse/
           cp -r apps/warehouse-tabular/dist/* deploy/internal/warehouse-tabular/
           cp -r apps/stores-tabular/dist/* deploy/internal/stores-tabular/
           cp -r apps/tapioca-app/dist/*     deploy/internal/tapioca-app/
