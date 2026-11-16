@@ -99,7 +99,7 @@ const T = t => `workspace.inventory_tabular.${t}`
 export const LH_QUERIES = {
   stores: `SELECT store_id, store_code, store_name, store_name_en, city, store_type, is_active FROM ${T('dim_stores')} ORDER BY store_id ASC`,
   ingredients: `SELECT i.ingredient_id AS id, i.ingredient_name AS name, i.unit, i.product_type AS productType, i.supplier_id AS supplierId, i.supplier_name AS supplierName, i.is_warehouse_only AS warehouseOnly, i.is_hidden AS hidden, i.cost_per_unit AS costPerUnit, i.item_class AS itemClass, i.product_id AS productId, i.last_purchase_cost AS lastPurchaseCost, w.wac_30d AS wacCost30d, w.effective_unit_cost AS effectiveUnitCost FROM ${T('dim_ingredients')} i LEFT JOIN ${T('view_ingredient_wac_30d')} w ON w.ingredient_id = i.ingredient_id`,
-  recipes: `SELECT recipe_product_name, product_id, ingredient_id, amount_per_serving FROM ${T('fact_recipe_ingredients')} WHERE recipe_type = 'production'`,
+  recipes: `SELECT output_product_name AS recipe_product_name, product_id, input_ingredient_id AS ingredient_id, amount_per_serving, output_ingredient_id FROM ${T('view_production_boms')}`,
   // Retail (in-store sales) recipes: drinks consumed directly at a store, and
   // sold-as markers for WHS-made products (all-finished-good lines). The
   // warehouse Recipes tab shows these read-only — the stores app manages them.
