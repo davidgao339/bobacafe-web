@@ -13,6 +13,8 @@
 --   Path B: finished direct link — dim_ingredients.item_class='finished' row
 --           with the same product_id depletes 1 шт per sale, only when the
 --           product has NO retail recipe (retail precedence);
+--   Path B_PKG: dynamic serving packaging attached to finished goods
+--               (e.g., Подложка для корн-дога, packaging_ingredient_id in dim_ingredients);
 --   Path C: NULL-pid retail recipes (POS pseudo-products 'Списание - …') by
 --           normalized spelling;
 --   Path D: fallback recipe match by normalized name if dim_picked active product_id
@@ -63,8 +65,8 @@ product_map AS (
 finished_link AS (
   -- One stock-keeping dim_ingredients row per product_id (deduped); used only
   -- when the product has no retail recipe (retail precedence below).
-  SELECT z.ingredient_id, z.product_id FROM (
-    SELECT i.ingredient_id, i.product_id,
+  SELECT z.ingredient_id, z.product_id, z.packaging_ingredient_id FROM (
+    SELECT i.ingredient_id, i.product_id, i.packaging_ingredient_id,
            ROW_NUMBER() OVER (PARTITION BY i.product_id ORDER BY i.ingredient_id) AS rn
     FROM workspace.inventory_tabular.dim_ingredients i
     WHERE i.item_class = 'finished' AND i.product_id IS NOT NULL
@@ -88,6 +90,18 @@ FROM sales_stream s
 JOIN product_map pm ON pm.product = s.product
 JOIN finished_link fl ON fl.product_id = pm.product_id
 WHERE s.store_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM workspace.inventory_tabular.fact_recipe_ingredients r2
+                  WHERE r2.product_id = pm.product_id AND r2.recipe_type = 'retail')
+UNION ALL
+-- Path B_PKG: Finished good serving packaging (e.g. Подложка для корн-дога)
+SELECT s.store_id, s.event_ts, s.date,
+       fl.packaging_ingredient_id AS ingredient_id, pm.dim_name AS product,
+       s.qty AS qty_units, s.qty AS consumed_qty, s.order_number
+FROM sales_stream s
+JOIN product_map pm ON pm.product = s.product
+JOIN finished_link fl ON fl.product_id = pm.product_id
+WHERE s.store_id IS NOT NULL
+  AND fl.packaging_ingredient_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM workspace.inventory_tabular.fact_recipe_ingredients r2
                   WHERE r2.product_id = pm.product_id AND r2.recipe_type = 'retail')
 UNION ALL
@@ -115,4 +129,4 @@ JOIN workspace.inventory_tabular.fact_recipe_ingredients r
 WHERE s.store_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM workspace.inventory_tabular.fact_recipe_ingredients r2
                   WHERE r2.product_id = pm.product_id AND r2.recipe_type = 'retail')
-  AND NOT EXISTS (SELECT 1 FROM finished_link fl2 WHERE fl2.product_id = pm.product_id)
+  AND NOT EXISTS (SELECT 1 FROM finished_link fl2 WHERE fl2.product_id = pm.product_id);

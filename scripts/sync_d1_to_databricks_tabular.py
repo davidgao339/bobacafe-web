@@ -447,6 +447,7 @@ def main():
     for col_sql in (
         f"ALTER TABLE {table_ingredients} ADD COLUMN last_purchase_cost DOUBLE",
         f"ALTER TABLE {table_ingredients} ADD COLUMN last_purchase_date STRING",
+        f"ALTER TABLE {table_ingredients} ADD COLUMN packaging_ingredient_id INT",
     ):
         try:
             run_databricks_sql(col_sql)
