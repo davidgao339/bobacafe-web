@@ -4,6 +4,25 @@ import { PlusCircle, Package, ArrowDown, ArrowUp, X, CheckCircle, AlertTriangle,
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
+function getRecipeForProduct(ing, config) {
+  if (!ing || !config?.recipes) return null
+  // 1. Direct match on ingredient name
+  if (config.recipes[ing.name]) return config.recipes[ing.name]
+  // 2. Match via dimProducts (productId -> canonical productRu)
+  if (ing.productId && config.dimProducts) {
+    const dim = config.dimProducts.find(p => p.productId === ing.productId)
+    if (dim && config.recipes[dim.productRu]) return config.recipes[dim.productRu]
+  }
+  // 3. Case-insensitive and trimmed name match
+  const ingNorm = (ing.name || '').toLowerCase().replace(/\s+/g, ' ').trim()
+  for (const [key, rec] of Object.entries(config.recipes)) {
+    if (key.toLowerCase().replace(/\s+/g, ' ').trim() === ingNorm) {
+      return rec
+    }
+  }
+  return null
+}
+
 export default function Production({ role }) {
   const { config, data, addTransaction, deleteProductionEvent, updateProductionEvent } = useConfig()
   
@@ -19,10 +38,10 @@ export default function Production({ role }) {
   const [isOpen, setIsOpen] = useState(false)
 
   const ingredients = config.ingredients || []
-  const products = ingredients.filter(i => config.recipes?.[i.name])
+  const products = ingredients.filter(i => getRecipeForProduct(i, config))
 
-  const selectedProduct = ingredients.find(i => i.id === Number(outputId))
-  const recipe = selectedProduct ? config.recipes?.[selectedProduct.name] : null
+  const selectedProduct = ingredients.find(i => Number(i.id) === Number(outputId))
+  const recipe = selectedProduct ? getRecipeForProduct(selectedProduct, config) : null
   const hasRecipe = recipe && Object.keys(recipe).length > 0
   
   const qtyNum = parseFloat(outputQty) || 0
@@ -117,8 +136,8 @@ export default function Production({ role }) {
     return Object.values(grouped).sort((a, b) => b.timestamp.localeCompare(a.timestamp))
   }, [data.transactions])
 
-  const ingredientName = (id) => ingredients.find(p => p.id === id)?.name ?? 'Unknown'
-  const ingredientUnit = (id) => ingredients.find(p => p.id === id)?.unit ?? ''
+  const ingredientName = (id) => ingredients.find(p => Number(p.id) === Number(id))?.name ?? 'Unknown'
+  const ingredientUnit = (id) => ingredients.find(p => Number(p.id) === Number(id))?.unit ?? ''
 
   return (
     <div className="p-4 pb-20">
@@ -361,7 +380,7 @@ export default function Production({ role }) {
                   </div>
                   <div className="p-4 space-y-3">
                     {Object.entries(recipe).map(([ingIdStr, qtyPerUnit]) => {
-                      const ing = ingredients.find(i => i.id === Number(ingIdStr))
+                      const ing = ingredients.find(i => Number(i.id) === Number(ingIdStr))
                       const inputQty = (qtyPerUnit * qtyNum).toFixed(2)
                       return (
                         <div key={ingIdStr} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">

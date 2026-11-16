@@ -114,7 +114,7 @@ function buildRecipeKeyResolver(dimProducts) {
 
 // Statement API returns every value as a string; coerce numerics/booleans so
 // lakehouse rows match what queryD1 (Cloudflare worker) would have returned.
-const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'product_id', 'parent_product_id', 'productId', 'from_store_id', 'to_store_id', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
+const _NUM = new Set(['store_id', 'id', 'storeId', 'supplier_id', 'supplierId', 'ingredient_id', 'ingredientId', 'product_id', 'parent_product_id', 'productId', 'from_store_id', 'fromStoreId', 'to_store_id', 'toStoreId', 'line_index', 'amount_per_serving', 'ordered_quantity', 'received_quantity', 'unit_cost', 'total_cost', 'count_quantity', 'quantity', 'costPerUnit', 'lastPurchaseCost', 'wacCost30d', 'pay_rate'])
 const _BOOL = new Set(['is_active', 'isActive', 'is_modifier', 'isModifier', 'is_custom_item', 'is_warehouse_only', 'is_hidden', 'warehouseOnly', 'hidden'])
 function coerceLhRows(rows) {
   return (rows || []).map(r => {
