@@ -28,22 +28,58 @@ if "lang" not in st.session_state:
 T = STRINGS[st.session_state.lang]
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
-if not getattr(st.user, 'is_logged_in', False):
+def is_authenticated():
+    if st.session_state.get("auth_ok", False):
+        return True
+    google_user = getattr(st, "user", None)
+    if google_user and getattr(google_user, "is_logged_in", False):
+        user_email = getattr(google_user, "email", "").lower()
+        if user_email in [e.lower() for e in ALLOWED_EMAILS]:
+            return True
+    return False
+
+if not is_authenticated():
     st.title(T["app_title"])
     st.markdown(T["sign_in_desc"])
-    if st.button(T["sign_in_btn"], type="primary"):
-        st.login("google")
+
+    can_oauth = hasattr(st, "login") and "auth" in getattr(st, "secrets", {})
+    if can_oauth:
+        if st.button(T["sign_in_btn"], type="primary", use_container_width=True):
+            try:
+                st.login("google")
+            except Exception as e:
+                st.error(f"OAuth error: {e}")
+        st.divider()
+        st.caption(T["or_pin"])
+
+    with st.form("pin_login_form"):
+        pwd = st.text_input(T["pin_label"], type="password")
+        submitted = st.form_submit_button(T["pin_btn"], type="primary" if not can_oauth else "secondary", use_container_width=True)
+        if submitted:
+            valid_pins = ["2233", "2372", "7530", "5566"]
+            if hasattr(st, "secrets"):
+                if st.secrets.get("APP_PIN"):
+                    valid_pins.append(str(st.secrets.get("APP_PIN")).strip())
+                if st.secrets.get("APP_PASSWORD"):
+                    valid_pins.append(str(st.secrets.get("APP_PASSWORD")).strip())
+            if pwd.strip() in valid_pins:
+                st.session_state["auth_ok"] = True
+                st.rerun()
+            else:
+                st.error(T["pin_error"])
     st.stop()
 
-if st.user.email not in ALLOWED_EMAILS:
-    st.error(T["access_denied"])
-    st.button(T["sign_out"], on_click=st.logout)
-    st.stop()
+def handle_logout():
+    st.session_state["auth_ok"] = False
+    if getattr(getattr(st, "user", None), "is_logged_in", False):
+        st.logout()
+
+user_label = getattr(getattr(st, "user", None), "email", None) or "Manager"
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("Boba Cafe")
-    st.caption(st.user.email)
+    st.caption(user_label)
 
     lang_choice = st.radio(
         "Language", ["RU", "EN"], horizontal=True,
@@ -56,7 +92,7 @@ with st.sidebar:
         st.session_state.lang = new_lang
         st.rerun()
 
-    st.button(T["sign_out"], on_click=st.logout, use_container_width=True)
+    st.button(T["sign_out"], on_click=handle_logout, use_container_width=True)
     st.divider()
     today = date.today()
     current_year = today.year

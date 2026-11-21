@@ -38,6 +38,10 @@ MONTHS_RU = [
 
 STRINGS: dict[str, dict] = {
     "en": {
+        "pin_label": "Management PIN or Password",
+        "pin_btn": "Unlock Portal",
+        "pin_error": "Incorrect PIN or password. Please try again.",
+        "or_pin": "Or unlock with Management PIN:",
         "app_title": "Schedule Optimizer — Boba Rabbit",
         "sign_in_desc": "Employee schedule optimization using CP-SAT.",
         "sign_in_btn": "Sign in with Google",
@@ -115,6 +119,10 @@ STRINGS: dict[str, dict] = {
                    "July", "August", "September", "October", "November", "December"],
     },
     "ru": {
+        "pin_label": "ПИН-код администратора",
+        "pin_btn": "Войти по ПИН",
+        "pin_error": "Неверный ПИН-код. Попробуйте снова.",
+        "or_pin": "Или войдите по ПИН-коду:",
         "app_title": "Оптимизация расписания — Boba Cafe",
         "sign_in_desc": "Оптимизация расписания сотрудников с помощью CP-SAT.",
         "sign_in_btn": "Войти через Google",
