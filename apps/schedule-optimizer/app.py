@@ -38,23 +38,26 @@ def is_authenticated():
             return True
     return False
 
+def t(key, default=""):
+    return T.get(key, default)
+
 if not is_authenticated():
-    st.title(T["app_title"])
-    st.markdown(T["sign_in_desc"])
+    st.title(t("app_title", "Schedule Optimizer — Boba Cafe"))
+    st.markdown(t("sign_in_desc", "Employee schedule optimization using CP-SAT."))
 
     can_oauth = hasattr(st, "login") and "auth" in getattr(st, "secrets", {})
     if can_oauth:
-        if st.button(T["sign_in_btn"], type="primary", use_container_width=True):
+        if st.button(t("sign_in_btn", "Sign in with Google"), type="primary", use_container_width=True):
             try:
                 st.login("google")
             except Exception as e:
                 st.error(f"OAuth error: {e}")
         st.divider()
-        st.caption(T["or_pin"])
+        st.caption(t("or_pin", "Or unlock with Management PIN:"))
 
     with st.form("pin_login_form"):
-        pwd = st.text_input(T["pin_label"], type="password")
-        submitted = st.form_submit_button(T["pin_btn"], type="primary" if not can_oauth else "secondary", use_container_width=True)
+        pwd = st.text_input(t("pin_label", "Management PIN or Password"), type="password")
+        submitted = st.form_submit_button(t("pin_btn", "Unlock Portal"), type="primary" if not can_oauth else "secondary", use_container_width=True)
         if submitted:
             valid_pins = ["2233", "2372", "7530", "5566"]
             if hasattr(st, "secrets"):
@@ -66,7 +69,7 @@ if not is_authenticated():
                 st.session_state["auth_ok"] = True
                 st.rerun()
             else:
-                st.error(T["pin_error"])
+                st.error(t("pin_error", "Incorrect PIN or password. Please try again."))
     st.stop()
 
 def handle_logout():
