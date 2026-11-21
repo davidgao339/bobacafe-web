@@ -25,8 +25,8 @@ if 'auth_ok' not in st.session_state:
         pwd = st.text_input('Enter PIN', type='password')
         submitted = st.form_submit_button('Unlock')
         if submitted:
-            # Multiple valid PINs (Manager: 2372, Master: 7530, Legacy: 5566)
-            valid_pins = ["2372", "5566", "7530"]
+            # Valid PINs (Manager: 9876, Master: 7530, Legacy: 2372, 5566)
+            valid_pins = ["9876", "7530", "2372", "5566"]
             if st.secrets.get("APP_PIN"):
                 valid_pins.append(st.secrets.get("APP_PIN"))
                 

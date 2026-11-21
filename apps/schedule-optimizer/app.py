@@ -5,7 +5,7 @@ if sys.platform == "win32":
 
 import pandas as pd
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
 
 from config import (
     ALLOWED_EMAILS, COL_MONTH, COL_NAME,
@@ -55,11 +55,19 @@ if not is_authenticated():
         st.divider()
         st.caption(t("or_pin", "Or unlock with Management PIN:"))
 
+    # 1-week transition hint for schedule PIN update (until Nov 28, 2026)
+    if datetime.now() <= datetime(2026, 11, 28, 23, 59, 59):
+        st.info(t("pin_hint", "💡 Schedule PIN updated to 1234 (available until Nov 28)."))
+
     with st.form("pin_login_form"):
         pwd = st.text_input(t("pin_label", "Management PIN or Password"), type="password")
         submitted = st.form_submit_button(t("pin_btn", "Unlock Portal"), type="primary" if not can_oauth else "secondary", use_container_width=True)
         if submitted:
-            valid_pins = ["2233", "2372", "7530", "5566"]
+            # Standardized roles: 1234 (Schedule/Employee), 9876 (Manager), 7530 (Master)
+            valid_pins = ["1234", "9876", "7530"]
+            # 1-week grace period accepting legacy PINs (2233, 2372, 5566)
+            if datetime.now() <= datetime(2026, 11, 28, 23, 59, 59):
+                valid_pins.extend(["2233", "2372", "5566"])
             if hasattr(st, "secrets"):
                 if st.secrets.get("APP_PIN"):
                     valid_pins.append(str(st.secrets.get("APP_PIN")).strip())

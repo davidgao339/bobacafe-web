@@ -193,7 +193,8 @@ def enforce_authentication():
                 submitted = st.form_submit_button("Unlock Portal", type="primary" if not can_oauth else "secondary", use_container_width=True)
 
                 if submitted:
-                    valid_pins = ["7530", "2372", "5566"]
+                    # Valid PINs (Manager: 9876, Master: 7530, Legacy: 2372, 5566)
+                    valid_pins = ["9876", "7530", "2372", "5566"]
                     custom_pin = get_secret("APP_PIN")
                     custom_pwd = get_secret("APP_PASSWORD")
                     if custom_pin:
