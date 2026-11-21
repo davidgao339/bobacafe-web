@@ -677,18 +677,22 @@
 
     // ── PIN config ───────────────────────────────────────────────────────────
     const _P = window.BC_PINS || {};
-    const MASTER_PIN = _P.master || '7530';
+    const MASTER_PIN   = _P.master || '7530';
+    const MANAGER_PIN  = _P.manager || '9876';
+    const COOK_PIN     = _P.cook || '1234';
+    const EMPLOYEE_PIN = _P.employee || _P.quick_count || '1234';
+
     const APPS = {
         'reports': {
             url:    '/internal/reports/',
-            pin:    _P.reports || '2244',
+            pins:   [MANAGER_PIN, MASTER_PIN],
             label:  'Business Reports',
             labelRu: 'Отчёты',
             icon:   '📊',
         },
         'bank-statement': {
             url:    'https://bobacafe-web-bank-statement-v2.streamlit.app/',
-            pin:    _P.bank || '9999',
+            pins:   [MANAGER_PIN, MASTER_PIN],
             label:  'Bank Statements',
             labelRu: 'Банковские выписки',
             icon:   '🏦',
@@ -696,7 +700,7 @@
         },
         'cash-reconciliation': {
             url:    'https://bobacafe-web-cash-reconciliation.streamlit.app/',
-            pin:    _P.cash || '7777',
+            pins:   [MANAGER_PIN, MASTER_PIN],
             label:  'Cash Reconciliation',
             labelRu: 'Сверка наличных',
             icon:   '💸',
@@ -704,31 +708,28 @@
         },
         'warehouse-tabular': {
             url:    '/internal/warehouse-tabular/',
-            pin:    _P.warehouse || '8888',
-            pins:   [_P.warehouse || '8888', _P.cook || '1234'],
+            pins:   [MANAGER_PIN, MASTER_PIN, COOK_PIN],
             label:  'Warehouse & Purchase Order',
             labelRu: 'Склад и заказы',
             icon:   '📦',
         },
         'stores-tabular': {
             url:    '/internal/stores-tabular/',
-            pin:    _P.warehouse || '8888',
-            pins:   [_P.warehouse || '8888', _P.inv_admin || '7530'],
+            pins:   [MANAGER_PIN, MASTER_PIN],
             label:  'Stores & Purchase Order',
             labelRu: 'Филиалы и заказы',
             icon:   '🏪',
         },
         'audit': {
             url:    '/internal/audit/',
-            pins:   [_P.quick_count || '1234', _P.inv_admin || '7530', MASTER_PIN],
+            pins:   [EMPLOYEE_PIN, MANAGER_PIN, MASTER_PIN],
             label:  'Store Audit & Quick Count',
             labelRu: 'Инвентаризация филиалов',
             icon:   '📝',
         },
         'tapioca': {
             url:    '/internal/tapioca-app/',
-            pin:    _P.boba || '1023',
-            pins:   [_P.boba || '1023', _P.inv_logistics || '9876', _P.inv_manager || '9876', _P.inv_admin || '7530', MASTER_PIN],
+            pins:   [MANAGER_PIN, MASTER_PIN],
             label:  'Tapioca Cooking Plan',
             labelRu: 'План варки тапиоки',
             icon:   '🧋',
@@ -786,12 +787,10 @@
         if (allowed.includes(pin)) {
             sessionStorage.setItem(SESSION_PREFIX + activeApp, '1');
             if (activeApp === 'warehouse-tabular') {
-                if (pin === (_P.cook || '1234')) {
-                    // Employee roles are tab sessions and must not inherit a
-                    // stale persistent admin entry on this device
+                if (pin === COOK_PIN) {
                     sessionStorage.setItem('whRole', 'cook');
                     localStorage.removeItem('whRole');
-                } else if (pin === (_P.warehouse || '8888')) {
+                } else if (pin === MANAGER_PIN || pin === (_P.warehouse || '9876')) {
                     sessionStorage.setItem('whRole', 'warehouse');
                     localStorage.removeItem('whRole');
                 } else {
@@ -799,7 +798,7 @@
                     localStorage.setItem('whRole', 'admin');
                 }
             } else if (activeApp === 'stores-tabular') {
-                if (pin === (_P.warehouse || '8888')) {
+                if (pin === MANAGER_PIN || pin === (_P.warehouse || '9876')) {
                     sessionStorage.setItem('storesRole', 'store');
                     localStorage.removeItem('storesRole');
                 } else {
@@ -807,10 +806,8 @@
                     localStorage.setItem('storesRole', 'admin');
                 }
             } else if (activeApp === 'audit') {
-                if (pin === (_P.quick_count || '1234')) {
+                if (pin === EMPLOYEE_PIN) {
                     sessionStorage.setItem('audit_role', 'quick_count');
-                    // Barista session: drop any stale 30-day manager TTL so the
-                    // audit app cannot reopen the manager suite over it
                     localStorage.removeItem('audit_role_info');
                 } else {
                     localStorage.setItem('audit_role_info', JSON.stringify({ role: 'manager', expires: Date.now() + 30 * 86400000 }));

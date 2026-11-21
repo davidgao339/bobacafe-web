@@ -129,8 +129,10 @@ export default function App() {
     const pin = passwordInput.trim();
     const _P = window.BC_PINS || {};
     const ownerPins = [_P.master || "7530"];
-    const managerPins = [_P.inv_manager || _P.inv_logistics || "9876"];
-    const employeePins = [_P.schedule || "2233"];
+    const managerPins = [_P.manager || _P.inv_manager || _P.inv_logistics || "9876"];
+    // 1-week transition grace period accepting both new 1234 and previous 2233 PINs until Nov 28, 2026
+    const isGracePeriod = new Date() <= new Date("2026-11-28T23:59:59");
+    const employeePins = [_P.schedule || "1234", "1234", ...(isGracePeriod ? ["2233"] : [])];
 
     if (ownerPins.includes(pin)) {
       setRole("owner");
@@ -390,6 +392,16 @@ export default function App() {
           </p>
 
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            {new Date() <= new Date("2026-11-28T23:59:59") && (
+              <div className="p-3 bg-blue-50 text-blue-800 rounded-xl flex items-start gap-2.5 border border-blue-200 text-xs leading-relaxed">
+                <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />
+                <div>
+                  <span className="font-bold">Подсказка: </span>
+                  Пароль для сотрудников: <strong className="font-bold underline text-blue-900">1234</strong> (действует до 28 ноября).
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
                 Пароль сотрудника или управляющего

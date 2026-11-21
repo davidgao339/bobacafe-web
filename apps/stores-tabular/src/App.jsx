@@ -33,12 +33,12 @@ function LoginScreen({ onLogin }) {
   const [error, setError] = useState(false)
   const PINS = { 
     admin: window.BC_PINS?.inv_admin || window.BC_PINS?.master || '7530', 
-    store: window.BC_PINS?.warehouse || '8888'
+    store: window.BC_PINS?.manager || window.BC_PINS?.warehouse || '9876'
   }
 
   const submit = () => {
     if (pin === PINS.admin || pin === (window.BC_PINS?.master || '7530')) { onLogin('admin'); return }
-    if (pin === PINS.store) { onLogin('store'); return }
+    if (pin === PINS.store || pin === (window.BC_PINS?.manager || '9876')) { onLogin('store'); return }
     setError(true); setPin('')
   }
 

@@ -144,7 +144,7 @@ export default function App() {
       localStorage.removeItem('audit_role_info');
       return true;
     }
-    if (p === PIN_MANAGER || (window.BC_PINS && (p === window.BC_PINS.master || p === window.BC_PINS.inv_admin))) {
+    if (p === PIN_MANAGER || (window.BC_PINS && (p === window.BC_PINS.master || p === window.BC_PINS.manager || p === window.BC_PINS.inv_manager || p === window.BC_PINS.inv_admin))) {
       setRole('manager');
       // Store 30 days for managers
       const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;

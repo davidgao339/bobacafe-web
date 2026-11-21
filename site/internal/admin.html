@@ -474,16 +474,16 @@
     function showPage() {
         const MAP = {
             v_master:        P.master        || '7530',
-            v_reports:       P.reports       || '2244',
-            v_bank:          P.bank          || '9999',
-            v_boba:          P.boba          || '1023',
-            v_cash:          P.cash          || '7777',
-            v_schedule:      P.schedule      || '2233',
-            v_payroll:       P.payroll       || '2372',
-            v_inv_admin:     P.inv_admin     || '7530',
-            v_inv_logistics: P.inv_manager   || P.inv_logistics || '9876',
-            v_quick_count:   P.quick_count   || '1234',
-            v_warehouse:     P.warehouse     || '8888',
+            v_reports:       P.reports       || P.manager || '9876',
+            v_bank:          P.bank          || P.manager || '9876',
+            v_boba:          P.boba          || P.manager || '9876',
+            v_cash:          P.cash          || P.manager || '9876',
+            v_schedule:      P.schedule      || P.employee || '1234',
+            v_payroll:       P.payroll       || P.manager || '9876',
+            v_inv_admin:     P.inv_admin     || P.master || '7530',
+            v_inv_logistics: P.inv_manager   || P.manager || '9876',
+            v_quick_count:   P.quick_count   || P.employee || '1234',
+            v_warehouse:     P.warehouse     || P.manager || '9876',
             v_cook:          P.cook          || '1234',
         };
         Object.entries(MAP).forEach(([id, val]) => {
