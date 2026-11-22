@@ -443,28 +443,43 @@ export function ConfigProvider({ children }) {
 
         const purchaseOrders = posRes.map(po => {
           const pLines = linesByPo[po.po_id] || []
-          const regularLines = pLines.filter(l => !l.is_custom_item).map(l => ({
-            ingredientId: l.ingredient_id,
-            name: l.ingredient_name,
-            unit: l.unit,
-            ordered: l.ordered_quantity ?? 0,
-            received: l.received_quantity ?? 0,
-            unitCost: l.unit_cost != null ? Number(l.unit_cost) : 0,
-            totalCost: l.total_cost != null ? Number(l.total_cost) : ((l.unit_cost || 0) * (l.received_quantity || l.ordered_quantity || 0)),
-            costCategory: l.cost_category || 'cogs',
-            overheadCategory: null
-          }))
-          const customLines = pLines.filter(l => l.is_custom_item).map(l => ({
-            id: String(l.line_index),
-            name: l.ingredient_name,
-            unit: l.unit || 'шт',
-            ordered: l.ordered_quantity ?? 0,
-            received: l.received_quantity ?? 0,
-            unitCost: l.unit_cost != null ? Number(l.unit_cost) : 0,
-            totalCost: l.total_cost != null ? Number(l.total_cost) : ((l.unit_cost || 0) * (l.received_quantity || l.ordered_quantity || 0)),
-            costCategory: l.cost_category || 'overhead',
-            overheadCategory: l.overhead_category || 'General Overhead'
-          }))
+          // Defensive deduplication: ensure regular lines have unique ingredientId, custom lines have unique line_index
+          const seenRegular = new Set()
+          const regularLines = []
+          pLines.filter(l => !l.is_custom_item).forEach(l => {
+            if (l.ingredient_id != null && seenRegular.has(l.ingredient_id)) return
+            if (l.ingredient_id != null) seenRegular.add(l.ingredient_id)
+            regularLines.push({
+              ingredientId: l.ingredient_id,
+              name: l.ingredient_name,
+              unit: l.unit,
+              ordered: l.ordered_quantity ?? 0,
+              received: l.received_quantity ?? 0,
+              unitCost: l.unit_cost != null ? Number(l.unit_cost) : 0,
+              totalCost: l.total_cost != null ? Number(l.total_cost) : ((l.unit_cost || 0) * (l.received_quantity || l.ordered_quantity || 0)),
+              costCategory: l.cost_category || 'cogs',
+              overheadCategory: null
+            })
+          })
+
+          const seenCustom = new Set()
+          const customLines = []
+          pLines.filter(l => l.is_custom_item).forEach(l => {
+            const cKey = `${l.line_index}_${l.ingredient_name}`
+            if (seenCustom.has(cKey)) return
+            seenCustom.add(cKey)
+            customLines.push({
+              id: String(l.line_index),
+              name: l.ingredient_name,
+              unit: l.unit || 'шт',
+              ordered: l.ordered_quantity ?? 0,
+              received: l.received_quantity ?? 0,
+              unitCost: l.unit_cost != null ? Number(l.unit_cost) : 0,
+              totalCost: l.total_cost != null ? Number(l.total_cost) : ((l.unit_cost || 0) * (l.received_quantity || l.ordered_quantity || 0)),
+              costCategory: l.cost_category || 'overhead',
+              overheadCategory: l.overhead_category || 'General Overhead'
+            })
+          })
 
           const isStoreWh = po.store_id === 99 || po.store_code === 'WHS'
           const isFromWh = po.from_store_id === 99

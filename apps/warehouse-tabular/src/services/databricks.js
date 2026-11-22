@@ -133,14 +133,36 @@ export const LH_PUSH = {
     `DELETE FROM ${T('fact_audit_counts')} WHERE audit_id = '${esc(auditId)}'`,
     ...entries.filter(e => e.ingredientId != null).map(e => `INSERT INTO ${T('fact_audit_counts')} (audit_id, store_id, audit_date, ingredient_id, ingredient_name, count_quantity) VALUES ('${esc(auditId)}', ${storeId}, '${esc(date)}', ${e.ingredientId}, '${esc(e.name)}', ${Number(e.qty)})`),
   ],
-  poLinesReplace: (poId, lines) => [
-    `DELETE FROM ${T('fact_purchase_order_lines')} WHERE po_id = '${esc(poId)}'`,
-    ...(() => { let reg = 0, cust = 0; return lines.map(l => {
-      // line_index matches D1/fact semantics: regular lines 0..n, custom 1000+idx
+  poLinesReplace: (poId, lines) => {
+    // If lines is empty, delete any existing lines
+    if (!lines || lines.length === 0) {
+      return [`DELETE FROM ${T('fact_purchase_order_lines')} WHERE po_id = '${esc(poId)}'`]
+    }
+    let reg = 0, cust = 0
+    // Deduplicate lines by ingredient_id for regular items, and by custom idx
+    const seenIngs = new Set()
+    const cleanLines = []
+    lines.forEach(l => {
+      if (!l.isCustom) {
+        if (l.ingredientId != null && seenIngs.has(l.ingredientId)) return
+        if (l.ingredientId != null) seenIngs.add(l.ingredientId)
+      }
+      cleanLines.push(l)
+    })
+
+    const selects = cleanLines.map(l => {
       const lineIndex = l.isCustom ? 1000 + cust++ : reg++
-      return `INSERT INTO ${T('fact_purchase_order_lines')} (po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost) VALUES ('${esc(poId)}', ${lineIndex}, ${l.ingredientId ?? 'NULL'}, '${esc(l.name)}', ${l.isCustom ? 'true' : 'false'}, ${Number(l.ordered) || 0}, ${Number(l.received) || 0}, '${esc(l.unit || '')}', ${Number(l.unitCost) || 0}, ${Number(l.totalCost) || 0})`
-    }) })(),
-  ],
+      return `SELECT '${esc(poId)}' AS po_id, ${lineIndex} AS line_index, ${l.ingredientId ?? 'NULL'} AS ingredient_id, '${esc(l.name)}' AS ingredient_name, ${l.isCustom ? 'true' : 'false'} AS is_custom_item, ${Number(l.ordered) || 0} AS ordered_quantity, ${Number(l.received) || 0} AS received_quantity, '${esc(l.unit || '')}' AS unit, ${Number(l.unitCost) || 0} AS unit_cost, ${Number(l.totalCost) || 0} AS total_cost`
+    })
+
+    const maxLineIndex = Math.max(reg - 1, 0)
+    const maxCustIndex = cust > 0 ? 1000 + cust - 1 : 999
+
+    return [
+      `MERGE INTO ${T('fact_purchase_order_lines')} t USING (\n  ${selects.join('\n  UNION ALL\n  ')}\n) s ON t.po_id = s.po_id AND t.line_index = s.line_index WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *`,
+      `DELETE FROM ${T('fact_purchase_order_lines')} WHERE po_id = '${esc(poId)}' AND ((line_index < 1000 AND line_index > ${maxLineIndex}) OR (line_index >= 1000 AND line_index > ${maxCustIndex}))`
+    ]
+  },
   del: (table, where) => `DELETE FROM ${T(table)} WHERE ${where}`,
   upd: (table, set, where) => `UPDATE ${T(table)} SET ${set} WHERE ${where}`,
   // product_id attaches rows to dim_product so recipes survive spelling

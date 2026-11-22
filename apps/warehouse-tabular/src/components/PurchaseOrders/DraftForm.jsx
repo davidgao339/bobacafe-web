@@ -312,26 +312,33 @@ export default function DraftForm({
       }
     }
 
+    // Normalize lines to ensure unique ingredient IDs and clean custom lines
+    const seenRegularIds = new Set()
+    const normalizedLines = []
+    lines.forEach(l => {
+      if (seenRegularIds.has(l.id)) return
+      seenRegularIds.add(l.id)
+      const ord = Math.max(0, Number(l.qty) || 0)
+      const uCost = Number(l.unitCost) || (ord > 0 && Number(l.totalCost) ? Number(l.totalCost) / ord : 0)
+      const tCost = Number(l.totalCost) || (ord * uCost)
+      normalizedLines.push({ 
+        ingredientId: l.id, 
+        name: l.name,
+        unit: l.unit,
+        ordered: ord,
+        unitCost: Math.round(uCost * 100) / 100,
+        totalCost: Math.round(tCost * 100) / 100,
+        costCategory: 'cogs',
+        ...(initialStatus === 'received' ? { received: Math.max(0, Number(l.received) || 0) } : {})
+      })
+    })
+
     onSave({
       store,
       createdDate,
       fromLocation: fromLocation || null,
       toLocation: toLocation || null,
-      lines: lines.map(l => {
-        const ord = Math.max(0, Number(l.qty) || 0)
-        const uCost = Number(l.unitCost) || (ord > 0 && Number(l.totalCost) ? Number(l.totalCost) / ord : 0)
-        const tCost = Number(l.totalCost) || (ord * uCost)
-        return { 
-          ingredientId: l.id, 
-          name: l.name,
-          unit: l.unit,
-          ordered: ord,
-          unitCost: Math.round(uCost * 100) / 100,
-          totalCost: Math.round(tCost * 100) / 100,
-          costCategory: 'cogs',
-          ...(initialStatus === 'received' ? { received: Math.max(0, Number(l.received) || 0) } : {})
-        }
-      }),
+      lines: normalizedLines,
       customLines: customLines.filter(c => c.name?.trim()).map(c => {
         const ord = Math.max(0, Number(c.ordered) || 0)
         const uCost = Number(c.unitCost) || (ord > 0 && Number(c.totalCost) ? Number(c.totalCost) / ord : 0)
