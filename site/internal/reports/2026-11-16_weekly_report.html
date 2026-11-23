@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчет 2026-11-16 – 2026-11-22 | Боба Кролик</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root {
+  --bg:           #F5F5F7;
+  --bg-subtle:    #EBEBEF;
+  --surface:      #FFFFFF;
+  --border:       #D1D1D6;
+  --border-light: #E5E5EA;
+  --text-1:       #1C1C1E;
+  --text-2:       #636366;
+  --text-3:       #8E8E93;
+  --brand:        #FF453A;
+  --brand-light:  #FFF1F0;
+  --success-bg:   #E3F8E8;
+  --success-text: #197A3B;
+  --danger-bg:    #FFEBEA;
+  --danger-text:  #D70015;
+  --warning-bg:   #FFF4E5;
+  --warning-text: #B35C00;
+  --card-shadow:  0 2px 14px rgba(0, 0, 0, 0.04), 0 0 0 1px #E5E5EA;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text-1);
+  font-size: 15px;
+  line-height: 1.6;
+}
+nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  height: 68px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-1);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nav-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all .15s ease;
+}
+.nav-link:hover {
+  background: var(--bg-subtle);
+  color: var(--text-1);
+}
+.nav-link.active {
+  background: var(--brand-light);
+  color: var(--brand);
+  font-weight: 700;
+}
+.nav-tag {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brand);
+  background: var(--brand-light);
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+.report-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+  padding: 44px 52px;
+}
+@media (max-width: 768px) {
+  .report-card { padding: 24px 18px; }
+  nav { padding: 0 16px; }
+}
+
+/* Typography & Headers */
+#report-content h1 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.02em;
+  border-bottom: 2px solid var(--border-light);
+  padding-bottom: 14px;
+  margin-bottom: 24px;
+}
+#report-content h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 10px;
+  margin-top: 40px;
+  margin-bottom: 18px;
+}
+#report-content h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-2);
+  margin-top: 28px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+#report-content p {
+  margin-bottom: 16px;
+  color: var(--text-2);
+  line-height: 1.65;
+}
+#report-content hr {
+  border: none;
+  border-top: 1px solid var(--border-light);
+  margin: 36px 0;
+}
+
+/* Tables (Neo-Editorial Precision) */
+#report-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 20px 0 32px;
+  font-size: 14px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  font-variant-numeric: tabular-nums;
+}
+#report-content th {
+  font-family: 'Space Grotesk', sans-serif;
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-light);
+  padding: 12px 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+#report-content td {
+  border-bottom: 1px solid var(--border-light);
+  padding: 11px 16px;
+  color: var(--text-1);
+}
+#report-content tr:last-child td {
+  border-bottom: none;
+}
+#report-content tr:hover td {
+  background: var(--brand-light);
+}
+
+/* Monospace & Code */
+#report-content code {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-subtle);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 13px;
+  border: 1px solid var(--border-light);
+}
+#report-content em {
+  color: var(--text-3);
+  font-style: italic;
+}
+
+footer {
+  text-align: center;
+  padding: 40px 24px;
+  font-size: 13px;
+  color: var(--text-3);
+  border-top: 1px solid var(--border-light);
+  margin-top: 60px;
+}
+footer a { color: var(--brand); text-decoration: none; font-weight: 600; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <a href="https://bobacafe.net/internal/" class="nav-brand">🧋 Боба Кролик</a>
+    <span class="nav-tag">Executive Portal</span>
+  </div>
+  <div class="nav-links">
+    <a href="https://bobacafe.net/internal/" class="nav-link">← Портал</a>
+    <a href="https://bobacafe.net/internal/weekly/" class="nav-link active">📊 Еженедельный отчет</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="report-card">
+    <div id="report-content"></div>
+  </div>
+</div>
+
+<footer>
+  <a href="https://bobacafe.net/internal/">← Внутренний портал</a> &nbsp;·&nbsp;
+  Боба Кролик &copy; 2026 — Только для сотрудников сети
+</footer>
+
+<script>
+  const md = `# Weekly Business & Operational Report: 2026-11-16 to 2026-11-22
+
+_Generated: 2026-11-23 05:40_
+
+---
+
+
+## 1. Sales & Store Performance
+
+| Metric | This Week | Prior Week | WoW % | 4W Avg (Wkly) | vs. 4W Avg | Net Impact | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Total Revenue | ₽277,734 | ₽314,041 | ↓ 11.6% | ₽341,422 | ↓ 18.7% | -₽36,307 | 🔴 Underperforming |
+| Total Orders (Traffic) | 491 | 550 | ↓ 10.7% | – | – | -59 orders | 🟢 Traffic-Led |
+| Avg Ticket (Check Size) | ₽502 | ₽503 | ↓ 0.3% | – | – | ₽1 | ⚪ Stable |
+
+
+### Store Performance Matrix
+
+_Evaluates both Week-over-Week (WoW) and 4-Week Rolling Average to filter out one-week volatility._
+
+| store | this_week | prior_week | 4w_avg | wow | vs_4w_avg | net_impact | share | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| НОВО КП | ₽101,014 | ₽105,854 | ₽111,496 | ↓ 4.6% | ↓ 9.4% | -₽4,840 | 36.4% | 🔴 Underperforming |
+| ГРИН ПАРК | ₽69,336 | ₽68,025 | ₽81,322 | ↑ 1.9% | ↓ 14.7% | +₽1,311 | 25.0% | 🔴 Action Needed |
+| ГАЛЕРЕЯ | ₽62,295 | ₽85,055 | ₽89,942 | ↓ 26.8% | ↓ 30.7% | -₽22,760 | 22.4% | 🔴 Underperforming |
+| БОН ПАССАЖ | ₽36,224 | ₽49,157 | ₽45,598 | ↓ 26.3% | ↓ 20.6% | -₽12,933 | 13.0% | 🔴 Underperforming |
+| ЧЕРНОМОРСКИЙ | ₽8,865 | ₽5,950 | ₽13,063 | ↑ 49.0% | ↓ 32.1% | +₽2,915 | 3.2% | 🟡 Rebound |
+
+- 🚀 **Top Growth Drivers:** ГРИН ПАРК, ЧЕРНОМОРСКИЙ
+- ⚠️ **Action Needed:** БОН ПАССАЖ, ГАЛЕРЕЯ, НОВО КП
+
+
+### Traffic (Orders) vs. Ticket (Avg Basket) by Store
+
+_Decomposes store revenue changes into Customer Traffic (Order Count) vs. Check Size (Avg Basket)._
+
+| store | orders_this_wk | orders_prior_wk | orders_wow | ticket_this_wk | ticket_prior_wk | ticket_wow | primary_driver |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| НОВО КП | 185 | 192 | ↓ 3.6% | ₽499 | ₽476 | ↑ 4.9% | 💳 Ticket (+5%) |
+| ГРИН ПАРК | 131 | 121 | ↑ 8.3% | ₽468 | ₽541 | ↓ 13.4% | 👥 Traffic (+8%) |
+| ГАЛЕРЕЯ | 95 | 136 | ↓ 30.1% | ₽500 | ₽510 | ↓ 1.9% | ⚠️ Traffic Slump (-30%) |
+| БОН ПАССАЖ | 69 | 93 | ↓ 25.8% | ₽525 | ₽479 | ↑ 9.6% | 💳 Ticket (+10%) |
+| ЧЕРНОМОРСКИЙ | 27 | 18 | ↑ 50.0% | ₽328 | ₽331 | ↓ 0.7% | 👥 Traffic (+50%) |
+
+### Weekday (Mon–Thu) vs. Weekend (Fri–Sun) Dynamics
+
+_Isolates weekday baseline trends from weekend weather/event volatility._
+
+| store | weekday_rev | weekday_prior | weekday_wow | weekend_rev | weekend_prior | weekend_wow | weekend_share | pattern |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| НОВО КП | ₽45,940 | ₽31,284 | ↑ 46.8% | ₽55,074 | ₽74,570 | ↓ 26.1% | 54.5% | 🌤️ Weekend Drag |
+| ГРИН ПАРК | ₽20,361 | ₽21,005 | ↓ 3.1% | ₽48,975 | ₽47,020 | ↑ 4.2% | 70.6% | ⚪ Balanced |
+| ГАЛЕРЕЯ | ₽28,315 | ₽38,770 | ↓ 27.0% | ₽33,980 | ₽46,285 | ↓ 26.6% | 54.5% | ❄️ Full Slump |
+| БОН ПАССАЖ | ₽14,324 | ₽16,575 | ↓ 13.6% | ₽21,900 | ₽32,582 | ↓ 32.8% | 60.5% | ❄️ Full Slump |
+| ЧЕРНОМОРСКИЙ | ₽0 | ₽0 | – | ₽8,865 | ₽5,950 | ↑ 49.0% | 100.0% | ⚪ Balanced |
+
+### Channel Distribution
+
+| payment_type | this_week | prior_week | share | wow | net_impact |
+| --- | --- | --- | --- | --- | --- |
+| card | ₽193,570 | ₽228,245 | 69.7% | ↓ 15.2% | -₽34,675 |
+| cash | ₽42,104 | ₽39,456 | 15.2% | ↑ 6.7% | +₽2,648 |
+| online | ₽31,430 | ₽38,180 | 11.3% | ↓ 17.7% | -₽6,750 |
+| other | ₽10,630 | ₽8,160 | 3.8% | ↑ 30.3% | +₽2,470 |
+
+### Channel Breakdown by Store
+
+
+**НОВО КП** — total ₽101,014
+
+| channel | this_week | prior_week | share | wow | net_impact |
+| --- | --- | --- | --- | --- | --- |
+| card | ₽67,620 | ₽75,905 | 66.9% | ↓ 10.9% | -₽8,285 |
+| cash | ₽19,154 | ₽11,469 | 19.0% | ↑ 67.0% | +₽7,685 |
+| online | ₽8,670 | ₽15,290 | 8.6% | ↓ 43.3% | -₽6,620 |
+| other | ₽5,570 | ₽3,190 | 5.5% | ↑ 74.6% | +₽2,380 |
+
+**ГРИН ПАРК** — total ₽69,336
+
+| channel | this_week | prior_week | share | wow | net_impact |
+| --- | --- | --- | --- | --- | --- |
+| card | ₽55,206 | ₽54,735 | 79.6% | ↑ 0.9% | +₽471 |
+| online | ₽8,010 | ₽2,580 | 11.6% | ↑ 210.5% | +₽5,430 |
+| cash | ₽6,120 | ₽10,260 | 8.8% | ↓ 40.4% | -₽4,140 |
+| other | ₽0 | ₽450 | 0.0% | ↓ 100.0% | -₽450 |
+
+**ГАЛЕРЕЯ** — total ₽62,295
+
+| channel | this_week | prior_week | share | wow | net_impact |
+| --- | --- | --- | --- | --- | --- |
+| card | ₽38,045 | ₽56,110 | 61.1% | ↓ 32.2% | -₽18,065 |
+| online | ₽14,750 | ₽15,690 | 23.7% | ↓ 6.0% | -₽940 |
+| cash | ₽7,610 | ₽11,575 | 12.2% | ↓ 34.3% | -₽3,965 |
+| other | ₽1,890 | ₽1,680 | 3.0% | ↑ 12.5% | +₽210 |
+
+**БОН ПАССАЖ** — total ₽36,224
+
+| channel | this_week | prior_week | share | wow | net_impact |
+| --- | --- | --- | --- | --- | --- |
+| card | ₽27,104 | ₽35,545 | 74.8% | ↓ 23.7% | -₽8,441 |
+| cash | ₽7,560 | ₽6,152 | 20.9% | ↑ 22.9% | +₽1,408 |
+| other | ₽1,560 | ₽2,840 | 4.3% | ↓ 45.1% | -₽1,280 |
+| online | ₽0 | ₽4,620 | 0.0% | ↓ 100.0% | -₽4,620 |
+
+**ЧЕРНОМОРСКИЙ** — total ₽8,865
+
+| channel | this_week | prior_week | share | wow | net_impact |
+| --- | --- | --- | --- | --- | --- |
+| card | ₽5,595 | ₽5,950 | 63.1% | ↓ 6.0% | -₽355 |
+| cash | ₽1,660 | ₽0 | 18.7% | – | +₽1,660 |
+| other | ₽1,610 | ₽0 | 18.2% | – | +₽1,610 |
+| online | ₽0 | ₽0 | 0.0% | – | ₽0 |
+
+---
+
+
+## 2. Basket Size & Attach Intelligence
+
+_Excludes Non-Fiscal and online orders. Returns net into revenue numerator without inflating order count._
+
+**Chain-Wide Avg Basket:** ₽502  **WoW:** ↓ 0.3% (-₽1)
+
+| store | avg_basket | prior_basket | orders | wow | net_change |
+| --- | --- | --- | --- | --- | --- |
+| БОН ПАССАЖ | ₽525 | ₽479 | 69 | ↑ 9.6% | +₽46 |
+| ГАЛЕРЕЯ | ₽500 | ₽510 | 95 | ↓ 1.9% | -₽10 |
+| НОВО КП | ₽499 | ₽476 | 185 | ↑ 4.9% | +₽23 |
+| ГРИН ПАРК | ₽468 | ₽541 | 131 | ↓ 13.4% | -₽73 |
+| ЧЕРНОМОРСКИЙ | ₽328 | ₽331 | 27 | ↓ 0.7% | -₽2 |
+
+### Attach Rates & Upsell Opportunity Gap
+
+_Measures cross-sell effectiveness on drink orders. **Top-Quartile Food Attach Benchmark: 13.3%** (Avg food/dessert ticket: ₽261)._
+
+| store | drink_orders | food_attach | food_attach_wow | topping_attach | topping_attach_wow | multi_drink_pct | upsell_opportunity_₽ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| НОВО КП | 156 | 10.9% | ↑ 43.5% | 0.6% | ↓ 74.7% | 87.8% | +₽976 / wk |
+| ГРИН ПАРК | 114 | 11.4% | ↓ 17.7% | 0.0% | – | 83.3% | +₽563 / wk |
+| ГАЛЕРЕЯ | 80 | 16.2% | ↑ 112.9% | 1.2% | ↓ 59.1% | 82.5% | ✓ Top Tier |
+| БОН ПАССАЖ | 65 | 12.3% | ↑ 15.4% | 1.5% | – | 83.1% | ✓ Top Tier |
+| ЧЕРНОМОРСКИЙ | 17 | 0.0% | ↓ 100.0% | 0.0% | – | 94.1% | +₽590 / wk |
+
+💡 **Network Upsell Opportunity:** **+₽2,297 / week** left on the table across under-attaching stores if brought to the 75th percentile benchmark.
+
+
+---
+
+
+## 3. Product Health & Menu Mix
+
+
+### Category Distribution
+
+| category | revenue | prior_revenue | share | qty | wow | net_impact |
+| --- | --- | --- | --- | --- | --- | --- |
+| Drink | ₽220,518 | ₽252,981 | 78.8% | 617 | ↓ 12.8% | -₽32,463 |
+| Food | ₽27,818 | ₽33,050 | 9.9% | 79 | ↓ 15.8% | -₽5,232 |
+| Dessert | ₽23,980 | ₽24,270 | 8.6% | 106 | ↓ 1.2% | -₽290 |
+| Other | ₽7,518 | ₽9,900 | 2.7% | 27 | ↓ 24.1% | -₽2,382 |
+| Toppings & Modifiers | ₽150 | ₽400 | 0.1% | 3 | ↓ 62.5% | -₽250 |
+
+### Subcategory Distribution
+
+_Featured products (★) shown as a separate group within each subcategory._
+
+| category | group | revenue | share | qty | wow | net_impact |
+| --- | --- | --- | --- | --- | --- | --- |
+| Dessert | Cookie | ₽1,150 | 0.4% | 23 | ↓ 17.9% | -₽250 |
+| Dessert | Mochi | ₽22,830 | 8.2% | 83 | ↓ 0.2% | -₽40 |
+| Drink | Add-in | ₽370 | 0.1% | 7 | ↓ 7.5% | -₽30 |
+| Drink | Bubble tea | ₽16,855 | 6.0% | 47 | ↑ 5.7% | +₽905 |
+| Drink | Cocktail | ₽3,420 | 1.2% | 9 | ↑ 115.1% | +₽1,830 |
+| Drink | Coffee ★ | ₽30,780 | 11.0% | 78 | ↓ 25.4% | -₽10,476 |
+| Drink | Coffee | ₽17,915 | 6.4% | 64 | ↓ 29.4% | -₽7,445 |
+| Drink | Lemonade ★ | ₽30,110 | 10.8% | 79 | ↓ 13.9% | -₽4,870 |
+| Drink | Lemonade | ₽400 | 0.1% | 1 | ↓ 66.7% | -₽800 |
+| Drink | Milk ★ | ₽69,038 | 24.7% | 162 | ↓ 15.4% | -₽12,587 |
+| Drink | Other Drinks | ₽43,970 | 15.7% | 129 | ↑ 1.4% | +₽620 |
+| Drink | Syrup | ₽50 | 0.0% | 1 | ↓ 75.0% | -₽150 |
+| Drink | Tea ★ | ₽3,800 | 1.4% | 10 | ↓ 23.1% | -₽1,140 |
+| Drink | Tea | ₽2,800 | 1.0% | 7 | ↑ 250.0% | +₽2,000 |
+| Drink | Topping | ₽1,010 | 0.4% | 23 | ↓ 24.1% | -₽320 |
+| Food | Corn dog | ₽24,790 | 8.9% | 66 | ↓ 14.1% | -₽4,060 |
+| Food | Pancakes | ₽2,648 | 0.9% | 12 | ↓ 30.7% | -₽1,172 |
+| Food | Snacks | ₽380 | 0.1% | 1 | → 0.0% | ₽0 |
+| Other | Miscellaneous | ₽7,518 | 2.7% | 27 | ↓ 24.1% | -₽2,382 |
+| Toppings & Modifiers | Add-ons | ₽150 | 0.1% | 3 | ↓ 62.5% | -₽250 |
+
+### Product Sales
+
+_Grouped by subcategory; featured products (★) listed first within each group._
+
+| category | group | product_display | qty | revenue | net_impact | % of cat | wow |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Dessert | Cookie | Печенье с предсказаниями / Fortune Cookie | 23 | ₽1,150 | -₽250 | 4.8% | ↓ 17.9% |
+| Dessert | Mochi | Моти Орео / Mochi Oreo | 33 | ₽9,120 | +₽2,850 | 38.0% | ↑ 45.5% |
+| Dessert | Mochi | Моти Нутелла / Mochi Nutella | 27 | ₽7,360 | -₽1,290 | 30.7% | ↓ 14.9% |
+| Dessert | Mochi | Моти Лесные ягоды / Mochi Wild Berries | 14 | ₽3,890 | -₽1,540 | 16.2% | ↓ 28.4% |
+| Dessert | Mochi | Моти Манго / Mochi Mango | 9 | ₽2,460 | -₽60 | 10.3% | ↓ 2.4% |
+| Drink | Add-in | Безлатнозное коровье молоко (Пармалат) / Lactose-free Milk | 5 | ₽250 | -₽90 | 0.1% | ↓ 26.5% |
+| Drink | Add-in | Двойной шот / Double shot | 2 | ₽120 | +₽60 | 0.1% | ↑ 100.0% |
+| Drink | Bubble tea | Смородина мята чай / Currant mint tea | 10 | ₽3,800 | +₽1,000 | 1.7% | ↑ 35.7% |
+| Drink | Bubble tea | Мятное яблоко чай / Mint apple tea | 10 | ₽3,500 | +₽1,400 | 1.6% | ↑ 66.7% |
+| Drink | Bubble tea | Лавандовый чай / Lavender tea | 9 | ₽3,150 | +₽1,750 | 1.4% | ↑ 125.0% |
+| Drink | Bubble tea | Айс-ти Малина (чай) / Raspberry Ice Tea | 9 | ₽2,905 | +₽805 | 1.3% | ↑ 38.3% |
+| Drink | Bubble tea | Соленая карамель чай / Salted caramel tea | 5 | ₽2,000 | -₽3,600 | 0.9% | ↓ 64.3% |
+| Drink | Bubble tea | Остров манго чай / Island Mango Tea | 2 | ₽800 | -₽800 | 0.4% | ↓ 50.0% |
+| Drink | Bubble tea | Лаймовый чай / Lime tea | 2 | ₽700 | +₽350 | 0.3% | ↑ 100.0% |
+| Drink | Cocktail | Принцесса Персиков Коктейль / Peach Princess Cocktail | 9 | ₽3,420 | +₽2,280 | 1.6% | ↑ 200.0% |
+| Drink | Coffee ★ | Айс Латте Соленая Карамель / Ice Latte Salted Caramel | 33 | ₽12,540 | -₽8,208 | 5.7% | ↓ 39.6% |
+| Drink | Coffee ★ | Тирамису кофе / Tiramisu Coffee | 25 | ₽9,310 | +₽380 | 4.2% | ↑ 4.3% |
+| Drink | Coffee ★ | Сникерс кофе / Snickers Coffee | 19 | ₽8,550 | -₽900 | 3.9% | ↓ 9.5% |
+| Drink | Coffee ★ | Айс Латте Малина / Ice Latte Raspberry | 1 | ₽380 | -₽1,748 | 0.2% | ↓ 82.1% |
+| Drink | Coffee | Корейский кофе / Korean Coffee | 15 | ₽6,000 | -₽3,520 | 2.7% | ↓ 37.0% |
+| Drink | Coffee | Капучино / Cappuccino | 13 | ₽3,250 | -₽3,375 | 1.5% | ↓ 50.9% |
+| Drink | Coffee | Латте / Latte | 13 | ₽2,875 | -₽1,500 | 1.3% | ↓ 34.3% |
+| Drink | Coffee | Бамбл / Bumble | 5 | ₽2,000 | +₽800 | 0.9% | ↑ 66.7% |
+| Drink | Coffee | Американо / Americano | 12 | ₽1,800 | +₽750 | 0.8% | ↑ 71.4% |
+| Drink | Coffee | Айс Латте Шоколадное печенье / Ice Latte Chocolate Cookie | 3 | ₽1,140 | -₽950 | 0.5% | ↓ 45.5% |
+| Drink | Coffee | Флэт Уайт / Flat White | 2 | ₽500 | ₽0 | 0.2% | → 0.0% |
+| Drink | Coffee | Раф кокос / Raf Coconut | 1 | ₽350 | +₽350 | 0.2% | – |
+| Drink | Lemonade ★ | Лаймовое яблоко лимонад / Lime Apple Lemonade | 16 | ₽6,080 | -₽3,610 | 2.8% | ↓ 37.3% |
+| Drink | Lemonade ★ | Лазурная бухта лимонад / Azure Bay Lemonade | 13 | ₽5,000 | -₽600 | 2.3% | ↓ 10.7% |
+| Drink | Lemonade ★ | Малиновый закат лимонад / Raspberry Sunset Lemonade | 12 | ₽4,560 | ₽0 | 2.1% | → 0.0% |
+| Drink | Lemonade ★ | Соник лимонад / Sonic Lemonade | 12 | ₽4,400 | +₽1,000 | 2.0% | ↑ 29.4% |
+| Drink | Lemonade ★ | Мармеладный мишка лимонад / Gummy Bear Lemonade | 10 | ₽4,000 | +₽2,400 | 1.8% | ↑ 150.0% |
+| Drink | Lemonade ★ | Восходящее солнце лимонад / Rising Sun Lemonade | 9 | ₽3,600 | -₽1,000 | 1.6% | ↓ 21.7% |
+| Drink | Lemonade ★ | Красный дракон лимонад / Red Dragon Lemonade | 7 | ₽2,470 | -₽2,660 | 1.1% | ↓ 51.9% |
+| Drink | Lemonade | Мята в облаках Лимонад / Mint in the Clouds Lemonade | 1 | ₽400 | -₽800 | 0.2% | ↓ 66.7% |
+| Drink | Milk ★ | Тигр карамельный Коктейль / Tiger Caramel | 33 | ₽12,540 | -₽2,090 | 5.7% | ↓ 14.3% |
+| Drink | Milk ★ | Голубой Бабл-гам Коктейль / Blue Bubblegum | 26 | ₽11,610 | -₽1,440 | 5.3% | ↓ 11.0% |
+| Drink | Milk ★ | Хеллоу Китти Коктейль / Hello Kitty | 24 | ₽10,575 | +₽2,925 | 4.8% | ↑ 38.2% |
+| Drink | Milk ★ | Малина-банан Коктейль / Raspberry-Banana | 25 | ₽9,500 | +₽1,900 | 4.3% | ↑ 25.0% |
+| Drink | Milk ★ | Банановая матча Коктейль / Banana Matcha | 13 | ₽5,850 | ₽0 | 2.7% | → 0.0% |
+| Drink | Milk ★ | Куроми Коктейль / Kuromi | 11 | ₽5,500 | -₽3,000 | 2.5% | ↓ 35.3% |
+| Drink | Milk ★ | Шоко-банан Коктейль / Choco-Banana | 12 | ₽5,400 | -₽3,735 | 2.4% | ↓ 40.9% |
+| Drink | Milk ★ | Чжун Ли шоколадный Коктейль / Zhong Li Chocolate | 11 | ₽4,950 | -₽3,060 | 2.2% | ↓ 38.2% |
+| Drink | Milk ★ | Крем Брюле Коктейль / Crème Brûlée | 7 | ₽3,113 | -₽4,087 | 1.4% | ↓ 56.8% |
+| Drink | Other Drinks | Манго Танго лимонад (ВСЕГДА СО ЛЬДОМ В БЛЕНДЕРЕ) | 13 | ₽5,850 | +₽675 | 2.7% | ↑ 13.0% |
+| Drink | Other Drinks | Моти Рафаэлло | 21 | ₽5,820 | +₽1,340 | 2.6% | ↑ 29.9% |
+| Drink | Other Drinks | Мокка фраппучино (ВСЕГДА СО ЛЬДОМ В БЛЕНДЕРЕ) | 15 | ₽5,800 | -₽1,000 | 2.6% | ↓ 14.7% |
+| Drink | Other Drinks | Моти Банан в шоколаде | 19 | ₽5,060 | +₽1,030 | 2.3% | ↑ 25.6% |
+| Drink | Other Drinks | Райский Лимонад | 10 | ₽3,800 | +₽1,400 | 1.7% | ↑ 58.3% |
+| Drink | Other Drinks | (Синий шторм) Шторм на пляже Коктейль | 8 | ₽3,600 | +₽225 | 1.6% | ↑ 6.7% |
+| Drink | Other Drinks | Вишневая кислинка лимонад | 8 | ₽3,200 | -₽600 | 1.5% | ↓ 15.8% |
+| Drink | Other Drinks | Моти Сливочный | 11 | ₽2,990 | +₽1,650 | 1.4% | ↑ 123.1% |
+| Drink | Other Drinks | Айс Латте Лаванда | 7 | ₽2,470 | +₽950 | 1.1% | ↑ 62.5% |
+| Drink | Other Drinks | Айс Латте Мята | 4 | ₽1,520 | ₽0 | 0.7% | → 0.0% |
+| Drink | Other Drinks | Айс Латте Вишня в шоколаде | 5 | ₽950 | +₽190 | 0.4% | ↑ 25.0% |
+| Drink | Other Drinks | Секретный лимонад (Персиковая жвачка) | 2 | ₽800 | +₽800 | 0.4% | – |
+| Drink | Other Drinks | Раф | 2 | ₽700 | -₽350 | 0.3% | ↓ 33.3% |
+| Drink | Other Drinks | Секретный лимонад (Манго-мохито) | 1 | ₽400 | ₽0 | 0.2% | → 0.0% |
+| Drink | Other Drinks | Айс Латте Ваниль | 1 | ₽380 | +₽380 | 0.2% | – |
+| Drink | Other Drinks | Пряный кофе | 1 | ₽350 | +₽350 | 0.2% | – |
+| Drink | Other Drinks | Моти Клубника в белом шоколаде | 1 | ₽280 | -₽420 | 0.1% | ↓ 60.0% |
+| Drink | Syrup | Сироп шок. печенье (10 мл) / Chocolate Cookie Syrup | 1 | ₽50 | +₽50 | 0.0% | – |
+| Drink | Tea ★ | Бабл ти Лесные ягоды (чай) / Bubble Tea Wild Berries | 10 | ₽3,800 | -₽1,140 | 1.7% | ↓ 23.1% |
+| Drink | Tea | Бабл-ти Сочная маракуйя (чай) / Bubble Tea Juicy Passion Fruit | 7 | ₽2,800 | +₽2,000 | 1.3% | ↑ 250.0% |
+| Drink | Topping | Порция тапиоки / Tapioca Portion | 11 | ₽550 | -₽300 | 0.2% | ↓ 35.3% |
+| Drink | Topping | Желе радуга (1 шт) / Rainbow Jelly | 7 | ₽210 | +₽30 | 0.1% | ↑ 16.7% |
+| Drink | Topping | Порция джус боллов (не тапиока) / Juice Balls Portion | 3 | ₽150 | -₽100 | 0.1% | ↓ 40.0% |
+| Drink | Topping | Порция кокосовых кусочков / Coconut Pieces Portion | 2 | ₽100 | +₽50 | 0.0% | ↑ 100.0% |
+| Food | Corn dog | Корн-дог с сыром / Corn Dog Cheese | 26 | ₽9,500 | +₽1,710 | 34.2% | ↑ 22.0% |
+| Food | Corn dog | Корн-дог 50/50 / Corn Dog 50/50 | 24 | ₽9,400 | -₽5,200 | 33.8% | ↓ 35.6% |
+| Food | Corn dog | Корн-дог сосиска / Corn Dog Sausage | 16 | ₽5,890 | -₽570 | 21.2% | ↓ 8.8% |
+| Food | Pancakes | Блинчики с нутеллой (2шт) / Pancakes Nutella (×2) | 6 | ₽1,333 | -₽917 | 4.8% | ↓ 40.8% |
+| Food | Pancakes | Блинчики с мясом (2шт) / Pancakes Meat (×2) | 2 | ₽375 | +₽125 | 1.3% | ↑ 50.0% |
+| Food | Pancakes | Блинчики с вареной сгущенкой (2шт) / Pancakes Condensed Milk (×2) | 1 | ₽250 | +₽250 | 0.9% | – |
+| Food | Pancakes | Блинчики сливочные (2шт) / Pancakes Cream (×2) | 1 | ₽250 | +₽250 | 0.9% | – |
+| Food | Pancakes | Блинчики рафаэлло (2шт) / Pancakes Raffaello (×2) | 1 | ₽250 | -₽250 | 0.9% | ↓ 50.0% |
+| Food | Pancakes | Блинчики с орео (2шт) / Pancakes Oreo (×2) | 1 | ₽190 | -₽380 | 0.7% | ↓ 66.7% |
+| Food | Snacks | Корн-дог Сникерс | 1 | ₽380 | ₽0 | 1.4% | → 0.0% |
+| Other | Miscellaneous | Киви-банан | 10 | ₽3,648 | -₽152 | 48.5% | ↓ 4.0% |
+| Other | Miscellaneous | Айс-матча Ваниль | 8 | ₽2,800 | -₽950 | 37.2% | ↓ 25.3% |
+| Other | Miscellaneous | Чизбургер Говядина | 2 | ₽700 | -₽700 | 9.3% | ↓ 50.0% |
+| Other | Miscellaneous | Вода со льдом в стакане | 5 | ₽250 | +₽100 | 3.3% | ↑ 66.7% |
+| Other | Miscellaneous | ЭСПРЕССО ДОП. ШОТ | 2 | ₽120 | +₽120 | 1.6% | – |
+| Other | Miscellaneous | Cherry Sour Lemonade | 0 | ₽0 | -₽400 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Chocolate Syrup | 0 | ₽0 | -₽150 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Coconut Syrup | 0 | ₽0 | -₽50 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Pancakes Cream Cheese (×2) | 0 | ₽0 | -₽250 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Pink Flamingo Cocktail | 0 | ₽0 | -₽450 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Айс матча Ваниль | 0 | ₽0 | -₽800 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Секретный лимонад (Персикова жвачка) | 0 | ₽0 | -₽3,200 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Секретный лимонад (Розовый грейпфрут) | 0 | ₽0 | -₽1,200 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Сироп вишня (10 мл) | 0 | ₽0 | -₽50 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Сироп малина (10 мл) | 0 | ₽0 | -₽50 | 0.0% | ↓ 100.0% |
+| Other | Miscellaneous | Тигровый Кофе | 0 | ₽0 | -₽1,600 | 0.0% | ↓ 100.0% |
+| Toppings & Modifiers | Add-ons | Сироп сол. карамель (10 мл) | 2 | ₽100 | -₽200 | 66.7% | ↓ 66.7% |
+| Toppings & Modifiers | Add-ons | Сироп манго (10 мл) | 1 | ₽50 | +₽50 | 33.3% | – |
+
+### Menu Decision Signals & Rationalization
+
+_Automated menu recommendations based on product velocity, category share, and growth trajectory._
+
+| action | product | category | subcategory | revenue | wow | net_impact | rationale |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ⚠️ Review / Demote | Айс Латте Соленая Карамель / Ice Latte Salted Caramel | Drink | Coffee | ₽12,540 | ↓ 39.6% | -₽8,208 | Featured item losing momentum (-40% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Лаймовое яблоко лимонад / Lime Apple Lemonade | Drink | Lemonade | ₽6,080 | ↓ 37.3% | -₽3,610 | Featured item losing momentum (-37% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Куроми Коктейль / Kuromi | Drink | Milk | ₽5,500 | ↓ 35.3% | -₽3,000 | Featured item losing momentum (-35% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Шоко-банан Коктейль / Choco-Banana | Drink | Milk | ₽5,400 | ↓ 40.9% | -₽3,735 | Featured item losing momentum (-41% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Чжун Ли шоколадный Коктейль / Zhong Li Chocolate | Drink | Milk | ₽4,950 | ↓ 38.2% | -₽3,060 | Featured item losing momentum (-38% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Бабл ти Лесные ягоды (чай) / Bubble Tea Wild Berries | Drink | Tea | ₽3,800 | ↓ 23.1% | -₽1,140 | Featured item losing momentum (-23% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Восходящее солнце лимонад / Rising Sun Lemonade | Drink | Lemonade | ₽3,600 | ↓ 21.7% | -₽1,000 | Featured item losing momentum (-22% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Крем Брюле Коктейль / Crème Brûlée | Drink | Milk | ₽3,113 | ↓ 56.8% | -₽4,087 | Featured item losing momentum (-57% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Красный дракон лимонад / Red Dragon Lemonade | Drink | Lemonade | ₽2,470 | ↓ 51.9% | -₽2,660 | Featured item losing momentum (-52% WoW); review recipe/marketing. |
+| ⚠️ Review / Demote | Айс Латте Малина / Ice Latte Raspberry | Drink | Coffee | ₽380 | ↓ 82.1% | -₽1,748 | Featured item losing momentum (-82% WoW); review recipe/marketing. |
+| ✂️ Cut / Replace | Блинчики с нутеллой (2шт) / Pancakes Nutella (×2) | Food | Pancakes | ₽1,333 | ↓ 40.8% | -₽917 | Low velocity (<4.8% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Печенье с предсказаниями / Fortune Cookie | Dessert | Cookie | ₽1,150 | ↓ 17.9% | -₽250 | Low velocity (<4.8% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Айс Латте Шоколадное печенье / Ice Latte Chocolate Cookie | Drink | Coffee | ₽1,140 | ↓ 45.5% | -₽950 | Low velocity (<0.5% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Остров манго чай / Island Mango Tea | Drink | Bubble tea | ₽800 | ↓ 50.0% | -₽800 | Low velocity (<0.4% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Раф | Drink | Other Drinks | ₽700 | ↓ 33.3% | -₽350 | Low velocity (<0.3% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Порция тапиоки / Tapioca Portion | Drink | Topping | ₽550 | ↓ 35.3% | -₽300 | Low velocity (<0.2% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Мята в облаках Лимонад / Mint in the Clouds Lemonade | Drink | Lemonade | ₽400 | ↓ 66.7% | -₽800 | Low velocity (<0.2% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Моти Клубника в белом шоколаде | Drink | Other Drinks | ₽280 | ↓ 60.0% | -₽420 | Low velocity (<0.1% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Безлатнозное коровье молоко (Пармалат) / Lactose-free Milk | Drink | Add-in | ₽250 | ↓ 26.5% | -₽90 | Low velocity (<0.1% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Блинчики рафаэлло (2шт) / Pancakes Raffaello (×2) | Food | Pancakes | ₽250 | ↓ 50.0% | -₽250 | Low velocity (<0.9% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Блинчики с орео (2шт) / Pancakes Oreo (×2) | Food | Pancakes | ₽190 | ↓ 66.7% | -₽380 | Low velocity (<0.7% cat share) with persistent drop. |
+| ✂️ Cut / Replace | Порция джус боллов (не тапиока) / Juice Balls Portion | Drink | Topping | ₽150 | ↓ 40.0% | -₽100 | Low velocity (<0.1% cat share) with persistent drop. |
+| 🌟 Promote | Корн-дог с сыром / Corn Dog Cheese | Food | Corn dog | ₽9,500 | ↑ 22.0% | +₽1,710 | High organic demand (+22% WoW); not currently featured. |
+| 🌟 Promote | Моти Орео / Mochi Oreo | Dessert | Mochi | ₽9,120 | ↑ 45.5% | +₽2,850 | High organic demand (+45% WoW); not currently featured. |
+| 🌟 Promote | Манго Танго лимонад (ВСЕГДА СО ЛЬДОМ В БЛЕНДЕРЕ) | Drink | Other Drinks | ₽5,850 | ↑ 13.0% | +₽675 | High organic demand (+13% WoW); not currently featured. |
+| 🌟 Promote | Моти Рафаэлло | Drink | Other Drinks | ₽5,820 | ↑ 29.9% | +₽1,340 | High organic demand (+30% WoW); not currently featured. |
+| 🌟 Promote | Моти Банан в шоколаде | Drink | Other Drinks | ₽5,060 | ↑ 25.6% | +₽1,030 | High organic demand (+26% WoW); not currently featured. |
+
+---
+
+
+## 4. Operational Anomaly & Loss Prevention
+
+
+### Low Daily Sales
+
+| date | store | on_duty_staff | revenue | rolling_avg | vs_avg |
+| --- | --- | --- | --- | --- | --- |
+| 2026-11-18 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | ₽2,944 | ₽6,712 | 43.9% |
+| 2026-11-19 | БОН ПАССАЖ | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | ₽2,160 | ₽6,712 | 32.2% |
+| 2026-11-20 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | ₽1,960 | ₽6,712 | 29.2% |
+| 2026-11-17 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь), Облицова Анастасия (Ночь) | ₽6,325 | ₽12,972 | 48.8% |
+| 2026-11-19 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | ₽2,970 | ₽12,972 | 22.9% |
+| 2026-11-16 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | ₽5,338 | ₽11,849 | 45.1% |
+| 2026-11-18 | ГРИН ПАРК | Славгородская Татьяна (День), Благова Виктория (Ночь) | ₽5,160 | ₽11,849 | 43.5% |
+| 2026-11-19 | ГРИН ПАРК | Черлат Анна (День), Чегридова Анастасия (Ночь) | ₽4,460 | ₽11,849 | 37.6% |
+
+### Cash Discrepancy & Theft Signals
+
+_Identifies days where the cash-to-total sales ratio dropped significantly below the store's baseline, linked to the barista/cashier on duty._
+
+_No unusual cash ratio drops detected._
+
+
+### Long Sales Gaps (Employee Absence)
+
+| date | store | on_duty_staff | gap_start | gap_end | gap_min |
+| --- | --- | --- | --- | --- | --- |
+| 2026-11-16 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 12:14 | 14:32 | 137 |
+| 2026-11-16 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 16:25 | 17:28 | 63 |
+| 2026-11-16 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 18:04 | 19:46 | 102 |
+| 2026-11-17 | БОН ПАССАЖ | Степанова Юлианна (День), Мнацаканян Лили (Ночь) | 14:40 | 16:19 | 98 |
+| 2026-11-17 | БОН ПАССАЖ | Степанова Юлианна (День), Мнацаканян Лили (Ночь) | 16:43 | 19:23 | 160 |
+| 2026-11-18 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 10:21 | 12:08 | 107 |
+| 2026-11-18 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 12:08 | 13:22 | 73 |
+| 2026-11-18 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 13:22 | 15:11 | 109 |
+| 2026-11-18 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 16:12 | 19:31 | 199 |
+| 2026-11-18 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 19:48 | 21:01 | 73 |
+| 2026-11-19 | БОН ПАССАЖ | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 10:54 | 13:25 | 151 |
+| 2026-11-19 | БОН ПАССАЖ | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 13:26 | 16:17 | 170 |
+| 2026-11-19 | БОН ПАССАЖ | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 16:49 | 18:06 | 77 |
+| 2026-11-19 | БОН ПАССАЖ | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 18:06 | 20:52 | 166 |
+| 2026-11-20 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 16:13 | 18:26 | 132 |
+| 2026-11-20 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 18:33 | 19:41 | 68 |
+| 2026-11-20 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 19:41 | 20:52 | 70 |
+| 2026-11-21 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 10:45 | 12:27 | 102 |
+| 2026-11-21 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 12:27 | 13:49 | 81 |
+| 2026-11-22 | БОН ПАССАЖ | Ганченко Арина (День), Ганченко Арина (Ночь) | 11:50 | 14:21 | 151 |
+| 2026-11-22 | БОН ПАССАЖ | Ганченко Арина (День), Ганченко Арина (Ночь) | 18:22 | 19:49 | 87 |
+| 2026-11-16 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 10:54 | 12:11 | 77 |
+| 2026-11-16 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 12:40 | 13:44 | 63 |
+| 2026-11-16 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 14:23 | 15:46 | 83 |
+| 2026-11-16 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 18:47 | 20:47 | 120 |
+| 2026-11-17 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь), Облицова Анастасия (Ночь) | 12:07 | 13:08 | 61 |
+| 2026-11-17 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь), Облицова Анастасия (Ночь) | 14:10 | 15:35 | 84 |
+| 2026-11-17 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь), Облицова Анастасия (Ночь) | 17:57 | 19:41 | 104 |
+| 2026-11-18 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 14:23 | 16:34 | 130 |
+| 2026-11-18 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 16:34 | 18:04 | 90 |
+| 2026-11-18 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 18:12 | 19:25 | 72 |
+| 2026-11-19 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 15:05 | 16:28 | 83 |
+| 2026-11-19 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 16:38 | 17:57 | 79 |
+| 2026-11-19 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 18:08 | 19:27 | 79 |
+| 2026-11-22 | ГАЛЕРЕЯ | Облицова Анастасия (День), Байзулаева Маргарита (Ночь), Байзулаева Маргарита (Помощь) | 12:59 | 14:20 | 80 |
+| 2026-11-22 | ГАЛЕРЕЯ | Облицова Анастасия (День), Байзулаева Маргарита (Ночь), Байзулаева Маргарита (Помощь) | 16:37 | 17:42 | 65 |
+| 2026-11-22 | ГАЛЕРЕЯ | Облицова Анастасия (День), Байзулаева Маргарита (Ночь), Байзулаева Маргарита (Помощь) | 18:55 | 20:00 | 64 |
+| 2026-11-22 | ГАЛЕРЕЯ | Облицова Анастасия (День), Байзулаева Маргарита (Ночь), Байзулаева Маргарита (Помощь) | 20:01 | 21:34 | 93 |
+| 2026-11-16 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 10:04 | 11:40 | 96 |
+| 2026-11-16 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 11:40 | 13:20 | 99 |
+| 2026-11-16 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 13:20 | 15:48 | 148 |
+| 2026-11-16 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 18:57 | 21:44 | 166 |
+| 2026-11-17 | ГРИН ПАРК | Славгородская Татьяна (День), Рогова Софья (Ночь) | 14:15 | 16:28 | 133 |
+| 2026-11-17 | ГРИН ПАРК | Славгородская Татьяна (День), Рогова Софья (Ночь) | 19:10 | 21:40 | 150 |
+| 2026-11-18 | ГРИН ПАРК | Славгородская Татьяна (День), Благова Виктория (Ночь) | 13:22 | 14:25 | 62 |
+| 2026-11-18 | ГРИН ПАРК | Славгородская Татьяна (День), Благова Виктория (Ночь) | 14:25 | 16:44 | 139 |
+| 2026-11-18 | ГРИН ПАРК | Славгородская Татьяна (День), Благова Виктория (Ночь) | 16:44 | 18:08 | 84 |
+| 2026-11-18 | ГРИН ПАРК | Славгородская Татьяна (День), Благова Виктория (Ночь) | 19:14 | 20:17 | 63 |
+| 2026-11-19 | ГРИН ПАРК | Черлат Анна (День), Чегридова Анастасия (Ночь) | 10:45 | 11:57 | 71 |
+| 2026-11-19 | ГРИН ПАРК | Черлат Анна (День), Чегридова Анастасия (Ночь) | 12:56 | 14:43 | 107 |
+| 2026-11-19 | ГРИН ПАРК | Черлат Анна (День), Чегридова Анастасия (Ночь) | 16:42 | 18:01 | 79 |
+| 2026-11-19 | ГРИН ПАРК | Черлат Анна (День), Чегридова Анастасия (Ночь) | 18:01 | 19:24 | 83 |
+| 2026-11-19 | ГРИН ПАРК | Черлат Анна (День), Чегридова Анастасия (Ночь) | 20:16 | 21:44 | 87 |
+| 2026-11-20 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 14:03 | 15:24 | 80 |
+| 2026-11-20 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 17:47 | 19:17 | 90 |
+| 2026-11-21 | ГРИН ПАРК | Славгородская Татьяна (День), Рогова Софья (Ночь), Мальчикова Анна (Помощь) | 11:31 | 13:25 | 114 |
+| 2026-11-21 | ГРИН ПАРК | Славгородская Татьяна (День), Рогова Софья (Ночь), Мальчикова Анна (Помощь) | 20:00 | 21:38 | 98 |
+| 2026-11-16 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 11:37 | 12:50 | 73 |
+| 2026-11-16 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 13:09 | 14:10 | 61 |
+| 2026-11-16 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 14:22 | 16:16 | 114 |
+| 2026-11-16 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 16:42 | 17:53 | 71 |
+| 2026-11-16 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 19:44 | 21:49 | 124 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 09:15 | 11:28 | 132 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 11:55 | 13:13 | 77 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 13:13 | 14:41 | 87 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 20:29 | 21:47 | 77 |
+| 2026-11-18 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 09:03 | 11:41 | 157 |
+| 2026-11-18 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 11:55 | 13:55 | 120 |
+| 2026-11-18 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 15:43 | 17:21 | 97 |
+| 2026-11-19 | НОВО КП | Славгородская Татьяна (День), Солоха Диана (Ночь) | 10:33 | 14:56 | 262 |
+| 2026-11-19 | НОВО КП | Славгородская Татьяна (День), Солоха Диана (Ночь) | 16:19 | 17:22 | 62 |
+| 2026-11-19 | НОВО КП | Славгородская Татьяна (День), Солоха Диана (Ночь) | 20:21 | 21:38 | 77 |
+| 2026-11-20 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 12:42 | 13:44 | 62 |
+| 2026-11-21 | НОВО КП | Белова Мария (День), Казанцева Анастасия (Ночь) | 09:36 | 12:24 | 167 |
+| 2026-11-21 | НОВО КП | Белова Мария (День), Казанцева Анастасия (Ночь) | 19:28 | 21:50 | 141 |
+| 2026-11-22 | НОВО КП | Белова Мария (День), Белова Мария (Ночь), Петрова Екатерина (Помощь) | 10:06 | 11:24 | 78 |
+| 2026-11-21 | ЧЕРНОМОРСКИЙ | Малых Маргарита (День), Шевчук Стефания (Ночь) | 09:38 | 11:57 | 138 |
+| 2026-11-21 | ЧЕРНОМОРСКИЙ | Малых Маргарита (День), Шевчук Стефания (Ночь) | 11:57 | 13:07 | 70 |
+| 2026-11-21 | ЧЕРНОМОРСКИЙ | Малых Маргарита (День), Шевчук Стефания (Ночь) | 13:16 | 15:38 | 141 |
+| 2026-11-21 | ЧЕРНОМОРСКИЙ | Малых Маргарита (День), Шевчук Стефания (Ночь) | 16:21 | 18:39 | 137 |
+| 2026-11-21 | ЧЕРНОМОРСКИЙ | Малых Маргарита (День), Шевчук Стефания (Ночь) | 18:39 | 19:43 | 63 |
+| 2026-11-22 | ЧЕРНОМОРСКИЙ | Копшарь Эльвира (День), Копшарь Эльвира (Ночь) | 10:04 | 14:11 | 246 |
+| 2026-11-22 | ЧЕРНОМОРСКИЙ | Копшарь Эльвира (День), Копшарь Эльвира (Ночь) | 15:14 | 18:27 | 192 |
+| 2026-11-22 | ЧЕРНОМОРСКИЙ | Копшарь Эльвира (День), Копшарь Эльвира (Ночь) | 19:00 | 20:15 | 75 |
+
+### Tapioca Preparation Gaps
+
+| date | store | on_duty_staff | gap_start | gap_end | gap_min | rev_in_gap |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-16 | БОН ПАССАЖ | Мнацаканян Лили (День), Мнацаканян Лили (Ночь) | 16:25 | 20:48 | 262 | ₽1,300 |
+| 2026-11-17 | БОН ПАССАЖ | Степанова Юлианна (День), Мнацаканян Лили (Ночь) | 12:23 | 14:01 | 97 | ₽1,720 |
+| 2026-11-17 | БОН ПАССАЖ | Степанова Юлианна (День), Мнацаканян Лили (Ночь) | 14:01 | 16:19 | 137 | ₽1,180 |
+| 2026-11-21 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 17:13 | 19:21 | 127 | ₽1,060 |
+| 2026-11-21 | БОН ПАССАЖ | Петрова Екатерина (День), Петрова Екатерина (Ночь) | 19:21 | 20:21 | 60 | ₽1,320 |
+| 2026-11-22 | БОН ПАССАЖ | Ганченко Арина (День), Ганченко Арина (Ночь) | 17:42 | 19:49 | 127 | ₽1,300 |
+| 2026-11-22 | БОН ПАССАЖ | Ганченко Арина (День), Ганченко Арина (Ночь) | 19:49 | 20:54 | 65 | ₽1,500 |
+| 2026-11-17 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь), Облицова Анастасия (Ночь) | 13:08 | 14:10 | 62 | ₽1,055 |
+| 2026-11-18 | ГАЛЕРЕЯ | Смагина Алина (День), Байзулаева Маргарита (Ночь) | 18:04 | 19:32 | 88 | ₽2,470 |
+| 2026-11-20 | ГАЛЕРЕЯ | Смагина Алина (День), Облицова Анастасия (Ночь) | 16:50 | 18:38 | 108 | ₽3,650 |
+| 2026-11-16 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 13:20 | 16:46 | 206 | ₽1,080 |
+| 2026-11-20 | ГРИН ПАРК | Ковалицкая Яна (День), Ковалицкая Яна (Ночь) | 12:48 | 15:24 | 155 | ₽1,150 |
+| 2026-11-21 | ГРИН ПАРК | Славгородская Татьяна (День), Рогова Софья (Ночь), Мальчикова Анна (Помощь) | 16:17 | 17:43 | 86 | ₽1,890 |
+| 2026-11-22 | ГРИН ПАРК | Рогова Софья (День), Рогова Софья (Ночь), Мальчикова Анна (Помощь) | 11:58 | 13:30 | 91 | ₽2,110 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 15:55 | 18:22 | 146 | ₽2,020 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 18:22 | 19:28 | 65 | ₽1,560 |
+| 2026-11-17 | НОВО КП | Солоха Диана (День), Казанцева Анастасия (Ночь) | 19:28 | 20:29 | 61 | ₽1,680 |
+| 2026-11-18 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 18:30 | 21:15 | 165 | ₽4,350 |
+| 2026-11-20 | НОВО КП | Солоха Диана (День), Солоха Диана (Ночь) | 14:32 | 16:33 | 121 | ₽3,734 |
+| 2026-11-21 | НОВО КП | Белова Мария (День), Казанцева Анастасия (Ночь) | 17:20 | 18:21 | 60 | ₽1,540 |`;
+  document.getElementById("report-content").innerHTML = marked.parse(md);
+</script>
+</body>
+</html>
