@@ -235,21 +235,6 @@ export async function saveAudit({ auditId, storeId, storeCode, storeName, auditD
     }
   }
 
-  // 5. Backward compatibility dual-write to legacy 'audits' table
-  // (Ensures unmigrated screens in inventory-app continue functioning without missing records)
-  try {
-    const legacyCountsObj = {};
-    for (const [ingId, qty] of Object.entries(counts)) {
-      if (qty !== '') legacyCountsObj[ingId] = parseFloat(qty);
-    }
-    await queryD1(
-      `INSERT OR REPLACE INTO audits (id, store, date, counts, timestamp, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, storeName, auditDate, JSON.stringify(legacyCountsObj), timestamp, status]
-    );
-  } catch (err) {
-    console.warn("Legacy audit dual-write notice:", err);
-  }
-
   return { id, storeId, storeCode, auditDate, status };
 }
 
@@ -334,9 +319,6 @@ export async function updateAuditStatus(auditId, status) {
       console.warn("Inventory balance update notice on approval:", err);
     }
   }
-  try {
-    await queryD1(`UPDATE audits SET status = ? WHERE id = ?`, [status, auditId]);
-  } catch {}
 }
 
 export async function fetchCurrentInventoryBalance(storeId) {
@@ -363,8 +345,5 @@ export async function deleteAudit(auditId) {
   pushAuditToLakehouse({ deletes: [auditId] }).catch(console.error);
   await queryD1(`DELETE FROM fact_audit_counts WHERE audit_id = ?`, [auditId]);
   await queryD1(`DELETE FROM fact_audit_headers WHERE audit_id = ?`, [auditId]);
-  try {
-    await queryD1(`DELETE FROM audits WHERE id = ?`, [auditId]);
-  } catch {}
 }
 
