@@ -6,17 +6,20 @@ const BACKUP_BASE = isDevDeploy
   : 'https://bobacafe-proxy.davidgao734.workers.dev'
 
 export async function runDatabricksSql(token, warehouseId, statement, retries = 4) {
-  // The worker serves the Databricks proxy at ROOT (POST / → statements API);
-  // there is no /api/2.0/sql/statements route on it. Absolute URL (worker
-  // serves CORS) so vite dev works too.
-  const apiPath = BACKUP_BASE
+  // If client provides a token, use the direct authenticated proxy route at ROOT.
+  // If no token is provided, route through the server-side proxy endpoint /lh/sql.
+  const apiPath = token ? BACKUP_BASE : `${BACKUP_BASE}/lh/sql`
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
 
   let lastErr
   for (let i = 0; i <= retries; i++) {
     try {
       const resp = await fetch(apiPath, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers,
         body: JSON.stringify({ statement, warehouse_id: warehouseId, wait_timeout: '50s' }),
       })
 
@@ -31,12 +34,14 @@ export async function runDatabricksSql(token, warehouseId, statement, retries = 
       }
 
       const result = await resp.json()
-      if (result.status?.state !== 'SUCCEEDED') {
-        throw new Error(result.status?.error?.message ?? `Query ended: ${result.status?.state}`)
+      // If called via /lh/sql, results is an array or result object
+      const payload = result.results?.[0] || result
+      if (payload.status?.state !== 'SUCCEEDED') {
+        throw new Error(payload.status?.error?.message ?? `Query ended: ${payload.status?.state}`)
       }
 
-      const cols = result.manifest.schema.columns.map(c => c.name)
-      return (result.result?.data_array ?? []).map(row =>
+      const cols = payload.manifest?.schema?.columns?.map(c => c.name) || []
+      return (payload.result?.data_array ?? []).map(row =>
         Object.fromEntries(cols.map((c, idx) => [c, row[idx]]))
       )
     } catch (err) {

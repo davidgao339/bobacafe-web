@@ -1,4 +1,4 @@
-﻿const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
+const DATABRICKS_TARGET = 'https://dbc-d5bd17fc-eaf4.cloud.databricks.com/api/2.0/sql/statements'
 const ORIGIN = '*'
 const MAX_AUTO_BACKUPS = 5
 const MAX_MANUAL_BACKUPS = 10
@@ -41,6 +41,10 @@ export default {
     // â”€â”€ Real-time lakehouse audit push (server-side credentials) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (path === '/lh/audit' && request.method === 'POST') {
       return handleLakehouseAuditPush(request, env)
+    }
+
+    if (path === '/lh/sql' && request.method === 'POST') {
+      return handleLakehouseSql(request, env)
     }
 
     return new Response('Not found', { status: 404, headers: cors() })
@@ -194,6 +198,11 @@ async function handleLakehouseAuditPush(request, env) {
     statements.push(`DELETE FROM ${LH_SCHEMA}.fact_audit_counts WHERE audit_id = '${sqlEsc(auditId)}'`)
     statements.push(`DELETE FROM ${LH_SCHEMA}.fact_audit_headers WHERE audit_id = '${sqlEsc(auditId)}'`)
   }
+  for (const u of body.statusUpdates || []) {
+    if (u.auditId && u.status) {
+      statements.push(`UPDATE ${LH_SCHEMA}.fact_audit_headers SET status = '${sqlEsc(u.status)}' WHERE audit_id = '${sqlEsc(u.auditId)}'`)
+    }
+  }
   for (const a of body.audits || []) {
     if (!a.auditId || !a.storeId || !a.date) {
       return new Response(JSON.stringify({ error: 'audit requires auditId, storeId, date' }), {
@@ -262,7 +271,41 @@ async function runLhStatement(env, statement) {
     const err = JSON.stringify(data.status?.error || {}).slice(0, 300)
     throw new Error(`Databricks statement ${state}: ${err}`)
   }
-  return state
+  return data
+}
+
+async function handleLakehouseSql(request, env) {
+  if (!env.DATABRICKS_TOKEN || !env.DATABRICKS_WAREHOUSE_ID) {
+    return new Response(JSON.stringify({ error: 'Lakehouse push not configured' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', ...cors() },
+    })
+  }
+
+  let body
+  try { body = await request.json() } catch {
+    return new Response('Bad request', { status: 400, headers: cors() })
+  }
+
+  const statements = Array.isArray(body.statements)
+    ? body.statements
+    : (body.statement ? [body.statement] : [])
+
+  if (statements.length === 0) {
+    return json({ ok: true, executed: 0, results: [] })
+  }
+
+  try {
+    const results = []
+    for (const stmt of statements) {
+      const res = await runLhStatement(env, stmt)
+      results.push(res)
+    }
+    return json({ ok: true, executed: statements.length, results })
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 502, headers: { 'Content-Type': 'application/json', ...cors() },
+    })
+  }
 }
 
 async function syncToD1(db, payload) {

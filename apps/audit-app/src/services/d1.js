@@ -311,6 +311,8 @@ export async function fetchAuditDetails(auditId) {
 
 export async function updateAuditStatus(auditId, status) {
   await queryD1(`UPDATE fact_audit_headers SET status = ? WHERE audit_id = ?`, [status, auditId]);
+  // Push status transition directly to Lakehouse
+  pushAuditToLakehouse({ statusUpdates: [{ auditId, status }] }).catch(console.error);
   if (status === 'approved') {
     try {
       await queryD1(
@@ -357,6 +359,8 @@ export async function fetchCurrentInventoryBalance(storeId) {
 }
 
 export async function deleteAudit(auditId) {
+  // Push delete to Lakehouse
+  pushAuditToLakehouse({ deletes: [auditId] }).catch(console.error);
   await queryD1(`DELETE FROM fact_audit_counts WHERE audit_id = ?`, [auditId]);
   await queryD1(`DELETE FROM fact_audit_headers WHERE audit_id = ?`, [auditId]);
   try {

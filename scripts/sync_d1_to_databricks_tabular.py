@@ -499,11 +499,11 @@ def main():
         ingredient_rows.append([ing_id, name, unit, ptype, supp_id, supp_name, wh_only, hidden,
                                 float(cpu) if cpu is not None and str(cpu) != '' else None,
                                 float(lpc) if lpc is not None and str(lpc) != '' else None,
-                                lpd, item_class, item_pid])
+                                lpd, item_class, item_pid, None])
 
     batch_merge(
         table_ingredients,
-        ["ingredient_id", "ingredient_name", "unit", "product_type", "supplier_id", "supplier_name", "is_warehouse_only", "is_hidden", "cost_per_unit", "last_purchase_cost", "last_purchase_date", "item_class", "product_id"],
+        ["ingredient_id", "ingredient_name", "unit", "product_type", "supplier_id", "supplier_name", "is_warehouse_only", "is_hidden", "cost_per_unit", "last_purchase_cost", "last_purchase_date", "item_class", "product_id", "packaging_ingredient_id"],
         ingredient_rows,
         merge_keys=["ingredient_id"]
     )
