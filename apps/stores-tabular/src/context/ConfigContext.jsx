@@ -899,51 +899,51 @@ export function ConfigProvider({ children }) {
       ...LH_PUSH.poLinesReplace(po.id, buildPoLines(po, config.ingredients)),
     ])
 
-    // 2. D1 fact_purchase_order_lines
-    queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [po.id]).catch(console.error)
+    // 2. D1 fact_purchase_order_lines (await DELETE before INSERT to avoid HTTP race)
+    queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [po.id]).then(() => {
+      ;(po.lines || []).forEach((line, idx) => {
+        const ordered = Number(line.ordered) || 0
+        const received = Number(line.received) || 0
+        if (ordered <= 0 && received <= 0) return
 
-    ;(po.lines || []).forEach((line, idx) => {
-      const ordered = Number(line.ordered) || 0
-      const received = Number(line.received) || 0
-      if (ordered <= 0 && received <= 0) return
+        const ing = config.ingredients.find(i => i.id === line.ingredientId)
+        const ingName = line.name || ing?.name || `Item #${line.ingredientId}`
+        const unit = line.unit || ing?.unit || ''
+        const unitCost = line.unitCost != null ? Number(line.unitCost) : (ing?.costPerUnit || ing?.lastPurchaseCost || null)
+        const totalCost = line.totalCost != null ? Number(line.totalCost) : (unitCost != null ? unitCost * ordered : null)
 
-      const ing = config.ingredients.find(i => i.id === line.ingredientId)
-      const ingName = line.name || ing?.name || `Item #${line.ingredientId}`
-      const unit = line.unit || ing?.unit || ''
-      const unitCost = line.unitCost != null ? Number(line.unitCost) : (ing?.costPerUnit || ing?.lastPurchaseCost || null)
-      const totalCost = line.totalCost != null ? Number(line.totalCost) : (unitCost != null ? unitCost * ordered : null)
-
-      queryD1(
-        `INSERT OR REPLACE INTO fact_purchase_order_lines (
-          po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
-        ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'cogs', NULL)`,
-        [po.id, idx, line.ingredientId, ingName, ordered, received, unit, unitCost, totalCost]
-      ).catch(console.error)
-
-      // Update dim_ingredients last_purchase_cost on supplier receipt
-      if (!isTransfer && po.status === 'received' && unitCost > 0) {
         queryD1(
-          `UPDATE dim_ingredients SET last_purchase_cost = ?, last_purchase_date = ? WHERE ingredient_id = ?`,
-          [unitCost, po.receivedDate || new Date().toISOString().slice(0, 10), line.ingredientId]
+          `INSERT OR REPLACE INTO fact_purchase_order_lines (
+            po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
+          ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'cogs', NULL)`,
+          [po.id, idx, line.ingredientId, ingName, ordered, received, unit, unitCost, totalCost]
         ).catch(console.error)
-      }
-    })
 
-    ;(po.customLines || []).forEach((cline, idx) => {
-      const lineIndex = 1000 + idx
-      const ordered = Number(cline.ordered) || 0
-      const received = Number(cline.received) || 0
-      const unitCost = cline.unitCost != null ? Number(cline.unitCost) : null
-      const totalCost = cline.totalCost != null ? Number(cline.totalCost) : (unitCost != null ? unitCost * ordered : null)
-      const overheadCategory = cline.overheadCategory || 'General Overhead'
+        // Update dim_ingredients last_purchase_cost on supplier receipt
+        if (!isTransfer && po.status === 'received' && unitCost > 0) {
+          queryD1(
+            `UPDATE dim_ingredients SET last_purchase_cost = ?, last_purchase_date = ? WHERE ingredient_id = ?`,
+            [unitCost, po.receivedDate || new Date().toISOString().slice(0, 10), line.ingredientId]
+          ).catch(console.error)
+        }
+      })
 
-      queryD1(
-        `INSERT OR REPLACE INTO fact_purchase_order_lines (
-          po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
-        ) VALUES (?, ?, NULL, ?, 1, ?, ?, ?, ?, ?, 'overhead', ?)`,
-        [po.id, lineIndex, cline.name || 'One-off item', ordered, received, cline.unit || 'шт', unitCost, totalCost, overheadCategory]
-      ).catch(console.error)
-    })
+      ;(po.customLines || []).forEach((cline, idx) => {
+        const lineIndex = 1000 + idx
+        const ordered = Number(cline.ordered) || 0
+        const received = Number(cline.received) || 0
+        const unitCost = cline.unitCost != null ? Number(cline.unitCost) : null
+        const totalCost = cline.totalCost != null ? Number(cline.totalCost) : (unitCost != null ? unitCost * ordered : null)
+        const overheadCategory = cline.overheadCategory || 'General Overhead'
+
+        queryD1(
+          `INSERT OR REPLACE INTO fact_purchase_order_lines (
+            po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
+          ) VALUES (?, ?, NULL, ?, 1, ?, ?, ?, ?, ?, 'overhead', ?)`,
+          [po.id, lineIndex, cline.name || 'One-off item', ordered, received, cline.unit || 'шт', unitCost, totalCost, overheadCategory]
+        ).catch(console.error)
+      })
+    }).catch(console.error)
 
     // 3. Sync to legacy purchase_orders blob table
     queryD1(
@@ -963,7 +963,9 @@ export function ConfigProvider({ children }) {
 
     setDataState(prev => ({
       ...prev,
-      purchaseOrders: [po, ...prev.purchaseOrders],
+      purchaseOrders: prev.purchaseOrders.some(p => p.id === po.id)
+        ? prev.purchaseOrders.map(p => p.id === po.id ? po : p)
+        : [po, ...prev.purchaseOrders],
       _nextPoId: prev._nextPoId + 1
     }))
   }, [config.ingredients, resolveStoreId, resolveStoreCode])
@@ -1012,72 +1014,70 @@ export function ConfigProvider({ children }) {
         ...(changes.lines || changes.customLines ? LH_PUSH.poLinesReplace(id, buildPoLines(updatedPo, config.ingredients)) : []),
       ])
 
-      // 2. If lines or customLines changed, update fact_purchase_order_lines
+      // 2. If lines or customLines changed, update fact_purchase_order_lines (await DELETE before INSERT)
       if (changes.lines || changes.customLines) {
-        queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [id]).catch(console.error)
+        queryD1(`DELETE FROM fact_purchase_order_lines WHERE po_id = ?`, [id]).then(() => {
+          ;(updatedPo.lines || []).forEach((line, idx) => {
+            const ordered = Number(line.ordered) || 0
+            const received = Number(line.received) || 0
+            if (ordered <= 0 && received <= 0) return
 
-        ;(updatedPo.lines || []).forEach((line, idx) => {
-          const ordered = Number(line.ordered) || 0
-          const received = Number(line.received) || 0
-          if (ordered <= 0 && received <= 0) return
+            const ing = config.ingredients.find(i => i.id === line.ingredientId)
+            const ingName = line.name || ing?.name || `Item #${line.ingredientId}`
+            const unit = line.unit || ing?.unit || ''
+            const unitCost = line.unitCost != null ? Number(line.unitCost) : (ing?.costPerUnit || ing?.lastPurchaseCost || null)
+            const totalCost = line.totalCost != null ? Number(line.totalCost) : (unitCost != null ? unitCost * (received || ordered) : null)
 
-          const ing = config.ingredients.find(i => i.id === line.ingredientId)
-          const ingName = line.name || ing?.name || `Item #${line.ingredientId}`
-          const unit = line.unit || ing?.unit || ''
-          const unitCost = line.unitCost != null ? Number(line.unitCost) : (ing?.costPerUnit || ing?.lastPurchaseCost || null)
-          const totalCost = line.totalCost != null ? Number(line.totalCost) : (unitCost != null ? unitCost * (received || ordered) : null)
-
-          queryD1(
-            `INSERT OR REPLACE INTO fact_purchase_order_lines (
-              po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
-            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'cogs', NULL)`,
-            [id, idx, line.ingredientId, ingName, ordered, received, unit, unitCost, totalCost]
-          ).catch(console.error)
-
-          // Update dim_ingredients last_purchase_cost on supplier receipt
-          if (!isTransfer && (updatedPo.status === 'received' || updatedPo.status === 'partially_received') && unitCost > 0) {
             queryD1(
-              `UPDATE dim_ingredients SET last_purchase_cost = ?, last_purchase_date = ? WHERE ingredient_id = ?`,
-              [unitCost, updatedPo.receivedDate || new Date().toISOString().slice(0, 10), line.ingredientId]
+              `INSERT OR REPLACE INTO fact_purchase_order_lines (
+                po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
+              ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'cogs', NULL)`,
+              [id, idx, line.ingredientId, ingName, ordered, received, unit, unitCost, totalCost]
             ).catch(console.error)
-          }
-        })
 
-        ;(updatedPo.customLines || []).forEach((cline, idx) => {
-          const lineIndex = 1000 + idx
-          const ordered = Number(cline.ordered) || 0
-          const received = Number(cline.received) || 0
-          const unitCost = cline.unitCost != null ? Number(cline.unitCost) : null
-          const totalCost = cline.totalCost != null ? Number(cline.totalCost) : (unitCost != null ? unitCost * (received || ordered) : null)
-          const overheadCategory = cline.overheadCategory || 'General Overhead'
+            // Update dim_ingredients last_purchase_cost on supplier receipt
+            if (!isTransfer && (updatedPo.status === 'received' || updatedPo.status === 'partially_received') && unitCost > 0) {
+              queryD1(
+                `UPDATE dim_ingredients SET last_purchase_cost = ?, last_purchase_date = ? WHERE ingredient_id = ?`,
+                [unitCost, updatedPo.receivedDate || new Date().toISOString().slice(0, 10), line.ingredientId]
+              ).catch(console.error)
+            }
+          })
 
-          queryD1(
-            `INSERT OR REPLACE INTO fact_purchase_order_lines (
-              po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
-            ) VALUES (?, ?, NULL, ?, 1, ?, ?, ?, ?, ?, 'overhead', ?)`,
-            [id, lineIndex, cline.name || 'One-off item', ordered, received, cline.unit || 'шт', unitCost, totalCost, overheadCategory]
-          ).catch(console.error)
-        })
+          ;(updatedPo.customLines || []).forEach((cline, idx) => {
+            const lineIndex = 1000 + idx
+            const ordered = Number(cline.ordered) || 0
+            const received = Number(cline.received) || 0
+            const unitCost = cline.unitCost != null ? Number(cline.unitCost) : null
+            const totalCost = cline.totalCost != null ? Number(cline.totalCost) : (unitCost != null ? unitCost * (received || ordered) : null)
+            const overheadCategory = cline.overheadCategory || 'General Overhead'
+
+            queryD1(
+              `INSERT OR REPLACE INTO fact_purchase_order_lines (
+                po_id, line_index, ingredient_id, ingredient_name, is_custom_item, ordered_quantity, received_quantity, unit, unit_cost, total_cost, cost_category, overhead_category
+              ) VALUES (?, ?, NULL, ?, 1, ?, ?, ?, ?, ?, 'overhead', ?)`,
+              [id, lineIndex, cline.name || 'One-off item', ordered, received, cline.unit || 'шт', unitCost, totalCost, overheadCategory]
+            ).catch(console.error)
+          })
+        }).catch(console.error)
       }
 
       // 3. Update legacy purchase_orders
       queryD1(`UPDATE purchase_orders SET status = ?, receivedAt = ?, createdDate = ?, sentDate = ?, fromLocation = ?, toLocation = ?, lines = ? WHERE id = ?`, 
         [updatedPo.status, updatedPo.receivedAt || null, updatedPo.createdDate || null, updatedPo.sentDate || null, updatedPo.fromLocation || null, updatedPo.toLocation || null, JSON.stringify({ regular: updatedPo.lines || [], custom: updatedPo.customLines || [] }), id]).catch(console.error)
 
-      // 4. Handle transfer transactions
+      // 4. Handle transfer transactions (delete by po_id atomically before inserting)
       let newTxns = prev.transactions
       let nextTxId = prev._nextTxId
 
       if (po.status === 'received' || updatedPo.status === 'received') {
         const wasTransfer = po.fromLocation && po.toLocation
         if (wasTransfer || isTransfer) {
-          const oldTxns = newTxns.filter(t => t.poId === id)
-          oldTxns.forEach(t => {
-            queryD1(`DELETE FROM fact_inventory_transactions WHERE transaction_id = ?`, [t.id]).catch(console.error)
-            queryD1(`DELETE FROM transactions WHERE id = ?`, [t.id]).catch(console.error)
-            lhPush(settings, [LH_PUSH.del('fact_inventory_transactions', `transaction_id = '${t.id}'`)])
-          })
-          
+          const delFactTx = queryD1(`DELETE FROM fact_inventory_transactions WHERE po_id = ?`, [id])
+          const delLegacyTx = queryD1(`DELETE FROM transactions WHERE poId = ?`, [id])
+          const lhTxStmts = [LH_PUSH.del('fact_inventory_transactions', `po_id = '${esc(id)}'`)]
+          const txRowsToInsert = []
+
           newTxns = newTxns.filter(t => t.poId !== id)
 
           if (isTransfer) {
@@ -1093,23 +1093,36 @@ export function ConfigProvider({ children }) {
 
                 const tx1 = { id: tx1Id, ingredientId: l.ingredientId, store: updatedPo.fromLocation, storeId: fromId, date: rDate, type: 'adjustment', quantity: -qty, poId: id, timestamp: nowIso }
                 const tx2 = { id: tx2Id, ingredientId: l.ingredientId, store: updatedPo.toLocation, storeId: toId, date: rDate, type: 'adjustment', quantity: qty, poId: id, timestamp: nowIso }
-                
-                queryD1(`INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [tx1.id, fromId, resolveStoreCode(fromId), tx1.date, tx1.timestamp, tx1.type, tx1.ingredientId, l.name || '', tx1.quantity, tx1.poId]).catch(console.error)
-                queryD1(`INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  [tx2.id, toId, resolveStoreCode(toId), tx2.date, tx2.timestamp, tx2.type, tx2.ingredientId, l.name || '', tx2.quantity, tx2.poId]).catch(console.error)
 
-                queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx1.id, tx1.store, tx1.date, tx1.type, tx1.ingredientId, tx1.quantity, tx1.poId, tx1.timestamp]).catch(console.error)
-                queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [tx2.id, tx2.store, tx2.date, tx2.type, tx2.ingredientId, tx2.quantity, tx2.poId, tx2.timestamp]).catch(console.error)
-                lhPush(settings, [
+                txRowsToInsert.push(
+                  { tx: tx1, sId: fromId, name: l.name || '' },
+                  { tx: tx2, sId: toId, name: l.name || '' }
+                )
+                lhTxStmts.push(
                   LH_PUSH.tx({ id: tx1.id, storeId: fromId, storeCode: resolveStoreCode(fromId), date: tx1.date, ts: tx1.timestamp, type: tx1.type, ingredientId: tx1.ingredientId, ingredientName: l.name || '', qty: tx1.quantity, poId: tx1.poId }),
-                  LH_PUSH.tx({ id: tx2.id, storeId: toId, storeCode: resolveStoreCode(toId), date: tx2.date, ts: tx2.timestamp, type: tx2.type, ingredientId: tx2.ingredientId, ingredientName: l.name || '', qty: tx2.quantity, poId: tx2.poId }),
-                ])
-                
+                  LH_PUSH.tx({ id: tx2.id, storeId: toId, storeCode: resolveStoreCode(toId), date: tx2.date, ts: tx2.timestamp, type: tx2.type, ingredientId: tx2.ingredientId, ingredientName: l.name || '', qty: tx2.quantity, poId: tx2.poId })
+                )
+
                 newTxns.push(tx1, tx2)
               }
             })
           }
+
+          delFactTx.then(() => {
+            txRowsToInsert.forEach(({ tx, sId, name }) => {
+              queryD1(`INSERT INTO fact_inventory_transactions (transaction_id, store_id, store_code, transaction_date, transaction_timestamp, transaction_type, ingredient_id, ingredient_name, quantity, po_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [tx.id, sId, resolveStoreCode(sId), tx.date, tx.timestamp, tx.type, tx.ingredientId, name, tx.quantity, tx.poId]).catch(console.error)
+            })
+          }).catch(console.error)
+
+          delLegacyTx.then(() => {
+            txRowsToInsert.forEach(({ tx }) => {
+              queryD1(`INSERT INTO transactions (id, store, date, type, ingredientId, quantity, poId, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [tx.id, tx.store, tx.date, tx.type, tx.ingredientId, tx.quantity, tx.poId, tx.timestamp]).catch(console.error)
+            })
+          }).catch(console.error)
+
+          lhPush(settings, lhTxStmts)
         }
       }
 
